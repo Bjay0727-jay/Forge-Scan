@@ -1,0 +1,194 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: forgescan-ingress
+  namespace: forgescan
+  labels:
+    app.kubernetes.io/name: forgescan
+    app.kubernetes.io/component: ingress
+  annotations:
+    # NGINX Ingress Controller annotations
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+
+    # Rate limiting
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-connections: "50"
+
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header X-Frame-Options "DENY" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header X-XSS-Protection "1; mode=block" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+      add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';" always;
+
+    # Cert-manager for TLS
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - forgescan.example.com
+        - api.forgescan.example.com
+      secretName: forgescan-tls-cert
+  rules:
+    - host: forgescan.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: forgescan-dashboard
+                port:
+                  number: 80
+    - host: api.forgescan.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: forgescan-api
+                port:
+                  number: 80
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: forgescan-api
+                port:
+                  number: 80
+---
+# gRPC Ingress for scanner connections (requires HTTP/2)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: forgescan-grpc-ingress
+  namespace: forgescan
+  labels:
+    app.kubernetes.io/name: forgescan
+    app.kubernetes.io/component: grpc-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - grpc.forgescan.example.com
+      secretName: forgescan-grpc-tls-cert
+  rules:
+    - host: grpc.forgescan.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: forgescan-api
+                port:
+                  number: 50051
+---
+# Network Policy - API access
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: forgescan-api-network-policy
+  namespace: forgescan
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: forgescan-api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 50051
+    # Allow from scanners
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/name: forgescan-scanners
+      ports:
+        - protocol: TCP
+          port: 50051
+  egress:
+    # Allow to database
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/name: forgescan-data
+      ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 6379
+    # Allow to external APIs (Tenable, Qualys, Rapid7, NVD)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+    # Allow DNS
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+---
+# Network Policy - Scanner access
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: forgescan-scanner-network-policy
+  namespace: forgescan-scanners
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: scanner
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []  # No inbound connections needed
+  egress:
+    # Allow to API
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/name: forgescan
+      ports:
+        - protocol: TCP
+          port: 50051
+    # Allow to scan targets (all external IPs)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+    # Allow DNS
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53

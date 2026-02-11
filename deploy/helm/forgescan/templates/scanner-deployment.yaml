@@ -1,0 +1,271 @@
+{{- if .Values.networkScanner.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "forgescan.fullname" . }}-network-scanner
+  labels:
+    {{- include "forgescan.scanner.labels" . | nindent 4 }}
+    app.kubernetes.io/scanner-type: network
+spec:
+  {{- if not .Values.networkScanner.autoscaling.enabled }}
+  replicas: {{ .Values.networkScanner.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "forgescan.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: scanner
+      app.kubernetes.io/scanner-type: network
+  template:
+    metadata:
+      labels:
+        {{- include "forgescan.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: scanner
+        app.kubernetes.io/scanner-type: network
+    spec:
+      {{- include "forgescan.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "forgescan.scanner.serviceAccountName" . }}
+      # Network scanner requires root for raw sockets
+      securityContext:
+        runAsUser: 0
+        fsGroup: 0
+      containers:
+        - name: scanner
+          image: "{{ .Values.networkScanner.image.repository }}:{{ .Values.networkScanner.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.networkScanner.image.pullPolicy }}
+          args:
+            - "--mode={{ .Values.networkScanner.mode }}"
+            - "--grpc-endpoint={{ include "forgescan.fullname" . }}-api:{{ .Values.api.service.grpcPort }}"
+          ports:
+            - name: grpc
+              containerPort: 50052
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          env:
+            - name: SCANNER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: NETWORK_SCAN_TIMEOUT
+              value: {{ .Values.networkScanner.config.scanTimeout | quote }}
+            - name: PORT_SCAN_RATE
+              value: {{ .Values.networkScanner.config.portScanRate | quote }}
+            - name: SYN_SCAN_ENABLED
+              value: {{ .Values.networkScanner.config.synScanEnabled | quote }}
+            - name: SERVICE_DETECTION_ENABLED
+              value: {{ .Values.networkScanner.config.serviceDetectionEnabled | quote }}
+            - name: OS_DETECTION_ENABLED
+              value: {{ .Values.networkScanner.config.osDetectionEnabled | quote }}
+          resources:
+            {{- toYaml .Values.networkScanner.resources | nindent 12 }}
+          securityContext:
+            capabilities:
+              {{- toYaml .Values.networkScanner.securityContext.capabilities | nindent 14 }}
+            readOnlyRootFilesystem: true
+          livenessProbe:
+            grpc:
+              port: 50052
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            grpc:
+              port: 50052
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: scan-results
+              mountPath: /var/lib/forgescan/results
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: scan-results
+          emptyDir:
+            sizeLimit: 5Gi
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  {{- include "forgescan.selectorLabels" . | nindent 18 }}
+                  app.kubernetes.io/scanner-type: network
+              topologyKey: kubernetes.io/hostname
+      {{- with .Values.networkScanner.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- if .Values.networkScanner.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "forgescan.fullname" . }}-network-scanner
+  labels:
+    {{- include "forgescan.scanner.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "forgescan.fullname" . }}-network-scanner
+  minReplicas: {{ .Values.networkScanner.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.networkScanner.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.networkScanner.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- end }}
+---
+{{- if .Values.webappScanner.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "forgescan.fullname" . }}-webapp-scanner
+  labels:
+    {{- include "forgescan.scanner.labels" . | nindent 4 }}
+    app.kubernetes.io/scanner-type: webapp
+spec:
+  replicas: {{ .Values.webappScanner.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "forgescan.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: scanner
+      app.kubernetes.io/scanner-type: webapp
+  template:
+    metadata:
+      labels:
+        {{- include "forgescan.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: scanner
+        app.kubernetes.io/scanner-type: webapp
+    spec:
+      {{- include "forgescan.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "forgescan.scanner.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: scanner
+          image: "{{ .Values.webappScanner.image.repository }}:{{ .Values.webappScanner.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.webappScanner.image.pullPolicy }}
+          args:
+            - "--mode={{ .Values.webappScanner.mode }}"
+            - "--grpc-endpoint={{ include "forgescan.fullname" . }}-api:{{ .Values.api.service.grpcPort }}"
+          ports:
+            - name: grpc
+              containerPort: 50052
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          env:
+            - name: SCANNER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: WEBAPP_SCAN_DEPTH
+              value: {{ .Values.webappScanner.config.scanDepth | quote }}
+            - name: WEBAPP_MAX_URLS
+              value: {{ .Values.webappScanner.config.maxUrls | quote }}
+            - name: WEBAPP_TIMEOUT_SECONDS
+              value: {{ .Values.webappScanner.config.timeoutSeconds | quote }}
+            - name: WEBAPP_USER_AGENT
+              value: {{ .Values.webappScanner.config.userAgent | quote }}
+          resources:
+            {{- toYaml .Values.webappScanner.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}
+---
+{{- if .Values.cloudScanner.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "forgescan.fullname" . }}-cloud-scanner
+  labels:
+    {{- include "forgescan.scanner.labels" . | nindent 4 }}
+    app.kubernetes.io/scanner-type: cloud
+spec:
+  replicas: {{ .Values.cloudScanner.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "forgescan.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: scanner
+      app.kubernetes.io/scanner-type: cloud
+  template:
+    metadata:
+      labels:
+        {{- include "forgescan.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: scanner
+        app.kubernetes.io/scanner-type: cloud
+    spec:
+      {{- include "forgescan.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "forgescan.fullname" . }}-cloud-scanner
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: scanner
+          image: "{{ .Values.cloudScanner.image.repository }}:{{ .Values.cloudScanner.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.cloudScanner.image.pullPolicy }}
+          args:
+            - "--mode={{ .Values.cloudScanner.mode }}"
+            - "--grpc-endpoint={{ include "forgescan.fullname" . }}-api:{{ .Values.api.service.grpcPort }}"
+          ports:
+            - name: grpc
+              containerPort: 50052
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          env:
+            - name: SCANNER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: CLOUD_SCAN_REGIONS
+              value: {{ .Values.cloudScanner.config.regions | quote }}
+            - name: CLOUD_SCAN_PARALLEL
+              value: {{ .Values.cloudScanner.config.parallelScans | quote }}
+            {{- if .Values.cloudScanner.aws.region }}
+            - name: AWS_DEFAULT_REGION
+              value: {{ .Values.cloudScanner.aws.region | quote }}
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ include "forgescan.fullname" . }}-cloud-secrets
+                optional: true
+          resources:
+            {{- toYaml .Values.cloudScanner.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "forgescan.fullname" . }}-cloud-scanner
+  labels:
+    {{- include "forgescan.labels" . | nindent 4 }}
+  {{- if .Values.cloudScanner.aws.useIRSA }}
+  annotations:
+    eks.amazonaws.com/role-arn: {{ .Values.cloudScanner.aws.roleArn | quote }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,379 @@
+---
+# PostgreSQL StatefulSet for vulnerability data storage
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: forgescan-data
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: forgescan-platform
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres
+        app.kubernetes.io/component: database
+    spec:
+      securityContext:
+        fsGroup: 999
+        runAsUser: 999
+        runAsGroup: 999
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_DB
+              value: forgescan
+            - name: POSTGRES_USER
+              value: forgescan
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - forgescan
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - forgescan
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: init-scripts
+          configMap:
+            name: postgres-init
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 50Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: forgescan-data
+  labels:
+    app.kubernetes.io/name: postgres
+spec:
+  type: ClusterIP
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+  selector:
+    app.kubernetes.io/name: postgres
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: forgescan-data
+type: Opaque
+stringData:
+  password: "CHANGE_ME_USE_STRONG_PASSWORD"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: forgescan-data
+data:
+  01-init.sql: |
+    -- ForgeScan Database Schema
+
+    -- Enable extensions
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+
+    -- Assets table
+    CREATE TABLE IF NOT EXISTS assets (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        hostname VARCHAR(255),
+        fqdn VARCHAR(255),
+        ip_addresses INET[],
+        mac_addresses MACADDR[],
+        os VARCHAR(255),
+        os_version VARCHAR(100),
+        asset_type VARCHAR(50),
+        network_zone VARCHAR(100),
+        tags TEXT[],
+        first_seen TIMESTAMPTZ DEFAULT NOW(),
+        last_seen TIMESTAMPTZ DEFAULT NOW(),
+        authenticated BOOLEAN DEFAULT FALSE,
+        has_agent BOOLEAN DEFAULT FALSE,
+        attributes JSONB DEFAULT '{}',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE INDEX idx_assets_hostname ON assets(hostname);
+    CREATE INDEX idx_assets_ip ON assets USING GIN(ip_addresses);
+    CREATE INDEX idx_assets_tags ON assets USING GIN(tags);
+    CREATE INDEX idx_assets_last_seen ON assets(last_seen);
+
+    -- Vulnerabilities (definitions)
+    CREATE TABLE IF NOT EXISTS vulnerabilities (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        cve_id VARCHAR(20) UNIQUE,
+        title VARCHAR(500) NOT NULL,
+        description TEXT,
+        severity VARCHAR(20) NOT NULL,
+        cvss_score DECIMAL(3,1),
+        cvss_vector VARCHAR(200),
+        cwe_ids TEXT[],
+        published_at TIMESTAMPTZ,
+        modified_at TIMESTAMPTZ,
+        epss_score DECIMAL(5,4),
+        epss_percentile DECIMAL(5,4),
+        in_kev BOOLEAN DEFAULT FALSE,
+        exploit_available BOOLEAN DEFAULT FALSE,
+        references JSONB DEFAULT '[]',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE INDEX idx_vulnerabilities_cve ON vulnerabilities(cve_id);
+    CREATE INDEX idx_vulnerabilities_severity ON vulnerabilities(severity);
+    CREATE INDEX idx_vulnerabilities_cvss ON vulnerabilities(cvss_score);
+    CREATE INDEX idx_vulnerabilities_kev ON vulnerabilities(in_kev) WHERE in_kev = TRUE;
+
+    -- Findings (vulnerability instances on assets)
+    CREATE TABLE IF NOT EXISTS findings (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        asset_id UUID REFERENCES assets(id) ON DELETE CASCADE,
+        vulnerability_id UUID REFERENCES vulnerabilities(id),
+        vendor VARCHAR(50) NOT NULL,
+        vendor_id VARCHAR(100) NOT NULL,
+        title VARCHAR(500) NOT NULL,
+        description TEXT,
+        severity VARCHAR(20) NOT NULL,
+        frs_score DECIMAL(4,2),
+        port INTEGER,
+        protocol VARCHAR(10),
+        service VARCHAR(100),
+        state VARCHAR(20) DEFAULT 'open',
+        first_seen TIMESTAMPTZ DEFAULT NOW(),
+        last_seen TIMESTAMPTZ DEFAULT NOW(),
+        fixed_at TIMESTAMPTZ,
+        solution TEXT,
+        evidence TEXT,
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(asset_id, vendor, vendor_id, port)
+    );
+
+    CREATE INDEX idx_findings_asset ON findings(asset_id);
+    CREATE INDEX idx_findings_vuln ON findings(vulnerability_id);
+    CREATE INDEX idx_findings_severity ON findings(severity);
+    CREATE INDEX idx_findings_state ON findings(state);
+    CREATE INDEX idx_findings_frs ON findings(frs_score DESC);
+    CREATE INDEX idx_findings_first_seen ON findings(first_seen);
+
+    -- Scans
+    CREATE TABLE IF NOT EXISTS scans (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        name VARCHAR(255) NOT NULL,
+        scan_type VARCHAR(50) NOT NULL,
+        targets JSONB NOT NULL,
+        config JSONB DEFAULT '{}',
+        status VARCHAR(20) DEFAULT 'pending',
+        started_at TIMESTAMPTZ,
+        completed_at TIMESTAMPTZ,
+        findings_count INTEGER DEFAULT 0,
+        assets_count INTEGER DEFAULT 0,
+        error_message TEXT,
+        created_by VARCHAR(255),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE INDEX idx_scans_status ON scans(status);
+    CREATE INDEX idx_scans_type ON scans(scan_type);
+    CREATE INDEX idx_scans_created ON scans(created_at DESC);
+
+    -- Ingestion jobs
+    CREATE TABLE IF NOT EXISTS ingestion_jobs (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        vendor VARCHAR(50) NOT NULL,
+        source VARCHAR(255),
+        status VARCHAR(20) DEFAULT 'pending',
+        started_at TIMESTAMPTZ,
+        completed_at TIMESTAMPTZ,
+        records_processed INTEGER DEFAULT 0,
+        records_imported INTEGER DEFAULT 0,
+        records_skipped INTEGER DEFAULT 0,
+        errors JSONB DEFAULT '[]',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE INDEX idx_ingestion_vendor ON ingestion_jobs(vendor);
+    CREATE INDEX idx_ingestion_status ON ingestion_jobs(status);
+
+    -- Audit log
+    CREATE TABLE IF NOT EXISTS audit_log (
+        id BIGSERIAL PRIMARY KEY,
+        action VARCHAR(50) NOT NULL,
+        resource_type VARCHAR(50) NOT NULL,
+        resource_id UUID,
+        user_id VARCHAR(255),
+        details JSONB,
+        ip_address INET,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE INDEX idx_audit_action ON audit_log(action);
+    CREATE INDEX idx_audit_resource ON audit_log(resource_type, resource_id);
+    CREATE INDEX idx_audit_user ON audit_log(user_id);
+    CREATE INDEX idx_audit_created ON audit_log(created_at DESC);
+
+    -- Update timestamp trigger
+    CREATE OR REPLACE FUNCTION update_updated_at()
+    RETURNS TRIGGER AS $$
+    BEGIN
+        NEW.updated_at = NOW();
+        RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+
+    CREATE TRIGGER update_assets_updated_at
+        BEFORE UPDATE ON assets
+        FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+    CREATE TRIGGER update_vulnerabilities_updated_at
+        BEFORE UPDATE ON vulnerabilities
+        FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+    CREATE TRIGGER update_findings_updated_at
+        BEFORE UPDATE ON findings
+        FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+    CREATE TRIGGER update_scans_updated_at
+        BEFORE UPDATE ON scans
+        FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+---
+# Redis for caching and pub/sub
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: forgescan-data
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/component: cache
+    app.kubernetes.io/part-of: forgescan-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis
+        app.kubernetes.io/component: cache
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args:
+            - redis-server
+            - --appendonly
+            - "yes"
+            - --maxmemory
+            - 512mb
+            - --maxmemory-policy
+            - allkeys-lru
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 768Mi
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir:
+            sizeLimit: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: forgescan-data
+  labels:
+    app.kubernetes.io/name: redis
+spec:
+  type: ClusterIP
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+  selector:
+    app.kubernetes.io/name: redis

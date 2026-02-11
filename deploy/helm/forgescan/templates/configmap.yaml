@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "forgescan.fullname" . }}-config
+  labels:
+    {{- include "forgescan.labels" . | nindent 4 }}
+data:
+  # Logging
+  RUST_LOG: {{ .Values.logging.level | quote }}
+  LOG_FORMAT: {{ .Values.logging.format | quote }}
+
+  # API configuration
+  API_PORT: "8080"
+  API_HOST: "0.0.0.0"
+  GRPC_PORT: "50051"
+
+  # Database
+  DATABASE_POOL_SIZE: "10"
+  DATABASE_TIMEOUT_SECONDS: "30"
+
+  # Redis
+  REDIS_POOL_SIZE: "5"
+
+  # NVD
+  {{- if .Values.nvd.enabled }}
+  NVD_SYNC_ENABLED: "true"
+  NVD_SYNC_INTERVAL_HOURS: {{ .Values.nvd.syncIntervalHours | quote }}
+  NVD_CACHE_TTL_SECONDS: {{ .Values.nvd.cacheTTLSeconds | quote }}
+  {{- end }}
+
+  # Vulnerability scoring
+  FRS_ENABLE_EPSS: "true"
+  FRS_ENABLE_KEV: "true"
+
+  # Metrics
+  METRICS_ENABLED: {{ .Values.metrics.enabled | quote }}

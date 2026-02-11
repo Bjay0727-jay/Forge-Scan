@@ -1,0 +1,285 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forgescan-network-scanner
+  namespace: forgescan-scanners
+  labels:
+    app.kubernetes.io/name: forgescan-network-scanner
+    app.kubernetes.io/component: scanner
+    app.kubernetes.io/part-of: forgescan-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: forgescan-network-scanner
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: forgescan-network-scanner
+        app.kubernetes.io/component: scanner
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      serviceAccountName: forgescan-scanner
+      # Network scanner needs elevated privileges for raw sockets
+      securityContext:
+        runAsUser: 0  # Required for raw socket access
+        fsGroup: 0
+      containers:
+        - name: scanner
+          image: ghcr.io/forge-cyber/forgescan-scanner:latest
+          imagePullPolicy: Always
+          args:
+            - "--mode=network"
+            - "--grpc-endpoint=forgescan-api.forgescan.svc:50051"
+          ports:
+            - name: grpc
+              containerPort: 50052
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: forgescan-scanner-config
+          env:
+            - name: SCANNER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          # NET_ADMIN capability required for SYN scanning and raw sockets
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - NET_RAW
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          livenessProbe:
+            grpc:
+              port: 50052
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            grpc:
+              port: 50052
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: scan-results
+              mountPath: /var/lib/forgescan/results
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: scan-results
+          emptyDir:
+            sizeLimit: 5Gi
+      # Spread scanners across nodes for network diversity
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: forgescan-network-scanner
+              topologyKey: kubernetes.io/hostname
+      tolerations:
+        - key: "forgescan/scanner"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forgescan-webapp-scanner
+  namespace: forgescan-scanners
+  labels:
+    app.kubernetes.io/name: forgescan-webapp-scanner
+    app.kubernetes.io/component: scanner
+    app.kubernetes.io/part-of: forgescan-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: forgescan-webapp-scanner
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: forgescan-webapp-scanner
+        app.kubernetes.io/component: scanner
+    spec:
+      serviceAccountName: forgescan-scanner
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: scanner
+          image: ghcr.io/forge-cyber/forgescan-scanner:latest
+          imagePullPolicy: Always
+          args:
+            - "--mode=webapp"
+            - "--grpc-endpoint=forgescan-api.forgescan.svc:50051"
+          ports:
+            - name: grpc
+              containerPort: 50052
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: forgescan-scanner-config
+          env:
+            - name: SCANNER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forgescan-cloud-scanner
+  namespace: forgescan-scanners
+  labels:
+    app.kubernetes.io/name: forgescan-cloud-scanner
+    app.kubernetes.io/component: scanner
+    app.kubernetes.io/part-of: forgescan-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: forgescan-cloud-scanner
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: forgescan-cloud-scanner
+        app.kubernetes.io/component: scanner
+    spec:
+      serviceAccountName: forgescan-cloud-scanner
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: scanner
+          image: ghcr.io/forge-cyber/forgescan-scanner:latest
+          imagePullPolicy: Always
+          args:
+            - "--mode=cloud"
+            - "--grpc-endpoint=forgescan-api.forgescan.svc:50051"
+          ports:
+            - name: grpc
+              containerPort: 50052
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: forgescan-scanner-config
+            - secretRef:
+                name: forgescan-cloud-secrets
+          env:
+            - name: SCANNER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: aws-config
+              mountPath: /home/forgescan/.aws
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: aws-config
+          emptyDir: {}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: forgescan-scanner
+  namespace: forgescan-scanners
+  labels:
+    app.kubernetes.io/name: forgescan-scanner
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: forgescan-cloud-scanner
+  namespace: forgescan-scanners
+  labels:
+    app.kubernetes.io/name: forgescan-cloud-scanner
+  annotations:
+    # For AWS EKS IRSA (IAM Roles for Service Accounts)
+    # eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/forgescan-cloud-scanner
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: forgescan-network-scanner
+  namespace: forgescan-scanners
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: forgescan-network-scanner
+  minReplicas: 2
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60

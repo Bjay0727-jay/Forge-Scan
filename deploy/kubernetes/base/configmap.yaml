@@ -1,0 +1,65 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: forgescan-config
+  namespace: forgescan
+  labels:
+    app.kubernetes.io/name: forgescan
+data:
+  # Logging configuration
+  RUST_LOG: "info,forgescan=debug"
+  LOG_FORMAT: "json"
+
+  # Scanner configuration
+  SCAN_TIMEOUT_SECONDS: "300"
+  SCAN_CONCURRENCY: "10"
+  SCAN_RATE_LIMIT: "1000"
+
+  # gRPC configuration
+  GRPC_PORT: "50051"
+  GRPC_MAX_MESSAGE_SIZE: "16777216"
+
+  # API configuration
+  API_PORT: "8080"
+  API_HOST: "0.0.0.0"
+
+  # Database configuration
+  DATABASE_POOL_SIZE: "10"
+  DATABASE_TIMEOUT_SECONDS: "30"
+
+  # Redis configuration
+  REDIS_POOL_SIZE: "5"
+
+  # NVD configuration
+  NVD_SYNC_INTERVAL_HOURS: "24"
+  NVD_CACHE_TTL_SECONDS: "86400"
+
+  # Vulnerability scoring
+  FRS_ENABLE_EPSS: "true"
+  FRS_ENABLE_KEV: "true"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: forgescan-scanner-config
+  namespace: forgescan-scanners
+  labels:
+    app.kubernetes.io/name: forgescan-scanner
+data:
+  # Network scanner configuration
+  NETWORK_SCAN_TIMEOUT: "60"
+  PORT_SCAN_RATE: "1000"
+  SYN_SCAN_ENABLED: "true"
+  SERVICE_DETECTION_ENABLED: "true"
+  OS_DETECTION_ENABLED: "true"
+
+  # Web app scanner configuration
+  WEBAPP_SCAN_DEPTH: "3"
+  WEBAPP_MAX_URLS: "1000"
+  WEBAPP_TIMEOUT_SECONDS: "30"
+  WEBAPP_USER_AGENT: "ForgeScan/1.0"
+
+  # Cloud scanner configuration
+  CLOUD_SCAN_REGIONS: "us-east-1,us-west-2,eu-west-1"
+  CLOUD_SCAN_PARALLEL: "5"

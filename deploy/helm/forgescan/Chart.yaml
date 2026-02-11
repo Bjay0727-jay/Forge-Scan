@@ -1,0 +1,35 @@
+apiVersion: v2
+name: forgescan
+description: ForgeScan 360 - Enterprise Vulnerability Management Platform
+
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords:
+  - vulnerability-management
+  - security
+  - scanning
+  - compliance
+
+home: https://github.com/forge-cyber/forgescan
+sources:
+  - https://github.com/forge-cyber/forgescan
+
+maintainers:
+  - name: Forge Cyber Defense
+    email: support@forgecyber.com
+
+dependencies:
+  - name: postgresql
+    version: "14.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+  - name: redis
+    version: "18.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
+
+annotations:
+  artifacthub.io/category: security
+  artifacthub.io/license: Proprietary

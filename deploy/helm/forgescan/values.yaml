@@ -1,0 +1,352 @@
+# Default values for ForgeScan
+# This is a YAML-formatted file.
+
+# -- Global settings
+global:
+  # -- Image pull secrets for private registries
+  imagePullSecrets: []
+  # -- Storage class for persistent volumes
+  storageClass: ""
+
+# -- API Server configuration
+api:
+  # -- Enable API deployment
+  enabled: true
+  # -- Number of API replicas
+  replicaCount: 2
+
+  image:
+    repository: ghcr.io/forge-cyber/forgescan-api
+    pullPolicy: Always
+    tag: "latest"
+
+  # -- Service configuration
+  service:
+    type: ClusterIP
+    httpPort: 80
+    grpcPort: 50051
+
+  # -- Resource limits
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  # -- Horizontal Pod Autoscaler
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  # -- Pod disruption budget
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  # -- Extra environment variables
+  extraEnv: []
+
+  # -- Node selector
+  nodeSelector: {}
+
+  # -- Tolerations
+  tolerations: []
+
+  # -- Affinity rules
+  affinity: {}
+
+# -- Network Scanner configuration
+networkScanner:
+  # -- Enable network scanner
+  enabled: true
+  # -- Number of replicas
+  replicaCount: 2
+
+  image:
+    repository: ghcr.io/forge-cyber/forgescan-scanner
+    pullPolicy: Always
+    tag: "latest"
+
+  # -- Scanner mode
+  mode: network
+
+  # -- Resource limits (higher for network scanning)
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+  # -- Security context (requires NET_ADMIN for SYN scanning)
+  securityContext:
+    runAsUser: 0
+    capabilities:
+      add:
+        - NET_ADMIN
+        - NET_RAW
+      drop:
+        - ALL
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 60
+
+  # -- Scanner-specific configuration
+  config:
+    scanTimeout: 60
+    portScanRate: 1000
+    synScanEnabled: true
+    serviceDetectionEnabled: true
+    osDetectionEnabled: true
+
+  # -- Tolerations for dedicated scanner nodes
+  tolerations:
+    - key: "forgescan/scanner"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+
+# -- Web App Scanner configuration
+webappScanner:
+  # -- Enable webapp scanner
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: ghcr.io/forge-cyber/forgescan-scanner
+    pullPolicy: Always
+    tag: "latest"
+
+  mode: webapp
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  config:
+    scanDepth: 3
+    maxUrls: 1000
+    timeoutSeconds: 30
+    userAgent: "ForgeScan/1.0"
+
+# -- Cloud Scanner configuration
+cloudScanner:
+  # -- Enable cloud scanner
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: ghcr.io/forge-cyber/forgescan-scanner
+    pullPolicy: Always
+    tag: "latest"
+
+  mode: cloud
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  config:
+    regions: "us-east-1,us-west-2,eu-west-1"
+    parallelScans: 5
+
+  # -- AWS configuration
+  aws:
+    # -- Use IAM Roles for Service Accounts (EKS)
+    useIRSA: false
+    # -- IAM Role ARN (if using IRSA)
+    roleArn: ""
+    # -- Default region
+    region: "us-east-1"
+
+  # -- Azure configuration
+  azure:
+    enabled: false
+    tenantId: ""
+    clientId: ""
+
+  # -- GCP configuration
+  gcp:
+    enabled: false
+    projectId: ""
+
+# -- Ingestion service configuration
+ingestion:
+  enabled: true
+
+  # -- Tenable.io integration
+  tenable:
+    enabled: false
+    accessKey: ""
+    secretKey: ""
+
+  # -- Qualys integration
+  qualys:
+    enabled: false
+    username: ""
+    password: ""
+    apiUrl: "https://qualysapi.qualys.com"
+
+  # -- Rapid7 integration
+  rapid7:
+    enabled: false
+    apiKey: ""
+    apiUrl: "https://us.api.insight.rapid7.com"
+
+# -- Ingress configuration
+ingress:
+  # -- Enable ingress
+  enabled: true
+  # -- Ingress class name
+  className: nginx
+  # -- Annotations
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  # -- Hosts configuration
+  hosts:
+    - host: forgescan.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: dashboard
+        - path: /api
+          pathType: Prefix
+          service: api
+  # -- TLS configuration
+  tls:
+    - secretName: forgescan-tls
+      hosts:
+        - forgescan.example.com
+
+# -- gRPC Ingress (separate for HTTP/2)
+grpcIngress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  host: grpc.forgescan.example.com
+  tls:
+    secretName: forgescan-grpc-tls
+
+# -- PostgreSQL configuration (using Bitnami chart)
+postgresql:
+  # -- Enable bundled PostgreSQL
+  enabled: true
+  auth:
+    username: forgescan
+    password: ""  # Auto-generated if empty
+    database: forgescan
+  primary:
+    persistence:
+      size: 50Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+  # -- External PostgreSQL (if postgresql.enabled is false)
+  external:
+    host: ""
+    port: 5432
+    database: forgescan
+    username: forgescan
+    password: ""
+    existingSecret: ""
+
+# -- Redis configuration (using Bitnami chart)
+redis:
+  # -- Enable bundled Redis
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+  master:
+    persistence:
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  # -- External Redis (if redis.enabled is false)
+  external:
+    host: ""
+    port: 6379
+    password: ""
+
+# -- NVD integration
+nvd:
+  # -- Enable NVD sync
+  enabled: true
+  # -- NVD API key (optional, for higher rate limits)
+  apiKey: ""
+  # -- Sync interval in hours
+  syncIntervalHours: 24
+  # -- Cache TTL in seconds
+  cacheTTLSeconds: 86400
+
+# -- Logging configuration
+logging:
+  level: info
+  format: json
+
+# -- Metrics and monitoring
+metrics:
+  # -- Enable Prometheus metrics
+  enabled: true
+  # -- ServiceMonitor for Prometheus Operator
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    labels: {}
+
+# -- Network policies
+networkPolicy:
+  # -- Enable network policies
+  enabled: true
+
+# -- Service account
+serviceAccount:
+  # -- Create service accounts
+  create: true
+  # -- Annotations (for IRSA, etc.)
+  annotations: {}
+
+# -- Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+# -- Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
