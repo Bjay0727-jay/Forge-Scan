@@ -1,0 +1,175 @@
+syntax = "proto3";
+
+package forgescan.agent;
+
+import "common.proto";
+import "results.proto";
+
+option java_multiple_files = true;
+option java_package = "com.forgecyber.forgescan.agent";
+
+// Service for agent-to-platform communication
+service AgentService {
+    // Register a new agent with the platform
+    rpc Register(AgentRegistration) returns (AgentRegistrationResponse);
+
+    // Bidirectional streaming for heartbeat and commands
+    rpc AgentStream(stream AgentMessage) returns (stream PlatformMessage);
+
+    // Stream findings back to platform
+    rpc ReportFindings(stream forgescan.results.Finding) returns (ReportResponse);
+
+    // Request certificate renewal
+    rpc RenewCertificate(CertRenewalRequest) returns (CertRenewalResponse);
+}
+
+// Agent registration request
+message AgentRegistration {
+    string hostname = 1;
+    string os = 2;              // "linux", "windows", "macos"
+    string os_version = 3;
+    string architecture = 4;     // "x86_64", "aarch64"
+    string agent_version = 5;
+    string mac_address = 6;
+    repeated string ip_addresses = 7;
+    bytes csr = 8;              // Certificate Signing Request for mTLS
+    map<string, string> labels = 9;  // Custom labels for grouping
+}
+
+// Agent registration response
+message AgentRegistrationResponse {
+    bool success = 1;
+    string agent_id = 2;
+    bytes certificate = 3;       // Signed certificate for mTLS
+    bytes ca_certificate = 4;    // CA certificate for verification
+    AgentConfig config = 5;
+    string error_message = 6;
+}
+
+// Agent configuration
+message AgentConfig {
+    uint32 heartbeat_interval_seconds = 1;
+    uint32 scan_cpu_limit_percent = 2;
+    uint32 scan_memory_limit_mb = 3;
+    repeated string enabled_checks = 4;
+    string nvd_update_url = 5;
+    bool auto_update = 6;
+    map<string, string> custom_settings = 7;
+}
+
+// Messages from agent to platform
+message AgentMessage {
+    forgescan.common.Timestamp timestamp = 1;
+    string agent_id = 2;
+
+    oneof message {
+        AgentHeartbeat heartbeat = 3;
+        ScanStatus scan_status = 4;
+        AgentError error = 5;
+    }
+}
+
+// Agent heartbeat
+message AgentHeartbeat {
+    AgentState state = 1;
+    ResourceUsage resources = 2;
+    uint64 uptime_seconds = 3;
+    string version = 4;
+}
+
+enum AgentState {
+    AGENT_STATE_UNSPECIFIED = 0;
+    AGENT_STATE_IDLE = 1;
+    AGENT_STATE_SCANNING = 2;
+    AGENT_STATE_UPDATING = 3;
+    AGENT_STATE_ERROR = 4;
+}
+
+message ResourceUsage {
+    float cpu_percent = 1;
+    uint64 memory_bytes = 2;
+    uint64 disk_bytes = 3;
+}
+
+// Scan status update from agent
+message ScanStatus {
+    string task_id = 1;
+    float progress_percent = 2;
+    uint32 findings_count = 3;
+    string current_check = 4;
+}
+
+// Error report from agent
+message AgentError {
+    string error_code = 1;
+    string error_message = 2;
+    string context = 3;
+}
+
+// Messages from platform to agent
+message PlatformMessage {
+    forgescan.common.Timestamp timestamp = 1;
+
+    oneof message {
+        PlatformAck ack = 2;
+        ScanCommand scan_command = 3;
+        CancelCommand cancel_command = 4;
+        UpdateCommand update_command = 5;
+        ConfigUpdate config_update = 6;
+    }
+}
+
+// Acknowledgement
+message PlatformAck {
+    bool received = 1;
+}
+
+// Command to start a scan
+message ScanCommand {
+    string task_id = 1;
+    repeated string check_ids = 2;
+    repeated forgescan.common.CheckCategory categories = 3;
+    forgescan.common.ScanIntensity intensity = 4;
+    uint32 timeout_seconds = 5;
+    map<string, string> parameters = 6;
+}
+
+// Command to cancel a running scan
+message CancelCommand {
+    string task_id = 1;
+    string reason = 2;
+}
+
+// Command to update the agent
+message UpdateCommand {
+    string version = 1;
+    string download_url = 2;
+    bytes checksum = 3;
+    string checksum_algorithm = 4;  // "sha256"
+}
+
+// Configuration update
+message ConfigUpdate {
+    AgentConfig config = 1;
+}
+
+// Report findings response
+message ReportResponse {
+    bool success = 1;
+    uint32 findings_accepted = 2;
+    repeated string errors = 3;
+}
+
+// Certificate renewal request
+message CertRenewalRequest {
+    string agent_id = 1;
+    bytes csr = 2;
+}
+
+// Certificate renewal response
+message CertRenewalResponse {
+    bool success = 1;
+    bytes certificate = 2;
+    forgescan.common.Timestamp expires_at = 3;
+    string error_message = 4;
+}

@@ -1,0 +1,110 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/forgescan-core",
+    "crates/forgescan-common",
+    "crates/forgescan-transport",
+    "crates/forgescan-checks",
+    "crates/forgescan-nvd",
+    "crates/forgescan-network",
+    "crates/forgescan-vuln",
+    "crates/forgescan-config-audit",
+    "crates/forgescan-webapp",
+    "crates/forgescan-cloud",
+    "crates/forgescan-scanner",
+    "crates/forgescan-agent",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Forge Cyber Defense"]
+license = "Proprietary"
+repository = "https://github.com/forge-cyber/forgescan-engine"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1.36", features = ["full"] }
+tokio-stream = "0.1"
+
+# gRPC
+tonic = "0.11"
+tonic-build = "0.11"
+prost = "0.12"
+prost-types = "0.12"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+toml = "0.8"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Logging & tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Networking
+socket2 = { version = "0.5", features = ["all"] }
+pnet = "0.34"
+trust-dns-resolver = "0.23"
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+
+# Database
+rusqlite = { version = "0.31", features = ["bundled"] }
+sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite", "postgres"] }
+
+# Crypto & TLS
+rustls = "0.22"
+rustls-pemfile = "2.1"
+rcgen = "0.12"
+sha2 = "0.10"
+hex = "0.4"
+
+# UUID
+uuid = { version = "1.7", features = ["v4", "serde"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+
+# Parallelism
+rayon = "1.9"
+
+# Regex
+regex = "1.10"
+
+# Glob patterns
+glob = "0.3"
+
+# HTTP/HTML parsing (for webapp scanning)
+scraper = "0.18"
+url = "2.5"
+
+# Cloud SDKs
+aws-config = "1.1"
+aws-sdk-ec2 = "1.16"
+aws-sdk-s3 = "1.15"
+aws-sdk-iam = "1.14"
+aws-sdk-inspector2 = "1.13"
+
+# Testing
+mockall = "0.12"
+tempfile = "3.10"
+wiremock = "0.6"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+opt-level = "z"  # Optimize for size (agent binary)
+
+[profile.release-scanner]
+inherits = "release"
+opt-level = 3    # Optimize for speed (scanner performance)
+strip = true

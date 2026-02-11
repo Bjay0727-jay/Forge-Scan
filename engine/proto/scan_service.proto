@@ -1,0 +1,221 @@
+syntax = "proto3";
+
+package forgescan.scan;
+
+import "common.proto";
+import "results.proto";
+
+option java_multiple_files = true;
+option java_package = "com.forgecyber.forgescan.scan";
+
+// Service for scanner-to-platform communication
+service ScanService {
+    // Execute a scan task and stream events back
+    rpc ExecuteScan(ScanTask) returns (stream ScanEvent);
+
+    // Batch upload results (for offline/async mode)
+    rpc UploadResults(stream forgescan.results.ScanResult) returns (UploadResponse);
+
+    // Scanner heartbeat and status reporting
+    rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+    // Receive configuration updates from platform
+    rpc GetConfiguration(ConfigRequest) returns (ScannerConfig);
+}
+
+// A scan task to execute
+message ScanTask {
+    string job_id = 1;
+    string task_id = 2;
+
+    // Targets to scan
+    repeated ScanTarget targets = 3;
+
+    // Which checks to run (empty = all applicable checks)
+    repeated string check_ids = 4;
+    repeated forgescan.common.CheckCategory categories = 5;
+    forgescan.common.Severity min_severity = 6;
+
+    // Scan parameters
+    forgescan.common.ScanIntensity intensity = 7;
+    uint32 timeout_seconds = 8;
+    uint32 max_concurrent_targets = 9;
+    uint32 max_concurrent_ports = 10;
+
+    // Port scanning options
+    PortScanConfig port_config = 11;
+
+    // Credentials for authenticated scanning
+    repeated CredentialRef credentials = 12;
+
+    // Cloud scanning options
+    repeated CloudConfig cloud_configs = 13;
+}
+
+// A target to scan
+message ScanTarget {
+    oneof target {
+        string ip = 1;           // Single IP: "192.168.1.1"
+        string cidr = 2;         // CIDR range: "192.168.1.0/24"
+        string hostname = 3;     // Hostname: "server.example.com"
+        string url = 4;          // Web app URL: "https://app.example.com"
+        IpRange ip_range = 5;    // IP range: "192.168.1.1-192.168.1.254"
+    }
+}
+
+message IpRange {
+    string start = 1;
+    string end = 2;
+}
+
+// Port scanning configuration
+message PortScanConfig {
+    repeated uint32 ports = 1;           // Explicit port list
+    string port_range = 2;               // Range: "1-1024" or "1-65535"
+    bool top_ports = 3;                  // Scan top N common ports
+    uint32 top_ports_count = 4;          // N for top ports (default 1000)
+    bool scan_udp = 5;                   // Include UDP scanning
+    uint32 connect_timeout_ms = 6;       // Per-port timeout
+}
+
+// Reference to credentials in vault
+message CredentialRef {
+    string id = 1;
+    string type = 2;     // "ssh", "winrm", "snmp", "http-basic", etc.
+    string vault_path = 3;
+}
+
+// Cloud provider configuration
+message CloudConfig {
+    string provider = 1;     // "aws", "azure", "gcp"
+    string region = 2;
+    string account_id = 3;
+    string role_arn = 4;     // For AWS assume role
+    map<string, string> options = 5;
+}
+
+// Events streamed during scan execution
+message ScanEvent {
+    forgescan.common.Timestamp timestamp = 1;
+
+    oneof event {
+        ScanProgress progress = 2;
+        forgescan.results.Finding finding = 3;
+        TargetDiscovered target_discovered = 4;
+        PortDiscovered port_discovered = 5;
+        ScanError error = 6;
+        ScanComplete complete = 7;
+    }
+}
+
+// Progress update
+message ScanProgress {
+    string task_id = 1;
+    uint32 targets_total = 2;
+    uint32 targets_completed = 3;
+    uint32 checks_total = 4;
+    uint32 checks_completed = 5;
+    float percent_complete = 6;
+    string current_target = 7;
+    string current_check = 8;
+    uint32 findings_so_far = 9;
+}
+
+// Host discovered during scanning
+message TargetDiscovered {
+    string ip = 1;
+    string hostname = 2;
+    string mac_address = 3;
+    string os_fingerprint = 4;
+    bool is_up = 5;
+}
+
+// Port discovered during scanning
+message PortDiscovered {
+    string target = 1;
+    uint32 port = 2;
+    string protocol = 3;
+    string state = 4;
+    string service = 5;
+    string version = 6;
+}
+
+// Error during scanning
+message ScanError {
+    string task_id = 1;
+    string target = 2;
+    string check_id = 3;
+    string error_code = 4;
+    string error_message = 5;
+    bool is_fatal = 6;
+}
+
+// Scan completion
+message ScanComplete {
+    string task_id = 1;
+    bool success = 2;
+    forgescan.results.ScanStats stats = 3;
+    string error_message = 4;
+}
+
+// Heartbeat request
+message HeartbeatRequest {
+    string scanner_id = 1;
+    string hostname = 2;
+    string version = 3;
+    ScannerStatus status = 4;
+    repeated string active_task_ids = 5;
+    ResourceUsage resources = 6;
+}
+
+message ScannerStatus {
+    enum State {
+        STATE_UNSPECIFIED = 0;
+        STATE_IDLE = 1;
+        STATE_SCANNING = 2;
+        STATE_UPDATING = 3;
+        STATE_ERROR = 4;
+    }
+    State state = 1;
+    uint32 queue_depth = 2;
+    uint32 active_scans = 3;
+}
+
+message ResourceUsage {
+    float cpu_percent = 1;
+    uint64 memory_bytes = 2;
+    uint64 disk_bytes = 3;
+    uint32 open_connections = 4;
+}
+
+// Heartbeat response
+message HeartbeatResponse {
+    bool acknowledged = 1;
+    forgescan.common.Timestamp server_time = 2;
+    repeated string cancel_task_ids = 3;  // Tasks to cancel
+    bool update_available = 4;
+    string update_version = 5;
+}
+
+// Configuration request
+message ConfigRequest {
+    string scanner_id = 1;
+    string current_config_version = 2;
+}
+
+// Scanner configuration
+message ScannerConfig {
+    string version = 1;
+    uint32 max_concurrent_scans = 2;
+    uint32 max_concurrent_targets = 3;
+    uint32 default_timeout_seconds = 4;
+    repeated string enabled_check_categories = 5;
+    map<string, string> custom_settings = 6;
+}
+
+// Upload response
+message UploadResponse {
+    bool success = 1;
+    uint32 findings_accepted = 2;
+    repeated string errors = 3;
+}

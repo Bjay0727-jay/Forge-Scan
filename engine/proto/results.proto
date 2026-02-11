@@ -1,0 +1,113 @@
+syntax = "proto3";
+
+package forgescan.results;
+
+import "common.proto";
+
+option java_multiple_files = true;
+option java_package = "com.forgecyber.forgescan.results";
+
+// A single vulnerability or misconfiguration finding
+message Finding {
+    // Unique finding ID (UUID)
+    string id = 1;
+
+    // Check that generated this finding
+    string check_id = 2;
+    string check_name = 3;
+
+    // Target information
+    string target = 4;           // IP, hostname, or URL
+    uint32 port = 5;             // 0 if not port-specific
+    string protocol = 6;         // "tcp", "udp", "http", etc.
+    string service = 7;          // "ssh", "http", "mysql", etc.
+    string service_version = 8;  // "OpenSSH 8.9", "Apache/2.4.49"
+
+    // Finding details
+    string title = 9;
+    string description = 10;
+    forgescan.common.Severity severity = 11;
+    forgescan.common.CheckCategory category = 12;
+
+    // CVE/CWE references
+    repeated string cve_ids = 13;
+    repeated string cwe_ids = 14;
+
+    // CVSS scoring
+    float cvss_v3_score = 15;
+    string cvss_v3_vector = 16;
+
+    // Exploit information
+    forgescan.common.ExploitMaturity exploit_maturity = 17;
+    bool cisa_kev = 18;  // In CISA Known Exploited Vulnerabilities catalog
+
+    // CPE (Common Platform Enumeration)
+    string affected_cpe = 19;
+
+    // Evidence and remediation
+    string evidence = 20;        // Proof of finding (banner, response snippet, etc.)
+    string remediation = 21;     // Recommended fix
+    repeated string references = 22;  // URLs to advisories, documentation
+
+    // Compliance mappings
+    repeated forgescan.common.ComplianceRef compliance_mappings = 23;
+
+    // Detection metadata
+    string detection_method = 24;  // "version-match", "active-probe", "config-check", etc.
+    forgescan.common.Timestamp detected_at = 25;
+
+    // Raw data for debugging/analysis
+    bytes raw_evidence = 26;
+}
+
+// Result of scanning a single target
+message TargetResult {
+    string target = 1;
+    string resolved_ip = 2;
+    string hostname = 3;
+    string os_fingerprint = 4;
+    repeated PortInfo open_ports = 5;
+    repeated Finding findings = 6;
+    forgescan.common.Timestamp scan_started = 7;
+    forgescan.common.Timestamp scan_completed = 8;
+    bool success = 9;
+    string error_message = 10;
+}
+
+// Information about an open port
+message PortInfo {
+    uint32 port = 1;
+    string protocol = 2;     // "tcp" or "udp"
+    string state = 3;        // "open", "filtered", "closed"
+    string service = 4;      // Detected service name
+    string version = 5;      // Detected version
+    string banner = 6;       // Raw banner
+    string cpe = 7;          // Derived CPE
+}
+
+// Complete scan result
+message ScanResult {
+    string job_id = 1;
+    string task_id = 2;
+    repeated TargetResult target_results = 3;
+    ScanStats stats = 4;
+    forgescan.common.Timestamp started_at = 5;
+    forgescan.common.Timestamp completed_at = 6;
+}
+
+// Scan statistics
+message ScanStats {
+    uint32 targets_total = 1;
+    uint32 targets_scanned = 2;
+    uint32 targets_up = 3;
+    uint32 targets_down = 4;
+    uint32 ports_scanned = 5;
+    uint32 ports_open = 6;
+    uint32 findings_total = 7;
+    uint32 findings_critical = 8;
+    uint32 findings_high = 9;
+    uint32 findings_medium = 10;
+    uint32 findings_low = 11;
+    uint32 findings_info = 12;
+    uint64 duration_ms = 13;
+}

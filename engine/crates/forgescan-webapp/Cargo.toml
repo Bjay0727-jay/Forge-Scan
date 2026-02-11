@@ -1,0 +1,21 @@
+[package]
+name = "forgescan-webapp"
+description = "Web application scanning (OWASP Top 10)"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+forgescan-core = { path = "../forgescan-core" }
+forgescan-common = { path = "../forgescan-common" }
+reqwest = { workspace = true }
+tokio = { workspace = true }
+scraper = { workspace = true }
+url = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+regex = { workspace = true }

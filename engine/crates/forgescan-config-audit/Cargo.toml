@@ -1,0 +1,23 @@
+[package]
+name = "forgescan-config-audit"
+description = "CIS/STIG configuration auditing checks (agent mode)"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+forgescan-core = { path = "../forgescan-core" }
+forgescan-checks = { path = "../forgescan-checks" }
+serde = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+regex = { workspace = true }
+glob = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.52"
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.28", features = ["fs", "user"] }

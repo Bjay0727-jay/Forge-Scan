@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ForgeScan 360 - Architecture Diagrams</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --forge-emerald: #10b981;
+      --forge-dark: #030712;
+      --forge-slate-900: #0f172a;
+      --forge-slate-800: #1e293b;
+      --forge-slate-700: #334155;
+      --forge-slate-400: #94a3b8;
+      --forge-slate-100: #f1f5f9;
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background: var(--forge-dark);
+      color: var(--forge-slate-100);
+      min-height: 100vh;
+      padding: 40px;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+      padding-bottom: 30px;
+      border-bottom: 1px solid var(--forge-slate-700);
+    }
+    
+    .header h1 {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, var(--forge-emerald), #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    
+    .header p {
+      color: var(--forge-slate-400);
+      font-size: 16px;
+    }
+    
+    .nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 40px;
+      padding: 20px;
+      background: var(--forge-slate-900);
+      border-radius: 12px;
+      border: 1px solid var(--forge-slate-700);
+    }
+    
+    .nav a {
+      padding: 10px 18px;
+      background: var(--forge-slate-800);
+      border: 1px solid var(--forge-slate-700);
+      border-radius: 8px;
+      color: var(--forge-slate-100);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    
+    .nav a:hover {
+      background: var(--forge-emerald);
+      border-color: var(--forge-emerald);
+      color: var(--forge-dark);
+    }
+    
+    .diagram-section {
+      margin-bottom: 60px;
+      background: var(--forge-slate-900);
+      border: 1px solid var(--forge-slate-700);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    
+    .diagram-header {
+      padding: 20px 30px;
+      background: var(--forge-slate-800);
+      border-bottom: 1px solid var(--forge-slate-700);
+    }
+    
+    .diagram-header h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    
+    .diagram-header p {
+      color: var(--forge-slate-400);
+      font-size: 14px;
+    }
+    
+    .diagram-content {
+      padding: 30px;
+      background: #ffffff;
+      min-height: 400px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    .mermaid {
+      width: 100%;
+    }
+    
+    .legend {
+      padding: 20px 30px;
+      background: var(--forge-slate-800);
+      border-top: 1px solid var(--forge-slate-700);
+      font-size: 12px;
+      color: var(--forge-slate-400);
+    }
+    
+    .legend-items {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .legend-color {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+    }
+    
+    @media print {
+      body { background: white; color: black; }
+      .nav { display: none; }
+      .diagram-section { break-inside: avoid; page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="Forge_360-Scan.png" alt="ForgeScan 360" style="height:80px; margin-bottom:20px; border-radius:12px; box-shadow: 0 8px 32px rgba(16, 185, 129, 0.4);">
+    <h1>ForgeScan 360 Architecture</h1>
+    <p>Enhanced Enterprise Vulnerability Management Platform</p>
+  </div>
+  
+  <nav class="nav">
+    <a href="#high-level">High-Level Architecture</a>
+    <a href="#discovery">Discovery Module</a>
+    <a href="#lifecycle">Vulnerability Lifecycle</a>
+    <a href="#frs">FRS Scoring</a>
+    <a href="#scan-flow">Scan Flow</a>
+    <a href="#integrations">Integrations</a>
+    <a href="#deployment">K8s Deployment</a>
+  </nav>
+
+  <!-- Diagram 1: High-Level Architecture -->
+  <section class="diagram-section" id="high-level">
+    <div class="diagram-header">
+      <h2>1. High-Level Architecture</h2>
+      <p>Overview of ForgeScan 360 platform components and external integrations</p>
+    </div>
+    <div class="diagram-content">
+      <pre class="mermaid">
+flowchart TB
+    subgraph Users["👥 Users"]
+        SecOps["SecOps Admin"]
+        VulnMgr["Vuln Manager"]
+        RemOwner["Remediation Owner"]
+    end
+
+    subgraph UI["🖥️ Web UI"]
+        Dashboard["Dashboard"]
+        Discovery["Discovery"]
+        ASM["Attack Surface"]
+        VulnView["Vulnerabilities"]
+    end
+
+    subgraph Platform["⚙️ ForgeScan 360 Platform"]
+        API["API Gateway"]
+        
+        subgraph Services["Core Services"]
+            ScanOrch["Scan Orchestrator"]
+            Ingestion["Ingestion Pipeline"]
+            Lifecycle["Lifecycle Engine"]
+            DiscEngine["Discovery Engine"]
+            ASMEngine["ASM Engine"]
+            FRSEngine["FRS Scoring"]
+        end
+        
+        subgraph Data["Data Layer"]
+            Postgres[("PostgreSQL")]
+            Redis[("Redis")]
+        end
+    end
+
+    subgraph External["🔌 External Systems"]
+        Nessus["Nessus/Tenable"]
+        Cloud["AWS/Azure/GCP"]
+        CMDB["CMDB/AD"]
+        Forge["Forge Comply 360"]
+        SIEM["SIEM"]
+    end
+
+    Users --> UI
+    UI --> API
+    API --> Services
+    Services --> Data
+    ScanOrch <--> Nessus
+    DiscEngine <--> Cloud
+    DiscEngine <--> CMDB
+    Lifecycle <--> Forge
+    Lifecycle --> SIEM
+      </pre>
+    </div>
+  </section>
+
+  <!-- Diagram 2: Discovery Module -->
+  <section class="diagram-section" id="discovery">
+    <div class="diagram-header">
+      <h2>2. Discovery Module Architecture</h2>
+      <p>Asset discovery flow from multiple sources to unified inventory</p>
+    </div>
+    <div class="diagram-content">
+      <pre class="mermaid">
+flowchart LR
+    subgraph Sources["📡 Asset Sources"]
+        Network["🌐 Network Scan"]
+        Agents["🤖 Nessus Agents"]
+        AWS["☁️ AWS"]
+        Azure["🔷 Azure"]
+        GCP["🔶 GCP"]
+        AD["🗄️ Active Directory"]
+        CMDB["📋 CMDB"]
+    end
+
+    subgraph Engine["🔎 Discovery Engine"]
+        Collect["Collector"]
+        Finger["Fingerprinting"]
+        Dedup["Deduplication"]
+        Class["Classification"]
+        Rogue["Rogue Detection"]
+    end
+
+    subgraph Output["📦 Asset Inventory"]
+        Managed["✅ Managed"]
+        Unmanaged["❓ Unmanaged"]
+        RogueOut["🚨 Rogue"]
+        New["🆕 New"]
+    end
+
+    Sources --> Collect
+    Collect --> Finger
+    Finger --> Dedup
+    Dedup --> Class
+    Class --> Rogue
+    Rogue --> Output
+      </pre>
+    </div>
+    <div class="legend">
+      <div class="legend-items">
+        <div class="legend-item"><div class="legend-color" style="background:#10b981"></div> Managed Assets</div>
+        <div class="legend-item"><div class="legend-color" style="background:#f59e0b"></div> Unmanaged Assets</div>
+        <div class="legend-item"><div class="legend-color" style="background:#ef4444"></div> Rogue Devices</div>
+        <div class="legend-item"><div class="legend-color" style="background:#3b82f6"></div> New Discoveries</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Diagram 3: Vulnerability Lifecycle -->
+  <section class="diagram-section" id="lifecycle">
+    <div class="diagram-header">
+      <h2>3. Vulnerability Lifecycle State Machine</h2>
+      <p>Complete workflow from discovery to remediation</p>
+    </div>
+    <div class="diagram-content">
+      <pre class="mermaid">
+stateDiagram-v2
+    [*] --> NEW: Discovered
+    NEW --> TRIAGED: Review
+    TRIAGED --> ASSIGNED: Assign Team
+    ASSIGNED --> IN_PROGRESS: Start Work
+    IN_PROGRESS --> MITIGATED: Apply Fix
+    MITIGATED --> VERIFIED: Rescan Pass
+    VERIFIED --> CLOSED: Confirmed
+    CLOSED --> [*]
+    
+    TRIAGED --> RISK_ACCEPTED: Accept Risk
+    ASSIGNED --> RISK_ACCEPTED: Accept Risk
+    IN_PROGRESS --> RISK_ACCEPTED: Accept Risk
+    
+    CLOSED --> NEW: Reappears
+    RISK_ACCEPTED --> NEW: Expires/Reappears
+      </pre>
+    </div>
+    <div class="legend">
+      <div class="legend-items">
+        <div class="legend-item"><div class="legend-color" style="background:#3b82f6"></div> NEW - Just discovered</div>
+        <div class="legend-item"><div class="legend-color" style="background:#8b5cf6"></div> TRIAGED - Reviewed</div>
+        <div class="legend-item"><div class="legend-color" style="background:#f59e0b"></div> IN_PROGRESS - Being fixed</div>
+        <div class="legend-item"><div class="legend-color" style="background:#10b981"></div> CLOSED - Resolved</div>
+        <div class="legend-item"><div class="legend-color" style="background:#6b7280"></div> RISK_ACCEPTED - Accepted</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Diagram 4: FRS Scoring -->
+  <section class="diagram-section" id="frs">
+    <div class="diagram-header">
+      <h2>4. ForgeScan Risk Score (FRS) Calculation</h2>
+      <p>Proprietary risk scoring algorithm combining multiple factors</p>
+    </div>
+    <div class="diagram-content">
+      <pre class="mermaid">
+flowchart TB
+    subgraph Inputs["📊 Input Factors"]
+        CVSS["CVSS Score\n0-10"]
+        Exploit["Exploit Maturity\nNone/PoC/Functional"]
+        Threat["Threat Intel\nActive Exploitation"]
+        Asset["Asset Criticality\nLow → Critical"]
+        Exposure["Exposure\nInternal/DMZ/External"]
+        Age["Vulnerability Age\nDays Open"]
+    end
+
+    subgraph Calc["🧮 FRS Calculator"]
+        Weight["Weighted\nAlgorithm"]
+        Norm["Normalize\n0-100"]
+        ML["ML Prediction\nAdjustment"]
+    end
+
+    subgraph Output["📈 Output"]
+        Score["FRS Score\n0-100"]
+        Priority["Priority\nRanking"]
+        SLA["SLA\nAssignment"]
+    end
+
+    CVSS --> Weight
+    Exploit --> Weight
+    Threat --> Weight
+    Asset --> Weight
+    Exposure --> Weight
+    Age --> Weight
+    Weight --> Norm
+    Norm --> ML
+    ML --> Score
+    Score --> Priority
+    Score --> SLA
+      </pre>
+    </div>
+    <div class="legend">
+      <div class="legend-items">
+        <div class="legend-item"><div class="legend-color" style="background:#ef4444"></div> FRS 90-100: Critical Priority</div>
+        <div class="legend-item"><div class="legend-color" style="background:#f59e0b"></div> FRS 70-89: High Priority</div>
+        <div class="legend-item"><div class="legend-color" style="background:#eab308"></div> FRS 40-69: Medium Priority</div>
+        <div class="legend-item"><div class="legend-color" style="background:#10b981"></div> FRS 0-39: Low Priority</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Diagram 5: Scan Flow -->
+  <section class="diagram-section" id="scan-flow">
+    <div class="diagram-header">
+      <h2>5. Scan & Ingestion Flow</h2>
+      <p>End-to-end process from scan initiation to vulnerability creation</p>
+    </div>
+    <div class="diagram-content">
+      <pre class="mermaid">
+sequenceDiagram
+    participant UI as Web UI
+    participant API as API Gateway
+    participant Orch as Scan Orchestrator
+    participant N as Nessus
+    participant Ing as Ingestion Worker
+    participant FRS as FRS Engine
+    participant DB as Database
+
+    UI->>API: POST /scans
+    API->>Orch: Create Scan Job
+    Orch->>N: Launch Scan
+    N-->>Orch: Scan ID
+    Orch->>DB: Save Record
+    API-->>UI: Scan Created
+
+    loop Poll Status
+        Orch->>N: Get Status
+        N-->>Orch: Running/Complete
+    end
+
+    N-->>Orch: Complete
+    Orch->>Ing: Queue Ingestion
+    Ing->>N: Download Results
+    Ing->>Ing: Parse & Normalize
+    Ing->>DB: Upsert Vulnerabilities
+    Ing->>FRS: Calculate Scores
+    FRS-->>Ing: FRS Scores
+    Ing->>DB: Update Scores
+      </pre>
+    </div>
+  </section>
+
+  <!-- Diagram 6: Integrations -->
+  <section class="diagram-section" id="integrations">
+    <div class="diagram-header">
+      <h2>6. Integration Architecture</h2>
+      <p>External system connections and data flows</p>
+    </div>
+    <div class="diagram-content">
+      <pre class="mermaid">
+flowchart TB
+    subgraph FS["🛡️ ForgeScan 360"]
+        API["Integration API"]
+        Webhooks["Webhook Dispatcher"]
+    end
+
+    subgraph Forge["📋 Forge Comply 360"]
+        Assets["Asset Inventory"]
+        Risks["Risk Register"]
+        Evidence["Evidence Store"]
+    end
+
+    subgraph Tickets["🎫 Ticketing"]
+        Jira["Jira"]
+        SNow["ServiceNow"]
+        ADO["Azure DevOps"]
+    end
+
+    subgraph SIEM["📊 SIEM/SOAR"]
+        Splunk["Splunk"]
+        QRadar["QRadar"]
+        Sentinel["Azure Sentinel"]
+    end
+
+    subgraph Notify["🔔 Notifications"]
+        Email["Email"]
+        Slack["Slack"]
+        Teams["MS Teams"]
+        PD["PagerDuty"]
+    end
+
+    API <-->|Sync| Assets
+    API -->|Push| Risks
+    API -->|Attach| Evidence
+    API -->|Create| Tickets
+    Webhooks -->|Events| SIEM
+    Webhooks -->|Alerts| Notify
+      </pre>
+    </div>
+  </section>
+
+  <!-- Diagram 7: K8s Deployment -->
+  <section class="diagram-section" id="deployment">
+    <div class="diagram-header">
+      <h2>7. Kubernetes Deployment Architecture</h2>
+      <p>Production deployment topology on AWS EKS</p>
+    </div>
+    <div class="diagram-content">
+      <pre class="mermaid">
+flowchart TB
+    subgraph K8s["☸️ Kubernetes Cluster - EKS"]
+        subgraph Ingress["🌐 Ingress Layer"]
+            ALB["AWS ALB"]
+            Nginx["Nginx Ingress"]
+        end
+        
+        subgraph App["⚙️ Application Tier"]
+            APIPods["API Pods x3"]
+            UIPods["UI Pods x2"]
+            Workers["Worker Pods x5"]
+            Scheduler["Scheduler Pod"]
+        end
+        
+        subgraph Data["💾 Data Tier"]
+            PG1[("PostgreSQL\nPrimary")]
+            PG2[("PostgreSQL\nReplica")]
+            Redis[("Redis\nCluster")]
+        end
+    end
+
+    subgraph Storage["📦 Storage"]
+        EBS["EBS Volumes"]
+        S3["S3 Bucket"]
+    end
+
+    subgraph Ext["🔌 External"]
+        Users["👥 Users"]
+        Nessus["🛡️ Nessus"]
+    end
+
+    Users --> ALB
+    ALB --> Nginx
+    Nginx --> APIPods
+    Nginx --> UIPods
+    APIPods --> Data
+    Workers --> Data
+    Workers <--> Nessus
+    Data --> Storage
+      </pre>
+    </div>
+    <div class="legend">
+      <div class="legend-items">
+        <div class="legend-item"><div class="legend-color" style="background:#10b981"></div> Application Pods (auto-scaling)</div>
+        <div class="legend-item"><div class="legend-color" style="background:#3b82f6"></div> Database (HA with replicas)</div>
+        <div class="legend-item"><div class="legend-color" style="background:#8b5cf6"></div> Persistent Storage</div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'default',
+      securityLevel: 'loose',
+      flowchart: {
+        useMaxWidth: true,
+        htmlLabels: true,
+        curve: 'basis'
+      },
+      sequence: {
+        useMaxWidth: true,
+        diagramMarginX: 50,
+        diagramMarginY: 10,
+        actorMargin: 50,
+        width: 150,
+        height: 65
+      }
+    });
+  </script>
+</body>
+</html>

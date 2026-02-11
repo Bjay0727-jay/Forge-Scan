@@ -1,0 +1,22 @@
+[package]
+name = "forgescan-transport"
+description = "gRPC server/client for scanner-platform communication"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+forgescan-core = { path = "../forgescan-core" }
+forgescan-common = { path = "../forgescan-common" }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tonic = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+rustls = { workspace = true }
+
+[build-dependencies]
+tonic-build = { workspace = true }

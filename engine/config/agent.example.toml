@@ -1,0 +1,56 @@
+# ForgeScan Agent Configuration
+# Linux: Copy to /etc/forgescan/agent.toml
+# Windows: Copy to C:\ProgramData\ForgeScan\agent.toml
+
+[platform]
+# Platform gRPC endpoint
+endpoint = "https://forge.example.com:8443"
+
+# API key for initial registration (or use FORGESCAN_PLATFORM_API_KEY env var)
+# api_key = "registration-token"
+
+# Connection timeout in seconds
+connect_timeout_seconds = 10
+
+# Request timeout in seconds
+request_timeout_seconds = 30
+
+# Enable TLS
+use_tls = true
+
+[agent]
+# Agent ID (assigned during registration, do not modify)
+# agent_id = "agent-uuid-here"
+
+# Heartbeat interval in seconds
+heartbeat_interval_seconds = 300
+
+# Maximum CPU usage during scanning (percent)
+scan_cpu_limit_percent = 20
+
+# Maximum memory usage during scanning (MB)
+scan_memory_limit_mb = 256
+
+# Enable auto-updates
+auto_update = true
+
+[tls]
+# CA certificate for platform verification
+# ca_cert_path = "/etc/forgescan/certs/ca.pem"
+
+# Agent certificate (received during registration)
+# cert_path = "/etc/forgescan/certs/agent.pem"
+
+# Agent private key
+# key_path = "/etc/forgescan/certs/agent-key.pem"
+
+[logging]
+# Log level: trace, debug, info, warn, error
+level = "info"
+
+# Log format: pretty, json, compact
+format = "pretty"
+
+# Log file path
+# Linux: /var/log/forgescan/agent.log
+# Windows: C:\ProgramData\ForgeScan\logs\agent.log

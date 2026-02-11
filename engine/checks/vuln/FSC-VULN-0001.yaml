@@ -1,0 +1,53 @@
+# ForgeScan Check Definition
+# CVE-2021-44228 - Apache Log4j Remote Code Execution (Log4Shell)
+
+id: "FSC-VULN-0001"
+name: "Apache Log4j Remote Code Execution (Log4Shell)"
+description: |
+  Apache Log4j2 versions 2.0-beta9 through 2.14.1 are vulnerable to a remote code
+  execution vulnerability where an attacker who can control log messages or log
+  message parameters can execute arbitrary code loaded from LDAP servers when
+  message lookup substitution is enabled.
+category: vulnerability
+severity: critical
+
+cve_ids:
+  - CVE-2021-44228
+  - CVE-2021-45046
+  - CVE-2021-45105
+
+cwe_ids:
+  - CWE-502
+  - CWE-400
+  - CWE-20
+
+compliance:
+  - framework: "NIST-800-53"
+    control: "SI-2"
+  - framework: "NIST-800-53"
+    control: "RA-5"
+  - framework: "PCI-DSS"
+    control: "6.2"
+
+detection:
+  type: version-match
+  cpe: "cpe:2.3:a:apache:log4j:*"
+  affected_versions:
+    - ">= 2.0-beta9"
+    - "< 2.17.0"
+  banner_pattern: "log4j.*2\\.(0|1[0-4]|15|16)\\."
+
+remediation: |
+  Upgrade Apache Log4j to version 2.17.1 or later.
+
+  If immediate upgrade is not possible:
+  - For Log4j 2.10+: Set log4j2.formatMsgNoLookups=true
+  - For Log4j 2.7+: Remove JndiLookup class from classpath
+  - Block outbound LDAP/RMI connections at network level
+
+references:
+  - "https://nvd.nist.gov/vuln/detail/CVE-2021-44228"
+  - "https://logging.apache.org/log4j/2.x/security.html"
+  - "https://www.cisa.gov/uscert/apache-log4j-vulnerability-guidance"
+
+enabled_by_default: true

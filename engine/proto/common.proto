@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package forgescan.common;
+
+option java_multiple_files = true;
+option java_package = "com.forgecyber.forgescan.common";
+
+// Severity levels for findings
+enum Severity {
+    SEVERITY_UNSPECIFIED = 0;
+    SEVERITY_INFO = 1;
+    SEVERITY_LOW = 2;
+    SEVERITY_MEDIUM = 3;
+    SEVERITY_HIGH = 4;
+    SEVERITY_CRITICAL = 5;
+}
+
+// Scan modes
+enum ScanMode {
+    SCAN_MODE_UNSPECIFIED = 0;
+    SCAN_MODE_AGENTLESS = 1;
+    SCAN_MODE_AGENT = 2;
+    SCAN_MODE_HYBRID = 3;
+}
+
+// Scan intensity levels
+enum ScanIntensity {
+    SCAN_INTENSITY_UNSPECIFIED = 0;
+    SCAN_INTENSITY_LIGHT = 1;      // Fast, minimal probing
+    SCAN_INTENSITY_NORMAL = 2;     // Balanced speed/coverage
+    SCAN_INTENSITY_THOROUGH = 3;   // Comprehensive, slower
+    SCAN_INTENSITY_AGGRESSIVE = 4; // Maximum coverage, may be disruptive
+}
+
+// Check categories
+enum CheckCategory {
+    CHECK_CATEGORY_UNSPECIFIED = 0;
+    CHECK_CATEGORY_NETWORK = 1;
+    CHECK_CATEGORY_VULNERABILITY = 2;
+    CHECK_CATEGORY_CONFIGURATION = 3;
+    CHECK_CATEGORY_WEBAPP = 4;
+    CHECK_CATEGORY_CLOUD = 5;
+}
+
+// Exploit maturity levels
+enum ExploitMaturity {
+    EXPLOIT_MATURITY_UNSPECIFIED = 0;
+    EXPLOIT_MATURITY_NONE = 1;
+    EXPLOIT_MATURITY_POC = 2;
+    EXPLOIT_MATURITY_FUNCTIONAL = 3;
+    EXPLOIT_MATURITY_WEAPONIZED = 4;
+}
+
+// Compliance framework reference
+message ComplianceRef {
+    string framework = 1;    // "NIST-800-53", "CIS", "DISA-STIG", "PCI-DSS", "HIPAA"
+    string control_id = 2;   // "SI-2", "1.1.1", "V-12345"
+    string control_name = 3; // Human-readable name
+    int32 level = 4;         // For CIS: Level 1 or Level 2
+}
+
+// Timestamp wrapper
+message Timestamp {
+    int64 seconds = 1;
+    int32 nanos = 2;
+}

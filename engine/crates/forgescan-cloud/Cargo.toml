@@ -1,0 +1,24 @@
+[package]
+name = "forgescan-cloud"
+description = "Cloud misconfiguration checks (AWS, Azure, GCP)"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+forgescan-core = { path = "../forgescan-core" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+
+# AWS SDK
+aws-config = { workspace = true }
+aws-sdk-ec2 = { workspace = true }
+aws-sdk-s3 = { workspace = true }
+aws-sdk-iam = { workspace = true }
+
+# Azure and GCP SDKs will be added as needed

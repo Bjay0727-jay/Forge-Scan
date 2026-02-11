@@ -1,0 +1,28 @@
+[package]
+name = "forgescan-agent"
+description = "Lightweight endpoint agent binary"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "forgescan-agent"
+path = "src/main.rs"
+
+[dependencies]
+forgescan-core = { path = "../forgescan-core" }
+forgescan-common = { path = "../forgescan-common" }
+forgescan-transport = { path = "../forgescan-transport" }
+forgescan-checks = { path = "../forgescan-checks" }
+forgescan-config-audit = { path = "../forgescan-config-audit" }
+forgescan-vuln = { path = "../forgescan-vuln" }
+forgescan-nvd = { path = "../forgescan-nvd" }
+
+tokio = { workspace = true }
+tonic = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+uuid = { workspace = true }

@@ -1,0 +1,73 @@
+# ForgeScan Scanner Configuration
+# Copy this file to /etc/forgescan/scanner.toml and customize
+
+[platform]
+# Platform gRPC endpoint
+endpoint = "https://forge.example.com:8443"
+
+# API key for authentication (or use FORGESCAN_PLATFORM_API_KEY env var)
+# api_key = "your-api-key-here"
+
+# Connection timeout in seconds
+connect_timeout_seconds = 10
+
+# Request timeout in seconds
+request_timeout_seconds = 30
+
+# Enable TLS (should always be true in production)
+use_tls = true
+
+[scanner]
+# Unique scanner ID (auto-generated if not set)
+# scanner_id = "scanner-01"
+
+# Maximum concurrent scans
+max_concurrent_scans = 5
+
+# Maximum concurrent targets per scan
+max_concurrent_targets = 100
+
+# Default scan timeout in seconds (1 hour)
+default_timeout_seconds = 3600
+
+# Directory containing check definitions
+checks_dir = "/etc/forgescan/checks"
+
+# Enabled check categories (empty = all)
+# enabled_categories = ["vulnerability", "configuration", "webapp"]
+
+[nvd]
+# Path to NVD SQLite database
+database_path = "/var/lib/forgescan/nvd.db"
+
+# NVD API URL
+api_url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+
+# Update interval in hours (0 = no auto-update)
+update_interval_hours = 24
+
+# NVD API key (optional, for higher rate limits)
+# api_key = "your-nvd-api-key"
+
+[tls]
+# CA certificate for platform verification
+# ca_cert_path = "/etc/forgescan/certs/ca.pem"
+
+# Client certificate for mTLS
+# cert_path = "/etc/forgescan/certs/scanner.pem"
+
+# Client private key
+# key_path = "/etc/forgescan/certs/scanner-key.pem"
+
+# Skip server verification (NOT recommended for production)
+insecure_skip_verify = false
+
+[logging]
+# Log level: trace, debug, info, warn, error
+level = "info"
+
+# Log format: pretty, json, compact
+format = "pretty"
+
+# Log file path (optional, logs to stdout if not set)
+# file = "/var/log/forgescan/scanner.log"

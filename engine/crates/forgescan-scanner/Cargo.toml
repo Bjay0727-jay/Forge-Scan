@@ -1,0 +1,29 @@
+[package]
+name = "forgescan-scanner"
+description = "Agentless scanner binary"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "forgescan-scanner"
+path = "src/main.rs"
+
+[dependencies]
+forgescan-core = { path = "../forgescan-core" }
+forgescan-common = { path = "../forgescan-common" }
+forgescan-transport = { path = "../forgescan-transport" }
+forgescan-checks = { path = "../forgescan-checks" }
+forgescan-nvd = { path = "../forgescan-nvd" }
+forgescan-network = { path = "../forgescan-network" }
+forgescan-vuln = { path = "../forgescan-vuln" }
+forgescan-webapp = { path = "../forgescan-webapp" }
+forgescan-cloud = { path = "../forgescan-cloud" }
+
+tokio = { workspace = true }
+tonic = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }

@@ -1,0 +1,42 @@
+# ForgeScan Check Definition
+# CIS Linux Benchmark - Ensure permissions on /etc/passwd are configured
+
+id: "FSC-CIS-LIN-0001"
+name: "Ensure permissions on /etc/passwd are configured"
+description: |
+  The /etc/passwd file contains user account information. This file should
+  be protected from unauthorized write access to prevent system security
+  compromise.
+category: configuration
+severity: medium
+
+cwe_ids:
+  - CWE-732
+
+compliance:
+  - framework: "CIS"
+    control: "6.1.2"
+    level: 1
+  - framework: "NIST-800-53"
+    control: "AC-3"
+  - framework: "NIST-800-53"
+    control: "AC-6"
+
+detection:
+  type: file-permission
+  path: "/etc/passwd"
+  expected_mode: "0644"
+  expected_owner: "root"
+  expected_group: "root"
+
+remediation: |
+  Run the following commands to set ownership and permissions on /etc/passwd:
+
+  # chown root:root /etc/passwd
+  # chmod 644 /etc/passwd
+
+references:
+  - "https://www.cisecurity.org/benchmark/distribution_independent_linux"
+
+enabled_by_default: true
+mode: agent

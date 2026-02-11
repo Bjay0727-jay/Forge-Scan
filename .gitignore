@@ -1,0 +1,54 @@
+# Rust
+/engine/target/
+**/*.rs.bk
+Cargo.lock
+
+# Node.js (for future TypeScript platform)
+node_modules/
+dist/
+.turbo/
+*.log
+npm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Secrets (never commit)
+*.pem
+*.key
+secrets/
+credentials/
+
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test coverage
+coverage/
+*.lcov
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# ForgeScan specific
+/engine/config/*.toml
+!/engine/config/*.example.toml
+nvd.db
+*.sqlite

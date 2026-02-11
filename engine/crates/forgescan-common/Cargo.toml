@@ -1,0 +1,25 @@
+[package]
+name = "forgescan-common"
+description = "Shared utilities: logging, configuration, crypto helpers"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+forgescan-core = { path = "../forgescan-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+rcgen = { workspace = true }
+rustls = { workspace = true }
+rustls-pemfile = { workspace = true }
+pem = "3.0"
+uuid = { workspace = true }
+rand = "0.8"

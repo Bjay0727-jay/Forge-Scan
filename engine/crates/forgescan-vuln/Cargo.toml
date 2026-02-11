@@ -1,0 +1,16 @@
+[package]
+name = "forgescan-vuln"
+description = "Vulnerability detection and CVE version matching"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+forgescan-core = { path = "../forgescan-core" }
+forgescan-nvd = { path = "../forgescan-nvd" }
+serde = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+regex = { workspace = true }
