@@ -9,7 +9,7 @@ license.workspace = true
 [dependencies]
 forgescan-core = { path = "../forgescan-core" }
 forgescan-nvd = { path = "../forgescan-nvd" }
-serde = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }

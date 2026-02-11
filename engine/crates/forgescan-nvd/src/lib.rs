@@ -2,12 +2,15 @@
 //!
 //! This crate provides:
 //! - SQLite-based local CVE database
-//! - NVD JSON feed sync
+//! - NVD API 2.0 sync client
 //! - CISA KEV catalog integration
-//! - CPE matching for vulnerability detection
+//! - CPE 2.3 parsing and matching
+//! - Version comparison for vulnerability detection
 
 pub mod database;
 pub mod sync;
 pub mod cpe;
 
 pub use database::NvdDb;
+pub use sync::{NvdSync, SyncStats};
+pub use cpe::{Cpe, CpePart, CpeMatch, CpeParseError, VersionBoundType, compare_versions};

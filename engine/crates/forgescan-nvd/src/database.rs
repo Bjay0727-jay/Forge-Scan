@@ -118,6 +118,136 @@ impl NvdDb {
         Ok(())
     }
 
+    /// Add a CPE match for a CVE
+    pub fn add_cpe_match(
+        &self,
+        cve_id: &str,
+        cpe_uri: &str,
+        version_start_incl: Option<&str>,
+        version_start_excl: Option<&str>,
+        version_end_incl: Option<&str>,
+        version_end_excl: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+
+        let version_start = version_start_incl.or(version_start_excl);
+        let version_start_type = if version_start_incl.is_some() {
+            "including"
+        } else if version_start_excl.is_some() {
+            "excluding"
+        } else {
+            ""
+        };
+
+        let version_end = version_end_incl.or(version_end_excl);
+        let version_end_type = if version_end_incl.is_some() {
+            "including"
+        } else if version_end_excl.is_some() {
+            "excluding"
+        } else {
+            ""
+        };
+
+        conn.execute(
+            r#"
+            INSERT INTO cpe_matches (cve_id, cpe_uri, version_start, version_start_type, version_end, version_end_type)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            "#,
+            params![cve_id, cpe_uri, version_start, version_start_type, version_end, version_end_type],
+        )
+        .map_err(|e| Error::Database(format!("Failed to add CPE match: {}", e)))?;
+
+        Ok(())
+    }
+
+    /// Find CVEs matching a CPE with version checking
+    pub fn find_vulnerabilities(&self, cpe_uri: &str, version: &str) -> Vec<CveInfo> {
+        use crate::cpe::{compare_versions, Cpe};
+
+        let conn = self.conn.lock().unwrap();
+
+        let cpe = match Cpe::parse(cpe_uri) {
+            Ok(c) => c,
+            Err(_) => return vec![],
+        };
+
+        let search_pattern = format!(
+            "cpe:2.3:{}:{}:{}:%",
+            cpe.part, cpe.vendor, cpe.product
+        );
+
+        let mut stmt = match conn.prepare(
+            r#"
+            SELECT DISTINCT c.cve_id, c.description, c.cvss_v3_score, c.cvss_v3_vector,
+                   c.cwe_ids, c.refs, c.published_date,
+                   m.version_start, m.version_start_type, m.version_end, m.version_end_type
+            FROM cves c
+            JOIN cpe_matches m ON c.cve_id = m.cve_id
+            WHERE m.cpe_uri LIKE ?1
+            "#,
+        ) {
+            Ok(s) => s,
+            Err(_) => return vec![],
+        };
+
+        let mut results = Vec::new();
+
+        let rows = match stmt.query_map([&search_pattern], |row| {
+            Ok((
+                CveInfo {
+                    cve_id: row.get(0)?,
+                    description: row.get(1)?,
+                    cvss_v3_score: row.get(2)?,
+                    cvss_v3_vector: row.get(3)?,
+                    cwe_ids: serde_json::from_str(&row.get::<_, String>(4).unwrap_or_default())
+                        .unwrap_or_default(),
+                    references: serde_json::from_str(&row.get::<_, String>(5).unwrap_or_default())
+                        .unwrap_or_default(),
+                    published_date: row.get(6)?,
+                },
+                row.get::<_, Option<String>>(7)?,
+                row.get::<_, String>(8).unwrap_or_default(),
+                row.get::<_, Option<String>>(9)?,
+                row.get::<_, String>(10).unwrap_or_default(),
+            ))
+        }) {
+            Ok(r) => r,
+            Err(_) => return vec![],
+        };
+
+        for row in rows.flatten() {
+            let (cve_info, version_start, version_start_type, version_end, version_end_type) = row;
+
+            let mut matches = true;
+
+            if let Some(ref start) = version_start {
+                let cmp = compare_versions(version, start);
+                if version_start_type == "including" && cmp < 0 {
+                    matches = false;
+                } else if version_start_type == "excluding" && cmp <= 0 {
+                    matches = false;
+                }
+            }
+
+            if matches {
+                if let Some(ref end) = version_end {
+                    let cmp = compare_versions(version, end);
+                    if version_end_type == "including" && cmp > 0 {
+                        matches = false;
+                    } else if version_end_type == "excluding" && cmp >= 0 {
+                        matches = false;
+                    }
+                }
+            }
+
+            if matches {
+                results.push(cve_info);
+            }
+        }
+
+        results
+    }
+
     /// Get CVE count
     pub fn cve_count(&self) -> Result<u64> {
         let conn = self.conn.lock().unwrap();
