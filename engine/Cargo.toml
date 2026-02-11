@@ -11,6 +11,7 @@ members = [
     "crates/forgescan-config-audit",
     "crates/forgescan-webapp",
     "crates/forgescan-cloud",
+    "crates/forgescan-ingest",
     "crates/forgescan-scanner",
     "crates/forgescan-agent",
 ]

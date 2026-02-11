@@ -9,7 +9,7 @@ license.workspace = true
 [dependencies]
 forgescan-core = { path = "../forgescan-core" }
 tokio = { workspace = true }
-serde = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
@@ -20,5 +20,7 @@ aws-config = { workspace = true }
 aws-sdk-ec2 = { workspace = true }
 aws-sdk-s3 = { workspace = true }
 aws-sdk-iam = { workspace = true }
+aws-sdk-sts = "1.12"
+aws-credential-types = "1.1"
 
 # Azure and GCP SDKs will be added as needed

@@ -9,12 +9,14 @@ license.workspace = true
 [dependencies]
 forgescan-core = { path = "../forgescan-core" }
 forgescan-checks = { path = "../forgescan-checks" }
-serde = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 regex = { workspace = true }
 glob = { workspace = true }
+num_cpus = "1.16"
+hostname = "0.4"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"

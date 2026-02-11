@@ -1,0 +1,73 @@
+# ForgeScan Scanner - Multi-stage build for agentless network scanning
+#
+# Build: docker build -f Dockerfile.scanner -t forgescan-scanner .
+# Run:   docker run -it --rm forgescan-scanner --targets 192.168.1.0/24
+
+# Stage 1: Build environment
+FROM rust:1.75-slim-bookworm AS builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    protobuf-compiler \
+    libpcap-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app directory
+WORKDIR /app
+
+# Copy manifests first for better layer caching
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+COPY proto ./proto
+COPY checks ./checks
+
+# Build release binary
+RUN cargo build --release --bin forgescan-scanner
+
+# Stage 2: Runtime image
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    libpcap0.8 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -r -s /bin/false forgescan
+
+# Copy the binary
+COPY --from=builder /app/target/release/forgescan-scanner /usr/local/bin/forgescan-scanner
+
+# Copy default checks and NVD database location
+COPY --from=builder /app/checks /etc/forgescan/checks
+
+# Create data directory for NVD cache
+RUN mkdir -p /var/lib/forgescan && chown forgescan:forgescan /var/lib/forgescan
+
+# Environment variables
+ENV FORGESCAN_DATA_DIR=/var/lib/forgescan
+ENV FORGESCAN_CHECK_DIR=/etc/forgescan/checks
+
+# Volume for NVD database persistence
+VOLUME /var/lib/forgescan
+
+# Scanner needs NET_RAW for raw packet operations
+# In K8s, add: securityContext.capabilities.add: ["NET_RAW"]
+
+# Run as non-root (still needs NET_RAW capability)
+USER forgescan
+
+ENTRYPOINT ["/usr/local/bin/forgescan-scanner"]
+CMD ["--help"]
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD ["/usr/local/bin/forgescan-scanner", "--version"]
+
+# Labels
+LABEL org.opencontainers.image.title="ForgeScan Scanner"
+LABEL org.opencontainers.image.description="Agentless network vulnerability scanner"
+LABEL org.opencontainers.image.vendor="Forge Cyber Defense"
+LABEL org.opencontainers.image.source="https://github.com/forge-cyber/forgescan"

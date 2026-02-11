@@ -1,0 +1,175 @@
+# CIS Benchmark - SSH Server Configuration
+# Applies to: CIS Ubuntu Linux 22.04 LTS, CIS RHEL 8/9
+
+checks:
+  - id: CIS-LIN-SSH-001
+    name: Ensure SSH root login is disabled
+    description: |
+      The PermitRootLogin parameter specifies whether root can log in using SSH.
+      Disabling direct root login reduces the risk of unauthorized privileged access.
+    severity: medium
+    platform: linux
+    compliance:
+      - framework: CIS
+        control: "5.2.10"
+        benchmark: "CIS Ubuntu Linux 22.04 LTS"
+      - framework: CIS
+        control: "5.2.10"
+        benchmark: "CIS RHEL 8"
+    check:
+      type: config_value
+      file: /etc/ssh/sshd_config
+      key: PermitRootLogin
+      expected: "no"
+      delimiter: " "
+    remediation: |
+      Edit /etc/ssh/sshd_config and set: PermitRootLogin no
+      Then restart SSH: systemctl restart sshd
+
+  - id: CIS-LIN-SSH-002
+    name: Ensure SSH Protocol is set to 2
+    description: |
+      SSH Protocol 1 suffers from design flaws that result in security vulnerabilities.
+      Only SSH Protocol 2 should be used.
+    severity: high
+    platform: linux
+    compliance:
+      - framework: CIS
+        control: "5.2.4"
+        benchmark: "CIS Ubuntu Linux 22.04 LTS"
+    check:
+      type: config_value
+      file: /etc/ssh/sshd_config
+      key: Protocol
+      expected: "2"
+      delimiter: " "
+    remediation: |
+      Edit /etc/ssh/sshd_config and set: Protocol 2
+      Note: Modern OpenSSH versions only support Protocol 2 by default.
+
+  - id: CIS-LIN-SSH-003
+    name: Ensure SSH MaxAuthTries is set to 4 or less
+    description: |
+      Setting MaxAuthTries to a low number limits the number of authentication
+      attempts permitted per connection, reducing brute force attack risk.
+    severity: medium
+    platform: linux
+    compliance:
+      - framework: CIS
+        control: "5.2.7"
+        benchmark: "CIS Ubuntu Linux 22.04 LTS"
+    check:
+      type: config_value
+      file: /etc/ssh/sshd_config
+      key: MaxAuthTries
+      expected: "4"
+      delimiter: " "
+    remediation: |
+      Edit /etc/ssh/sshd_config and set: MaxAuthTries 4
+      Then restart SSH: systemctl restart sshd
+
+  - id: CIS-LIN-SSH-004
+    name: Ensure SSH IgnoreRhosts is enabled
+    description: |
+      The IgnoreRhosts parameter specifies that .rhosts and .shosts files will not
+      be used in RhostsRSAAuthentication or HostbasedAuthentication.
+    severity: medium
+    platform: linux
+    compliance:
+      - framework: CIS
+        control: "5.2.8"
+        benchmark: "CIS Ubuntu Linux 22.04 LTS"
+    check:
+      type: config_value
+      file: /etc/ssh/sshd_config
+      key: IgnoreRhosts
+      expected: "yes"
+      delimiter: " "
+    remediation: |
+      Edit /etc/ssh/sshd_config and set: IgnoreRhosts yes
+
+  - id: CIS-LIN-SSH-005
+    name: Ensure SSH PermitEmptyPasswords is disabled
+    description: |
+      Disabling empty passwords prevents authentication without providing a password,
+      which significantly reduces the attack surface.
+    severity: high
+    platform: linux
+    compliance:
+      - framework: CIS
+        control: "5.2.11"
+        benchmark: "CIS Ubuntu Linux 22.04 LTS"
+    check:
+      type: config_value
+      file: /etc/ssh/sshd_config
+      key: PermitEmptyPasswords
+      expected: "no"
+      delimiter: " "
+    remediation: |
+      Edit /etc/ssh/sshd_config and set: PermitEmptyPasswords no
+
+  - id: CIS-LIN-SSH-006
+    name: Ensure permissions on /etc/ssh/sshd_config are configured
+    description: |
+      The /etc/ssh/sshd_config file contains configuration specifications for sshd.
+      The file should be owned by root and not readable/writable by others.
+    severity: medium
+    platform: linux
+    compliance:
+      - framework: CIS
+        control: "5.2.1"
+        benchmark: "CIS Ubuntu Linux 22.04 LTS"
+    check:
+      type: file_permission
+      path: /etc/ssh/sshd_config
+      expected_mode: 0600
+      max_mode: 0600
+      owner: root
+      group: root
+    remediation: |
+      chown root:root /etc/ssh/sshd_config
+      chmod 600 /etc/ssh/sshd_config
+
+  - id: CIS-LIN-SSH-007
+    name: Ensure SSH LoginGraceTime is set to one minute or less
+    description: |
+      The LoginGraceTime parameter specifies the time allowed for successful
+      authentication to the SSH server. Reducing this time reduces the risk of
+      unauthenticated connections consuming resources.
+    severity: low
+    platform: linux
+    compliance:
+      - framework: CIS
+        control: "5.2.14"
+        benchmark: "CIS Ubuntu Linux 22.04 LTS"
+    check:
+      type: config_value
+      file: /etc/ssh/sshd_config
+      key: LoginGraceTime
+      expected: "60"
+      delimiter: " "
+    remediation: |
+      Edit /etc/ssh/sshd_config and set: LoginGraceTime 60
+
+  - id: CIS-LIN-SSH-008
+    name: Ensure SSH ClientAliveInterval is set
+    description: |
+      ClientAliveInterval and ClientAliveCountMax control SSH session timeouts
+      for idle sessions. Setting these values helps ensure inactive sessions are
+      terminated in a timely manner.
+    severity: low
+    platform: linux
+    compliance:
+      - framework: CIS
+        control: "5.2.13"
+        benchmark: "CIS Ubuntu Linux 22.04 LTS"
+    check:
+      type: config_value
+      file: /etc/ssh/sshd_config
+      key: ClientAliveInterval
+      expected: "300"
+      delimiter: " "
+    remediation: |
+      Edit /etc/ssh/sshd_config and set:
+        ClientAliveInterval 300
+        ClientAliveCountMax 3

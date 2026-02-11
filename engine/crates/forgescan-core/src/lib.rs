@@ -13,7 +13,7 @@ pub mod severity;
 pub mod target;
 
 // Re-export commonly used types at crate root
-pub use check::{Check, CheckContext, CheckMetadata, CheckResult};
+pub use check::{Check, CheckContext, CheckMetadata, CheckResult, CveInfo};
 pub use error::{Error, Result};
 pub use finding::{ComplianceRef, ExploitMaturity, Finding, PortInfo};
 pub use severity::{CheckCategory, Severity};
