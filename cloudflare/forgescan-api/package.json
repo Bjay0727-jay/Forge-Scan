@@ -1,0 +1,21 @@
+{
+  "name": "forgescan-api",
+  "version": "0.1.0",
+  "description": "ForgeScan 360 API - Cloudflare Worker",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:prod": "wrangler deploy --env production",
+    "tail": "wrangler tail"
+  },
+  "dependencies": {
+    "hono": "^4.0.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240117.0",
+    "typescript": "^5.3.0",
+    "wrangler": "^3.22.0"
+  }
+}
