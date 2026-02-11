@@ -1,0 +1,52 @@
+# ForgeScan Check Definition
+# CVE-2024-3094 - XZ Utils Backdoor
+
+id: "FSC-VULN-0003"
+name: "XZ Utils Backdoor (CVE-2024-3094)"
+description: |
+  Malicious code was discovered in the upstream tarballs of xz, starting with
+  version 5.6.0. Through a series of complex obfuscations, the liblzma build
+  process extracts a prebuilt object file from a disguised test file existing
+  in the source code, which is then used to modify specific functions in the
+  liblzma code. This results in a modified liblzma library that can be used by
+  any software linked against this library, intercepting and modifying the
+  data interaction with this library.
+category: vulnerability
+severity: critical
+
+cve_ids:
+  - CVE-2024-3094
+
+cwe_ids:
+  - CWE-506
+
+compliance:
+  - framework: "NIST-800-53"
+    control: "SI-7"
+  - framework: "NIST-800-53"
+    control: "SA-12"
+
+detection:
+  type: version-match
+  cpe: "cpe:2.3:a:tukaani:xz:*"
+  affected_versions:
+    - ">= 5.6.0"
+    - "< 5.6.2"
+
+remediation: |
+  Immediately downgrade xz-utils to version 5.4.x or upgrade to 5.6.2+
+
+  Check if your system is affected:
+  - Run: xz --version
+  - Check for versions 5.6.0 or 5.6.1
+
+  For affected systems:
+  - Downgrade to xz-utils 5.4.6 or earlier
+  - Or upgrade to 5.6.2 or later (once available from your distribution)
+
+references:
+  - "https://nvd.nist.gov/vuln/detail/CVE-2024-3094"
+  - "https://www.cisa.gov/news-events/alerts/2024/03/29/reported-supply-chain-compromise-affecting-xz-utils-data-compression"
+  - "https://tukaani.org/xz-backdoor/"
+
+enabled_by_default: true

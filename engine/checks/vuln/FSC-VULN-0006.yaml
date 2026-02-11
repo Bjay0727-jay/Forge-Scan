@@ -1,0 +1,53 @@
+# ForgeScan Check Definition
+# MongoDB Unauthorized Access
+
+id: "FSC-VULN-0006"
+name: "MongoDB Unauthorized Access"
+description: |
+  MongoDB server is accessible without authentication. An unauthenticated
+  attacker can read, modify, or delete all data in the database.
+category: vulnerability
+severity: critical
+
+cve_ids:
+  - CVE-2013-1892
+
+cwe_ids:
+  - CWE-287
+  - CWE-306
+
+compliance:
+  - framework: "NIST-800-53"
+    control: "AC-3"
+  - framework: "PCI-DSS"
+    control: "7.1"
+  - framework: "CIS-Controls"
+    control: "16.8"
+
+detection:
+  type: banner-match
+  protocol: mongodb
+  port: 27017
+  patterns:
+    - pattern: "ismaster"
+      requires_auth: false
+      vulnerable: true
+      message: "MongoDB accessible without authentication"
+
+remediation: |
+  1. Enable MongoDB authentication:
+     - Add 'security.authorization: enabled' to mongod.conf
+     - Create admin user before enabling
+
+  2. Bind to localhost only:
+     - Set 'net.bindIp: 127.0.0.1' in mongod.conf
+
+  3. Use firewall rules to restrict access to port 27017
+
+  4. Enable TLS for all connections
+
+references:
+  - "https://www.mongodb.com/docs/manual/administration/security-checklist/"
+  - "https://www.mongodb.com/docs/manual/core/authentication/"
+
+enabled_by_default: true

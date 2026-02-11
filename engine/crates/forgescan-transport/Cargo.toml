@@ -17,6 +17,10 @@ prost-types = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 rustls = { workspace = true }
+async-trait = "0.1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [build-dependencies]
 tonic-build = { workspace = true }

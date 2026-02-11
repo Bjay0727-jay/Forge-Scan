@@ -1,0 +1,62 @@
+# ForgeScan Check Definition
+# Missing Security Headers
+
+id: "FSC-WEBAPP-0001"
+name: "Missing HTTP Security Headers"
+description: |
+  The web application is missing important HTTP security headers that help
+  protect against common web attacks including XSS, clickjacking, and
+  content-type sniffing.
+category: webapp
+severity: medium
+
+cwe_ids:
+  - CWE-693
+  - CWE-1021
+
+compliance:
+  - framework: "OWASP"
+    control: "A05:2021"
+  - framework: "PCI-DSS"
+    control: "6.5.6"
+
+detection:
+  type: http-response
+  checks:
+    - header: "X-Content-Type-Options"
+      expected: "nosniff"
+      severity: low
+      finding_if_missing: "X-Content-Type-Options header is missing"
+    - header: "X-Frame-Options"
+      expected: ["DENY", "SAMEORIGIN"]
+      severity: medium
+      finding_if_missing: "X-Frame-Options header is missing (clickjacking risk)"
+    - header: "Strict-Transport-Security"
+      expected_pattern: "max-age=\\d+"
+      severity: medium
+      finding_if_missing: "Strict-Transport-Security header is missing"
+    - header: "Content-Security-Policy"
+      severity: medium
+      finding_if_missing: "Content-Security-Policy header is missing"
+    - header: "X-XSS-Protection"
+      expected: "1; mode=block"
+      severity: low
+      finding_if_missing: "X-XSS-Protection header is missing (legacy browsers)"
+
+remediation: |
+  Add the following headers to all HTTP responses:
+
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Content-Security-Policy: default-src 'self'
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), camera=(), microphone=()
+
+references:
+  - "https://owasp.org/www-project-secure-headers/"
+  - "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers"
+  - "https://securityheaders.com/"
+
+enabled_by_default: true

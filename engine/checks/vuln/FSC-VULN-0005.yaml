@@ -1,0 +1,58 @@
+# ForgeScan Check Definition
+# Redis Unauthorized Access
+
+id: "FSC-VULN-0005"
+name: "Redis Unauthorized Access"
+description: |
+  Redis server is accessible without authentication. An unauthenticated
+  attacker can read or modify data, execute Lua scripts, and potentially
+  achieve remote code execution through various Redis commands.
+category: vulnerability
+severity: critical
+
+cve_ids:
+  - CVE-2015-4335
+  - CVE-2022-0543
+
+cwe_ids:
+  - CWE-287
+  - CWE-306
+
+compliance:
+  - framework: "NIST-800-53"
+    control: "AC-3"
+  - framework: "PCI-DSS"
+    control: "7.1"
+  - framework: "CIS-Controls"
+    control: "16.8"
+
+detection:
+  type: banner-match
+  protocol: redis
+  port: 6379
+  probe: "*1\r\n$4\r\nPING\r\n"
+  patterns:
+    - pattern: "\\+PONG"
+      vulnerable: true
+      message: "Redis responds to PING without authentication"
+
+remediation: |
+  1. Enable Redis authentication:
+     - Set 'requirepass' in redis.conf
+     - Use strong, randomly generated passwords
+
+  2. Bind to localhost only:
+     - Set 'bind 127.0.0.1' in redis.conf
+
+  3. Enable protected mode:
+     - Set 'protected-mode yes' in redis.conf
+
+  4. Use firewall rules to restrict access
+
+  5. Consider using Redis ACLs (Redis 6.0+)
+
+references:
+  - "https://redis.io/docs/management/security/"
+  - "https://book.hacktricks.xyz/network-services-pentesting/6379-pentesting-redis"
+
+enabled_by_default: true

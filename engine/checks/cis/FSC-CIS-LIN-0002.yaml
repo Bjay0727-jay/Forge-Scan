@@ -1,0 +1,52 @@
+# ForgeScan Check Definition
+# CIS Linux - SSH Root Login
+
+id: "FSC-CIS-LIN-0002"
+name: "SSH Permits Root Login"
+description: |
+  The SSH server is configured to permit root login. This increases the
+  attack surface as attackers can attempt to directly brute-force the
+  root account password.
+category: configuration
+severity: medium
+
+cwe_ids:
+  - CWE-250
+
+compliance:
+  - framework: "CIS"
+    benchmark: "CIS Ubuntu Linux 22.04 LTS"
+    control: "5.2.10"
+  - framework: "CIS"
+    benchmark: "CIS RHEL 8"
+    control: "5.2.8"
+  - framework: "NIST-800-53"
+    control: "AC-6"
+  - framework: "DISA-STIG"
+    control: "V-72251"
+
+detection:
+  type: config-value
+  mode: agent
+  file: "/etc/ssh/sshd_config"
+  checks:
+    - key: "PermitRootLogin"
+      expected: "no"
+      finding_if_not_match: "SSH permits root login"
+      finding_if_missing: "PermitRootLogin not explicitly set (defaults may vary)"
+
+remediation: |
+  1. Edit /etc/ssh/sshd_config
+  2. Set: PermitRootLogin no
+  3. Restart SSH service:
+     systemctl restart sshd
+
+  Ensure you have an alternative administrative account before
+  disabling root login.
+
+references:
+  - "https://www.cisecurity.org/benchmark/ubuntu_linux"
+  - "https://man.openbsd.org/sshd_config"
+
+enabled_by_default: true
+requires_agent: true

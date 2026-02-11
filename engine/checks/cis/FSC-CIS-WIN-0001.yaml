@@ -1,0 +1,55 @@
+# ForgeScan Check Definition
+# CIS Windows - Guest Account Enabled
+
+id: "FSC-CIS-WIN-0001"
+name: "Windows Guest Account Enabled"
+description: |
+  The Guest account is enabled on this Windows system. The Guest account
+  provides anonymous access to the computer which can be exploited by
+  attackers to gain initial access.
+category: configuration
+severity: medium
+
+cwe_ids:
+  - CWE-284
+
+compliance:
+  - framework: "CIS"
+    benchmark: "CIS Microsoft Windows Server 2022"
+    control: "1.1.2"
+  - framework: "CIS"
+    benchmark: "CIS Microsoft Windows 11 Enterprise"
+    control: "1.1.2"
+  - framework: "NIST-800-53"
+    control: "AC-2"
+  - framework: "DISA-STIG"
+    control: "V-73809"
+
+detection:
+  type: registry
+  mode: agent
+  platform: windows
+  checks:
+    - path: "HKLM\\SAM\\SAM\\Domains\\Account\\Users\\000001F5"
+      value: "F"
+      bit_check:
+        offset: 56
+        expected: 1  # Disabled flag
+      finding_if_not_match: "Guest account is enabled"
+
+remediation: |
+  1. Open Local Security Policy (secpol.msc)
+  2. Navigate to Local Policies > Security Options
+  3. Double-click "Accounts: Guest account status"
+  4. Set to "Disabled"
+
+  Or via command line:
+  net user Guest /active:no
+
+references:
+  - "https://www.cisecurity.org/benchmark/microsoft_windows_server"
+  - "https://docs.microsoft.com/en-us/windows/security/threat-protection/security-policy-settings/accounts-guest-account-status"
+
+enabled_by_default: true
+requires_agent: true
+platform: windows
