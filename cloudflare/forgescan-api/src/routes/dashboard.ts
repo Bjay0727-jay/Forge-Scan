@@ -124,6 +124,122 @@ dashboard.get('/metrics/mttr', async (c) => {
   return c.json(result.results);
 });
 
+// Get dashboard stats (for frontend Dashboard page)
+dashboard.get('/stats', async (c) => {
+  try {
+    // Get total counts
+    const totals = await c.env.DB.prepare(`
+      SELECT
+        (SELECT COUNT(*) FROM assets) as total_assets,
+        (SELECT COUNT(*) FROM findings) as total_findings,
+        (SELECT COUNT(*) FROM scans) as total_scans
+    `).first<{ total_assets: number; total_findings: number; total_scans: number }>();
+
+    // Get findings by severity
+    const severityResults = await c.env.DB.prepare(`
+      SELECT severity, COUNT(*) as count
+      FROM findings
+      GROUP BY severity
+    `).all();
+
+    const findings_by_severity: Record<string, number> = {
+      critical: 0, high: 0, medium: 0, low: 0, info: 0
+    };
+    severityResults.results?.forEach((row: { severity: string; count: number }) => {
+      findings_by_severity[row.severity] = row.count;
+    });
+
+    // Get findings by state
+    const stateResults = await c.env.DB.prepare(`
+      SELECT state, COUNT(*) as count
+      FROM findings
+      GROUP BY state
+    `).all();
+
+    const findings_by_state: Record<string, number> = {
+      open: 0, acknowledged: 0, resolved: 0, false_positive: 0
+    };
+    stateResults.results?.forEach((row: { state: string; count: number }) => {
+      findings_by_state[row.state] = row.count;
+    });
+
+    // Get recent findings
+    const recentFindings = await c.env.DB.prepare(`
+      SELECT id, asset_id, scan_id, title, description, severity, state,
+             cve_id, cvss_score, affected_component, remediation,
+             first_seen, last_seen, created_at, updated_at
+      FROM findings
+      ORDER BY created_at DESC
+      LIMIT 10
+    `).all();
+
+    // Get risk trend (last 30 days)
+    const riskTrend = await c.env.DB.prepare(`
+      SELECT
+        date(created_at) as date,
+        SUM(CASE WHEN severity = 'critical' THEN 10
+                 WHEN severity = 'high' THEN 5
+                 WHEN severity = 'medium' THEN 2
+                 WHEN severity = 'low' THEN 1
+                 ELSE 0 END) as risk_score,
+        SUM(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END) as critical,
+        SUM(CASE WHEN severity = 'high' THEN 1 ELSE 0 END) as high,
+        SUM(CASE WHEN severity = 'medium' THEN 1 ELSE 0 END) as medium,
+        SUM(CASE WHEN severity = 'low' THEN 1 ELSE 0 END) as low
+      FROM findings
+      WHERE created_at >= date('now', '-30 days')
+      GROUP BY date(created_at)
+      ORDER BY date ASC
+    `).all();
+
+    // Get top vulnerabilities
+    const topVulns = await c.env.DB.prepare(`
+      SELECT
+        cve_id,
+        title,
+        severity,
+        COUNT(DISTINCT asset_id) as affected_assets,
+        MAX(cvss_score) as cvss_score
+      FROM findings
+      WHERE cve_id IS NOT NULL
+      GROUP BY cve_id
+      ORDER BY
+        CASE severity
+          WHEN 'critical' THEN 1
+          WHEN 'high' THEN 2
+          WHEN 'medium' THEN 3
+          WHEN 'low' THEN 4
+          ELSE 5
+        END,
+        affected_assets DESC
+      LIMIT 10
+    `).all();
+
+    return c.json({
+      total_assets: totals?.total_assets || 0,
+      total_findings: totals?.total_findings || 0,
+      total_scans: totals?.total_scans || 0,
+      findings_by_severity,
+      findings_by_state,
+      recent_findings: recentFindings.results || [],
+      risk_trend: riskTrend.results || [],
+      top_vulnerabilities: topVulns.results || [],
+    });
+  } catch (error) {
+    console.error('Dashboard stats error:', error);
+    return c.json({
+      total_assets: 0,
+      total_findings: 0,
+      total_scans: 0,
+      findings_by_severity: { critical: 0, high: 0, medium: 0, low: 0, info: 0 },
+      findings_by_state: { open: 0, acknowledged: 0, resolved: 0, false_positive: 0 },
+      recent_findings: [],
+      risk_trend: [],
+      top_vulnerabilities: [],
+    });
+  }
+});
+
 // Get risk score summary
 dashboard.get('/metrics/risk-score', async (c) => {
   // Calculate overall risk score based on open findings
