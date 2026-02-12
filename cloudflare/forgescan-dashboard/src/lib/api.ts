@@ -13,6 +13,7 @@ import type {
   UpdateFindingInput,
   ImportResult,
   ImportFormat,
+  Severity,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
@@ -90,7 +91,41 @@ function buildQueryString(params: Record<string, string | number | boolean | und
 // Dashboard API
 export const dashboardApi = {
   getStats: async (): Promise<DashboardStats> => {
-    return request<DashboardStats>('/dashboard/stats');
+    // Use /overview endpoint and transform response to match DashboardStats
+    const overview = await request<{
+      totals: { total_assets: number; open_findings: number; fixed_findings: number; completed_scans: number };
+      severity_breakdown: Array<{ severity: string; count: number }>;
+      recent_findings: Array<Finding>;
+      top_vulnerable_assets: Array<unknown>;
+      generated_at: string;
+    }>('/dashboard/overview');
+
+    // Transform severity breakdown to record
+    const findings_by_severity: Record<string, number> = {
+      critical: 0, high: 0, medium: 0, low: 0, info: 0
+    };
+    overview.severity_breakdown?.forEach((item) => {
+      findings_by_severity[item.severity] = item.count;
+    });
+
+    // Calculate total findings from severity counts
+    const total_findings = Object.values(findings_by_severity).reduce((a, b) => a + b, 0);
+
+    return {
+      total_assets: overview.totals?.total_assets || 0,
+      total_findings,
+      total_scans: overview.totals?.completed_scans || 0,
+      findings_by_severity: findings_by_severity as Record<Severity, number>,
+      findings_by_state: {
+        open: overview.totals?.open_findings || 0,
+        acknowledged: 0,
+        resolved: overview.totals?.fixed_findings || 0,
+        false_positive: 0
+      },
+      recent_findings: overview.recent_findings || [],
+      risk_trend: [],
+      top_vulnerabilities: [],
+    };
   },
 };
 
