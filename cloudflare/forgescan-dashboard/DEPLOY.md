@@ -24,10 +24,12 @@ Use these exact settings:
 |---------|-------|
 | **Project name** | `forgescan-dashboard` |
 | **Production branch** | `main` |
+| **Root directory (path)** | `cloudflare/forgescan-dashboard` |
 | **Framework preset** | `Vite` |
-| **Build command** | `cd cloudflare/forgescan-dashboard && npm install && npm run build` |
-| **Build output directory** | `cloudflare/forgescan-dashboard/dist` |
-| **Root directory** | `/` (leave as root) |
+| **Build command** | `npm install && npm run build` |
+| **Build output directory** | `dist` |
+
+> **Important**: Set the **Root directory** to `cloudflare/forgescan-dashboard` FIRST, then the build command and output directory are relative to that folder.
 
 ### Step 4: Environment Variables
 Add these environment variables:
