@@ -5,38 +5,70 @@ export const assets = new Hono<{ Bindings: Env }>();
 
 // List all assets
 assets.get('/', async (c) => {
-  const { limit = '50', offset = '0', search } = c.req.query();
+  const { page = '1', page_size = '20', search, type } = c.req.query();
+  const pageNum = parseInt(page);
+  const pageSizeNum = parseInt(page_size);
+  const offset = (pageNum - 1) * pageSizeNum;
 
   let query = 'SELECT * FROM assets';
-  const params: any[] = [];
+  let countQuery = 'SELECT COUNT(*) as total FROM assets';
+  const conditions: string[] = [];
+  const params: string[] = [];
 
   if (search) {
-    query += ' WHERE hostname LIKE ? OR fqdn LIKE ? OR ip_addresses LIKE ?';
+    conditions.push('(hostname LIKE ? OR fqdn LIKE ? OR ip_addresses LIKE ?)');
     const searchPattern = `%${search}%`;
     params.push(searchPattern, searchPattern, searchPattern);
   }
 
-  query += ' ORDER BY last_seen DESC LIMIT ? OFFSET ?';
-  params.push(parseInt(limit), parseInt(offset));
-
-  const result = await c.env.DB.prepare(query).bind(...params).all();
-
-  // Get total count
-  let countQuery = 'SELECT COUNT(*) as total FROM assets';
-  if (search) {
-    countQuery += ' WHERE hostname LIKE ? OR fqdn LIKE ? OR ip_addresses LIKE ?';
+  if (type) {
+    conditions.push('asset_type = ?');
+    params.push(type);
   }
+
+  if (conditions.length > 0) {
+    const whereClause = ' WHERE ' + conditions.join(' AND ');
+    query += whereClause;
+    countQuery += whereClause;
+  }
+
+  query += ' ORDER BY last_seen DESC LIMIT ? OFFSET ?';
+
+  const result = await c.env.DB.prepare(query)
+    .bind(...params, pageSizeNum, offset)
+    .all();
+
   const countResult = await c.env.DB.prepare(countQuery)
-    .bind(...(search ? [`%${search}%`, `%${search}%`, `%${search}%`] : []))
+    .bind(...params)
     .first<{ total: number }>();
 
-  return c.json({
-    data: result.results,
-    pagination: {
-      total: countResult?.total || 0,
-      limit: parseInt(limit),
-      offset: parseInt(offset),
+  const total = countResult?.total || 0;
+  const totalPages = Math.ceil(total / pageSizeNum);
+
+  // Transform to match frontend expected format
+  const items = (result.results || []).map((asset: Record<string, unknown>) => ({
+    id: asset.id,
+    name: asset.hostname || asset.fqdn || 'Unknown',
+    type: asset.asset_type || 'host',
+    identifier: asset.fqdn || asset.hostname || String(asset.id),
+    metadata: {
+      ip_addresses: asset.ip_addresses ? JSON.parse(String(asset.ip_addresses)) : [],
+      os: asset.os,
+      os_version: asset.os_version,
+      network_zone: asset.network_zone,
     },
+    tags: asset.tags ? JSON.parse(String(asset.tags)) : [],
+    risk_score: asset.risk_score || 0,
+    created_at: asset.first_seen || asset.created_at,
+    updated_at: asset.last_seen || asset.updated_at,
+  }));
+
+  return c.json({
+    items,
+    total,
+    page: pageNum,
+    page_size: pageSizeNum,
+    total_pages: totalPages,
   });
 });
 

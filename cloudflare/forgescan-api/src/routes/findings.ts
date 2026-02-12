@@ -6,42 +6,58 @@ export const findings = new Hono<{ Bindings: Env }>();
 // List findings with filtering
 findings.get('/', async (c) => {
   const {
-    limit = '50',
-    offset = '0',
+    page = '1',
+    page_size = '20',
     severity,
-    state = 'open',
+    state,
     vendor,
     asset_id,
     search,
   } = c.req.query();
 
+  const pageNum = parseInt(page);
+  const pageSizeNum = parseInt(page_size);
+  const offset = (pageNum - 1) * pageSizeNum;
+
   let query = 'SELECT f.*, a.hostname, a.ip_addresses FROM findings f LEFT JOIN assets a ON f.asset_id = a.id WHERE 1=1';
-  const params: any[] = [];
+  let countQuery = 'SELECT COUNT(*) as total FROM findings f WHERE 1=1';
+  const params: string[] = [];
+  const countParams: string[] = [];
 
   if (severity) {
     query += ' AND f.severity = ?';
+    countQuery += ' AND f.severity = ?';
     params.push(severity);
+    countParams.push(severity);
   }
 
   if (state) {
     query += ' AND f.state = ?';
+    countQuery += ' AND f.state = ?';
     params.push(state);
+    countParams.push(state);
   }
 
   if (vendor) {
     query += ' AND f.vendor = ?';
+    countQuery += ' AND f.vendor = ?';
     params.push(vendor);
+    countParams.push(vendor);
   }
 
   if (asset_id) {
     query += ' AND f.asset_id = ?';
+    countQuery += ' AND f.asset_id = ?';
     params.push(asset_id);
+    countParams.push(asset_id);
   }
 
   if (search) {
     query += ' AND (f.title LIKE ? OR f.description LIKE ? OR f.vendor_id LIKE ?)';
+    countQuery += ' AND (f.title LIKE ? OR f.description LIKE ? OR f.vendor_id LIKE ?)';
     const searchPattern = `%${search}%`;
     params.push(searchPattern, searchPattern, searchPattern);
+    countParams.push(searchPattern, searchPattern, searchPattern);
   }
 
   // Order by severity (Critical > High > Medium > Low > Info), then by FRS score
@@ -56,42 +72,39 @@ findings.get('/', async (c) => {
     f.frs_score DESC NULLS LAST,
     f.last_seen DESC
     LIMIT ? OFFSET ?`;
-  params.push(parseInt(limit), parseInt(offset));
 
-  const result = await c.env.DB.prepare(query).bind(...params).all();
+  const result = await c.env.DB.prepare(query).bind(...params, pageSizeNum, offset).all();
+  const countResult = await c.env.DB.prepare(countQuery).bind(...countParams).first<{ total: number }>();
 
-  // Get total count
-  let countQuery = 'SELECT COUNT(*) as total FROM findings f WHERE 1=1';
-  const countParams: any[] = [];
+  const total = countResult?.total || 0;
+  const totalPages = Math.ceil(total / pageSizeNum);
 
-  if (severity) {
-    countQuery += ' AND f.severity = ?';
-    countParams.push(severity);
-  }
-  if (state) {
-    countQuery += ' AND f.state = ?';
-    countParams.push(state);
-  }
-  if (vendor) {
-    countQuery += ' AND f.vendor = ?';
-    countParams.push(vendor);
-  }
-  if (asset_id) {
-    countQuery += ' AND f.asset_id = ?';
-    countParams.push(asset_id);
-  }
-
-  const countResult = await c.env.DB.prepare(countQuery)
-    .bind(...countParams)
-    .first<{ total: number }>();
+  // Transform to match frontend expected format
+  const items = (result.results || []).map((f: Record<string, unknown>) => ({
+    id: f.id,
+    asset_id: f.asset_id,
+    scan_id: f.scan_id,
+    title: f.title,
+    description: f.description,
+    severity: f.severity,
+    state: f.state,
+    cve_id: f.cve_id,
+    cvss_score: f.cvss_score,
+    affected_component: f.affected_component || f.vendor_id,
+    remediation: f.remediation,
+    references: f.references ? JSON.parse(String(f.references)) : [],
+    first_seen: f.first_seen,
+    last_seen: f.last_seen,
+    created_at: f.created_at || f.first_seen,
+    updated_at: f.updated_at || f.last_seen,
+  }));
 
   return c.json({
-    data: result.results,
-    pagination: {
-      total: countResult?.total || 0,
-      limit: parseInt(limit),
-      offset: parseInt(offset),
-    },
+    items,
+    total,
+    page: pageNum,
+    page_size: pageSizeNum,
+    total_pages: totalPages,
   });
 });
 

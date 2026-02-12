@@ -5,32 +5,59 @@ export const scans = new Hono<{ Bindings: Env }>();
 
 // List scans
 scans.get('/', async (c) => {
-  const { limit = '20', offset = '0', status, scan_type } = c.req.query();
+  const { page = '1', page_size = '20', status, type } = c.req.query();
+  const pageNum = parseInt(page);
+  const pageSizeNum = parseInt(page_size);
+  const offset = (pageNum - 1) * pageSizeNum;
 
   let query = 'SELECT * FROM scans WHERE 1=1';
-  const params: any[] = [];
+  let countQuery = 'SELECT COUNT(*) as total FROM scans WHERE 1=1';
+  const params: string[] = [];
+  const countParams: string[] = [];
 
   if (status) {
     query += ' AND status = ?';
+    countQuery += ' AND status = ?';
     params.push(status);
+    countParams.push(status);
   }
 
-  if (scan_type) {
+  if (type) {
     query += ' AND scan_type = ?';
-    params.push(scan_type);
+    countQuery += ' AND scan_type = ?';
+    params.push(type);
+    countParams.push(type);
   }
 
   query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-  params.push(parseInt(limit), parseInt(offset));
 
-  const result = await c.env.DB.prepare(query).bind(...params).all();
+  const result = await c.env.DB.prepare(query).bind(...params, pageSizeNum, offset).all();
+  const countResult = await c.env.DB.prepare(countQuery).bind(...countParams).first<{ total: number }>();
+
+  const total = countResult?.total || 0;
+  const totalPages = Math.ceil(total / pageSizeNum);
+
+  // Transform to match frontend expected format
+  const items = (result.results || []).map((s: Record<string, unknown>) => ({
+    id: s.id,
+    name: s.name,
+    type: s.scan_type,
+    status: s.status,
+    target: s.targets ? JSON.parse(String(s.targets)).join(', ') : '',
+    configuration: s.config ? JSON.parse(String(s.config)) : {},
+    findings_count: s.findings_count || 0,
+    started_at: s.started_at,
+    completed_at: s.completed_at,
+    created_at: s.created_at,
+    updated_at: s.updated_at || s.created_at,
+  }));
 
   return c.json({
-    data: result.results,
-    pagination: {
-      limit: parseInt(limit),
-      offset: parseInt(offset),
-    },
+    items,
+    total,
+    page: pageNum,
+    page_size: pageSizeNum,
+    total_pages: totalPages,
   });
 });
 
