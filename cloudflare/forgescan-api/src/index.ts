@@ -6,6 +6,9 @@ import { findings } from './routes/findings';
 import { scans } from './routes/scans';
 import { ingest } from './routes/ingest';
 import { dashboard } from './routes/dashboard';
+import { reports } from './routes/reports';
+import { exports } from './routes/exports';
+import { vulnerabilities } from './routes/vulnerabilities';
 
 export interface Env {
   DB: D1Database;
@@ -46,6 +49,9 @@ app.route('/api/v1/findings', findings);
 app.route('/api/v1/scans', scans);
 app.route('/api/v1/ingest', ingest);
 app.route('/api/v1/dashboard', dashboard);
+app.route('/api/v1/reports', reports);
+app.route('/api/v1/exports', exports);
+app.route('/api/v1/vulnerabilities', vulnerabilities);
 
 // 404 handler
 app.notFound((c) => {
