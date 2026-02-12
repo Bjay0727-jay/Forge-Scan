@@ -70,7 +70,7 @@ async function request<T>(
   }
 }
 
-function buildQueryString(params: Record<string, unknown>): string {
+function buildQueryString(params: Record<string, string | number | boolean | undefined | null | Array<string | number>>): string {
   const searchParams = new URLSearchParams();
 
   Object.entries(params).forEach(([key, value]) => {
@@ -99,7 +99,7 @@ export const assetsApi = {
   list: async (
     params: AssetListParams = {}
   ): Promise<PaginatedResponse<Asset>> => {
-    const query = buildQueryString(params);
+    const query = buildQueryString(params as Record<string, string | number | boolean | undefined>);
     return request<PaginatedResponse<Asset>>(`/assets${query}`);
   },
 
@@ -133,7 +133,7 @@ export const findingsApi = {
   list: async (
     params: FindingListParams = {}
   ): Promise<PaginatedResponse<Finding>> => {
-    const query = buildQueryString(params);
+    const query = buildQueryString(params as Record<string, string | number | boolean | undefined>);
     return request<PaginatedResponse<Finding>>(`/findings${query}`);
   },
 
@@ -162,7 +162,7 @@ export const findingsApi = {
 // Scans API
 export const scansApi = {
   list: async (params: ScanListParams = {}): Promise<PaginatedResponse<Scan>> => {
-    const query = buildQueryString(params);
+    const query = buildQueryString(params as Record<string, string | number | boolean | undefined>);
     return request<PaginatedResponse<Scan>>(`/scans${query}`);
   },
 
@@ -199,7 +199,7 @@ export const scansApi = {
     id: string,
     params: FindingListParams = {}
   ): Promise<PaginatedResponse<Finding>> => {
-    const query = buildQueryString(params);
+    const query = buildQueryString(params as Record<string, string | number | boolean | undefined>);
     return request<PaginatedResponse<Finding>>(`/scans/${id}/findings${query}`);
   },
 };

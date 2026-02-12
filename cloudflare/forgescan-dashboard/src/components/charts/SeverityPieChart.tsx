@@ -57,7 +57,7 @@ export function SeverityPieChart({ data }: SeverityPieChartProps) {
         <Legend
           verticalAlign="bottom"
           height={36}
-          formatter={(value, entry) => (
+          formatter={(value) => (
             <span className="text-sm text-foreground">{value}</span>
           )}
         />

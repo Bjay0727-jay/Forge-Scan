@@ -7,7 +7,6 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { capitalize } from '@/lib/utils';
 import type { FindingState } from '@/types';
 
 interface StateBarChartProps {
