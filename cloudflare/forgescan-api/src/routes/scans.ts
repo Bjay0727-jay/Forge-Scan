@@ -168,6 +168,42 @@ scans.patch('/:id/status', async (c) => {
   return c.json({ message: 'Scan status updated' });
 });
 
+// Start scan
+scans.post('/:id/start', async (c) => {
+  const id = c.req.param('id');
+
+  const scan = await c.env.DB.prepare(
+    'SELECT * FROM scans WHERE id = ?'
+  ).bind(id).first<{ id: string; status: string; name: string; scan_type: string; targets: string; config: string }>();
+
+  if (!scan) {
+    return c.json({ error: 'Scan not found' }, 404);
+  }
+
+  if (scan.status !== 'pending') {
+    return c.json({ error: `Scan cannot be started - current status is '${scan.status}'` }, 400);
+  }
+
+  // Update scan status to running
+  await c.env.DB.prepare(`
+    UPDATE scans SET status = 'running', started_at = datetime('now'), updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(id).run();
+
+  // In a real implementation, this would trigger the actual scan engine
+  // For now, we simulate scan completion after a short delay by returning running status
+  // The scan engine (Rust-based forgescan-scanner) would handle the actual scanning
+
+  return c.json({
+    id: scan.id,
+    name: scan.name,
+    type: scan.scan_type,
+    status: 'running',
+    message: 'Scan started successfully',
+    started_at: new Date().toISOString(),
+  });
+});
+
 // Cancel scan
 scans.post('/:id/cancel', async (c) => {
   const id = c.req.param('id');
