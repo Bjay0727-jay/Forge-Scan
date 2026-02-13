@@ -78,27 +78,51 @@ scans.get('/:id', async (c) => {
 
 // Create new scan
 scans.post('/', async (c) => {
-  const body = await c.req.json();
-  const id = crypto.randomUUID();
+  try {
+    const body = await c.req.json();
+    const id = crypto.randomUUID();
 
-  const validTypes = ['network', 'webapp', 'cloud', 'config_audit', 'full'];
-  if (!validTypes.includes(body.scan_type)) {
-    return c.json({ error: 'Invalid scan type' }, 400);
+    // Support both frontend format (type, target, configuration) and API format (scan_type, targets, config)
+    const scanType = body.type || body.scan_type;
+    const target = body.target || body.targets;
+    const config = body.configuration || body.config || {};
+
+    const validTypes = ['network', 'container', 'cloud', 'web', 'code', 'compliance', 'webapp', 'config_audit', 'full'];
+    if (!validTypes.includes(scanType)) {
+      return c.json({ error: `Invalid scan type: ${scanType}. Valid types: ${validTypes.join(', ')}` }, 400);
+    }
+
+    // Normalize targets to array
+    const targets = Array.isArray(target) ? target : [target];
+
+    await c.env.DB.prepare(`
+      INSERT INTO scans (id, name, scan_type, targets, config, status, created_at)
+      VALUES (?, ?, ?, ?, ?, 'pending', datetime('now'))
+    `).bind(
+      id,
+      body.name,
+      scanType,
+      JSON.stringify(targets),
+      JSON.stringify(config),
+    ).run();
+
+    // Return the created scan in the format frontend expects
+    return c.json({
+      id,
+      name: body.name,
+      type: scanType,
+      status: 'pending',
+      target: targets.join(', '),
+      configuration: config,
+      findings_count: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }, 201);
+  } catch (error: unknown) {
+    console.error('Create scan error:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: 'Failed to create scan', message }, 500);
   }
-
-  await c.env.DB.prepare(`
-    INSERT INTO scans (id, name, scan_type, targets, config, status, created_by)
-    VALUES (?, ?, ?, ?, ?, 'pending', ?)
-  `).bind(
-    id,
-    body.name,
-    body.scan_type,
-    JSON.stringify(body.targets),
-    JSON.stringify(body.config || {}),
-    body.created_by || null,
-  ).run();
-
-  return c.json({ id, message: 'Scan created', status: 'pending' }, 201);
 });
 
 // Update scan status
