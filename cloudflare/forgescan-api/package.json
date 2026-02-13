@@ -4,9 +4,10 @@
   "description": "ForgeScan 360 API - Cloudflare Worker",
   "main": "src/index.ts",
   "scripts": {
+    "build": "esbuild src/index.ts --bundle --outfile=dist/worker.js --format=esm --platform=browser --target=es2022",
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "deploy:prod": "wrangler deploy --env production",
+    "deploy": "npm run build && wrangler deploy",
+    "deploy:prod": "npm run build && wrangler deploy --env production",
     "tail": "wrangler tail"
   },
   "dependencies": {
@@ -15,6 +16,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240117.0",
+    "esbuild": "^0.20.0",
     "typescript": "^5.3.0",
     "wrangler": "^3.22.0"
   }
