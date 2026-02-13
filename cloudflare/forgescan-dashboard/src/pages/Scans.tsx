@@ -56,6 +56,26 @@ const scanStatuses: ScanStatus[] = [
   'cancelled',
 ];
 
+interface ScanConfig {
+  // Network scan options
+  ports?: string;
+  intensity?: 'light' | 'normal' | 'aggressive';
+  // Container scan options
+  registry?: string;
+  image?: string;
+  // Cloud scan options
+  provider?: 'aws' | 'azure' | 'gcp';
+  regions?: string;
+  // Web scan options
+  authenticated?: boolean;
+  maxDepth?: number;
+  // Code scan options
+  branch?: string;
+  languages?: string;
+  // Compliance scan options
+  framework?: 'cis' | 'nist' | 'pci-dss' | 'hipaa' | 'soc2';
+}
+
 function CreateScanDialog({ onSuccess }: { onSuccess: () => void }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -63,24 +83,41 @@ function CreateScanDialog({ onSuccess }: { onSuccess: () => void }) {
     name: '',
     type: 'network' as ScanType,
     target: '',
-    configuration: '',
   });
+  const [config, setConfig] = useState<ScanConfig>({
+    ports: '1-1000',
+    intensity: 'normal',
+  });
+
+  const handleTypeChange = (type: ScanType) => {
+    setFormData({ ...formData, type });
+    // Reset config with defaults for the selected type
+    switch (type) {
+      case 'network':
+        setConfig({ ports: '1-1000', intensity: 'normal' });
+        break;
+      case 'container':
+        setConfig({ registry: '', image: '' });
+        break;
+      case 'cloud':
+        setConfig({ provider: 'aws', regions: 'us-east-1' });
+        break;
+      case 'web':
+        setConfig({ authenticated: false, maxDepth: 3 });
+        break;
+      case 'code':
+        setConfig({ branch: 'main', languages: '' });
+        break;
+      case 'compliance':
+        setConfig({ framework: 'cis' });
+        break;
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      let config = {};
-      if (formData.configuration) {
-        try {
-          config = JSON.parse(formData.configuration);
-        } catch {
-          alert('Invalid JSON configuration');
-          setLoading(false);
-          return;
-        }
-      }
-
       await scansApi.create({
         name: formData.name,
         type: formData.type,
@@ -88,12 +125,211 @@ function CreateScanDialog({ onSuccess }: { onSuccess: () => void }) {
         configuration: config,
       });
       setOpen(false);
-      setFormData({ name: '', type: 'network', target: '', configuration: '' });
+      setFormData({ name: '', type: 'network', target: '' });
+      setConfig({ ports: '1-1000', intensity: 'normal' });
       onSuccess();
     } catch (error) {
       console.error('Failed to create scan:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const renderConfigFields = () => {
+    switch (formData.type) {
+      case 'network':
+        return (
+          <>
+            <div className="grid gap-2">
+              <Label htmlFor="ports">Port Range</Label>
+              <Input
+                id="ports"
+                value={config.ports || ''}
+                onChange={(e) => setConfig({ ...config, ports: e.target.value })}
+                placeholder="1-1000, 3389, 8080-8090"
+              />
+              <p className="text-xs text-muted-foreground">
+                Specify ports to scan (e.g., 1-1000, 22, 80, 443)
+              </p>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="intensity">Scan Intensity</Label>
+              <Select
+                value={config.intensity || 'normal'}
+                onValueChange={(value) => setConfig({ ...config, intensity: value as 'light' | 'normal' | 'aggressive' })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="light">Light (Fast, less thorough)</SelectItem>
+                  <SelectItem value="normal">Normal (Balanced)</SelectItem>
+                  <SelectItem value="aggressive">Aggressive (Slow, thorough)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </>
+        );
+      case 'container':
+        return (
+          <>
+            <div className="grid gap-2">
+              <Label htmlFor="registry">Container Registry</Label>
+              <Input
+                id="registry"
+                value={config.registry || ''}
+                onChange={(e) => setConfig({ ...config, registry: e.target.value })}
+                placeholder="docker.io, gcr.io, ecr.aws"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="image">Image Name (optional)</Label>
+              <Input
+                id="image"
+                value={config.image || ''}
+                onChange={(e) => setConfig({ ...config, image: e.target.value })}
+                placeholder="myapp:latest"
+              />
+              <p className="text-xs text-muted-foreground">
+                Leave empty to scan all images
+              </p>
+            </div>
+          </>
+        );
+      case 'cloud':
+        return (
+          <>
+            <div className="grid gap-2">
+              <Label htmlFor="provider">Cloud Provider</Label>
+              <Select
+                value={config.provider || 'aws'}
+                onValueChange={(value) => setConfig({ ...config, provider: value as 'aws' | 'azure' | 'gcp' })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="aws">Amazon Web Services (AWS)</SelectItem>
+                  <SelectItem value="azure">Microsoft Azure</SelectItem>
+                  <SelectItem value="gcp">Google Cloud Platform</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="regions">Regions</Label>
+              <Input
+                id="regions"
+                value={config.regions || ''}
+                onChange={(e) => setConfig({ ...config, regions: e.target.value })}
+                placeholder="us-east-1, eu-west-1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Comma-separated list of regions to scan
+              </p>
+            </div>
+          </>
+        );
+      case 'web':
+        return (
+          <>
+            <div className="grid gap-2">
+              <Label htmlFor="maxDepth">Crawl Depth</Label>
+              <Select
+                value={String(config.maxDepth || 3)}
+                onValueChange={(value) => setConfig({ ...config, maxDepth: parseInt(value) })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 - Homepage only</SelectItem>
+                  <SelectItem value="2">2 - Shallow</SelectItem>
+                  <SelectItem value="3">3 - Normal</SelectItem>
+                  <SelectItem value="5">5 - Deep</SelectItem>
+                  <SelectItem value="10">10 - Very Deep</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="authenticated"
+                checked={config.authenticated || false}
+                onChange={(e) => setConfig({ ...config, authenticated: e.target.checked })}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <Label htmlFor="authenticated">Authenticated Scan</Label>
+            </div>
+          </>
+        );
+      case 'code':
+        return (
+          <>
+            <div className="grid gap-2">
+              <Label htmlFor="branch">Branch</Label>
+              <Input
+                id="branch"
+                value={config.branch || ''}
+                onChange={(e) => setConfig({ ...config, branch: e.target.value })}
+                placeholder="main"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="languages">Languages (optional)</Label>
+              <Input
+                id="languages"
+                value={config.languages || ''}
+                onChange={(e) => setConfig({ ...config, languages: e.target.value })}
+                placeholder="javascript, python, go"
+              />
+              <p className="text-xs text-muted-foreground">
+                Leave empty to auto-detect
+              </p>
+            </div>
+          </>
+        );
+      case 'compliance':
+        return (
+          <div className="grid gap-2">
+            <Label htmlFor="framework">Compliance Framework</Label>
+            <Select
+              value={config.framework || 'cis'}
+              onValueChange={(value) => setConfig({ ...config, framework: value as 'cis' | 'nist' | 'pci-dss' | 'hipaa' | 'soc2' })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cis">CIS Benchmarks</SelectItem>
+                <SelectItem value="nist">NIST 800-53</SelectItem>
+                <SelectItem value="pci-dss">PCI-DSS</SelectItem>
+                <SelectItem value="hipaa">HIPAA</SelectItem>
+                <SelectItem value="soc2">SOC 2</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const getTargetPlaceholder = () => {
+    switch (formData.type) {
+      case 'network':
+        return '192.168.1.0/24 or hostname';
+      case 'container':
+        return 'docker.io/myorg or container ID';
+      case 'cloud':
+        return 'AWS Account ID or subscription';
+      case 'web':
+        return 'https://example.com';
+      case 'code':
+        return 'https://github.com/org/repo';
+      case 'compliance':
+        return 'Environment or resource group';
+      default:
+        return 'Target';
     }
   };
 
@@ -105,7 +341,7 @@ function CreateScanDialog({ onSuccess }: { onSuccess: () => void }) {
           New Scan
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Create New Scan</DialogTitle>
@@ -130,9 +366,7 @@ function CreateScanDialog({ onSuccess }: { onSuccess: () => void }) {
               <Label htmlFor="type">Scan Type</Label>
               <Select
                 value={formData.type}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, type: value as ScanType })
-                }
+                onValueChange={(value) => handleTypeChange(value as ScanType)}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -154,21 +388,15 @@ function CreateScanDialog({ onSuccess }: { onSuccess: () => void }) {
                 onChange={(e) =>
                   setFormData({ ...formData, target: e.target.value })
                 }
-                placeholder="192.168.1.0/24 or hostname"
+                placeholder={getTargetPlaceholder()}
                 required
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="configuration">Configuration (JSON)</Label>
-              <Textarea
-                id="configuration"
-                value={formData.configuration}
-                onChange={(e) =>
-                  setFormData({ ...formData, configuration: e.target.value })
-                }
-                placeholder='{"ports": "1-1000", "intensity": "normal"}'
-                rows={4}
-              />
+
+            {/* Dynamic configuration fields based on scan type */}
+            <div className="border-t pt-4 mt-2">
+              <h4 className="text-sm font-medium mb-3">Scan Configuration</h4>
+              {renderConfigFields()}
             </div>
           </div>
           <DialogFooter>
