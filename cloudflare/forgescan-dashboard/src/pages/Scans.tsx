@@ -29,7 +29,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ErrorState';
 import { EmptyState } from '@/components/EmptyState';
@@ -122,7 +121,7 @@ function CreateScanDialog({ onSuccess }: { onSuccess: () => void }) {
         name: formData.name,
         type: formData.type,
         target: formData.target,
-        configuration: config,
+        configuration: config as Record<string, unknown>,
       });
       setOpen(false);
       setFormData({ name: '', type: 'network', target: '' });
