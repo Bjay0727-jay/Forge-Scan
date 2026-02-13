@@ -241,6 +241,7 @@ export const scansApi = {
 
 // Import API
 export const importApi = {
+  // Import findings
   importData: async (
     format: ImportFormat,
     data: string | object
@@ -260,6 +261,41 @@ export const importApi = {
     formData.append('format', format);
 
     const response = await fetch(`${API_BASE_URL}/import/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new ApiError(
+        errorData.error || `HTTP error ${response.status}`,
+        response.status
+      );
+    }
+
+    return response.json();
+  },
+
+  // Import assets
+  importAssets: async (
+    format: string,
+    data: string | object
+  ): Promise<ImportResult> => {
+    return request<ImportResult>('/import/assets', {
+      method: 'POST',
+      body: JSON.stringify({ format, data }),
+    });
+  },
+
+  uploadAssetFile: async (
+    format: string,
+    file: File
+  ): Promise<ImportResult> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('format', format);
+
+    const response = await fetch(`${API_BASE_URL}/import/assets/upload`, {
       method: 'POST',
       body: formData,
     });

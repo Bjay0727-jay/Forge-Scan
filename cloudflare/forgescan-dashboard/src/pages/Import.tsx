@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Upload, FileJson, FileText, AlertCircle, CheckCircle } from 'lucide-react';
+import { Upload, FileJson, FileText, AlertCircle, CheckCircle, FileSpreadsheet, Server, Shield } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,7 +15,9 @@ import {
 import { importApi } from '@/lib/api';
 import type { ImportFormat, ImportResult } from '@/types';
 
-const formats: { value: ImportFormat; label: string; description: string }[] = [
+type ImportType = 'findings' | 'assets';
+
+const findingFormats: { value: ImportFormat; label: string; description: string }[] = [
   {
     value: 'sarif',
     label: 'SARIF',
@@ -30,6 +32,24 @@ const formats: { value: ImportFormat; label: string; description: string }[] = [
     value: 'csv',
     label: 'CSV',
     description: 'Comma-Separated Values with header row',
+  },
+  {
+    value: 'json',
+    label: 'JSON',
+    description: 'ForgeScan native JSON format',
+  },
+];
+
+const assetFormats: { value: string; label: string; description: string }[] = [
+  {
+    value: 'csv',
+    label: 'CSV',
+    description: 'Comma-Separated Values with header row',
+  },
+  {
+    value: 'xlsx',
+    label: 'Excel (XLSX)',
+    description: 'Microsoft Excel spreadsheet format',
   },
   {
     value: 'json',
@@ -86,12 +106,21 @@ function ImportResultCard({ result }: { result: ImportResult }) {
 }
 
 export function Import() {
-  const [format, setFormat] = useState<ImportFormat>('sarif');
+  const [importType, setImportType] = useState<ImportType>('findings');
+  const [format, setFormat] = useState<string>('sarif');
   const [data, setData] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportTypeChange = (type: ImportType) => {
+    setImportType(type);
+    setFormat(type === 'findings' ? 'sarif' : 'csv');
+    setData('');
+    setResult(null);
+    setError(null);
+  };
 
   const handleDataImport = async () => {
     if (!data.trim()) {
@@ -115,8 +144,13 @@ export function Import() {
         }
       }
 
-      const importResult = await importApi.importData(format, parsedData);
-      setResult(importResult);
+      if (importType === 'assets') {
+        const importResult = await importApi.importAssets(format, parsedData);
+        setResult(importResult);
+      } else {
+        const importResult = await importApi.importData(format as ImportFormat, parsedData);
+        setResult(importResult);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Import failed');
     } finally {
@@ -133,8 +167,13 @@ export function Import() {
     setResult(null);
 
     try {
-      const importResult = await importApi.uploadFile(format, file);
-      setResult(importResult);
+      if (importType === 'assets') {
+        const importResult = await importApi.uploadAssetFile(format, file);
+        setResult(importResult);
+      } else {
+        const importResult = await importApi.uploadFile(format as ImportFormat, file);
+        setResult(importResult);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'File upload failed');
     } finally {
@@ -155,8 +194,13 @@ export function Import() {
     setResult(null);
 
     try {
-      const importResult = await importApi.uploadFile(format, file);
-      setResult(importResult);
+      if (importType === 'assets') {
+        const importResult = await importApi.uploadAssetFile(format, file);
+        setResult(importResult);
+      } else {
+        const importResult = await importApi.uploadFile(format as ImportFormat, file);
+        setResult(importResult);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'File upload failed');
     } finally {
@@ -164,24 +208,65 @@ export function Import() {
     }
   };
 
+  const formats = importType === 'findings' ? findingFormats : assetFormats;
   const selectedFormat = formats.find((f) => f.value === format);
+  const fileAccept = importType === 'assets'
+    ? '.json,.csv,.xlsx,.xls'
+    : '.json,.sarif,.xml,.csv';
+
+  const getPlaceholder = () => {
+    if (importType === 'assets') {
+      if (format === 'csv') {
+        return 'hostname,ip_address,os,asset_type,network_zone,tags\n"web-server-01","192.168.1.10","Ubuntu 22.04","host","production","web,linux"\n"db-server-01","192.168.1.20","Windows Server 2022","host","production","database,windows"';
+      }
+      return '[\n  {\n    "hostname": "web-server-01",\n    "ip_addresses": ["192.168.1.10"],\n    "os": "Ubuntu 22.04",\n    "asset_type": "host"\n  }\n]';
+    }
+    if (format === 'csv') {
+      return 'title,severity,cve_id,description\n"SQL Injection",critical,CVE-2024-1234,"SQL injection vulnerability"';
+    }
+    return '{\n  "version": "2.1.0",\n  "runs": [...]\n}';
+  };
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Import Data</h1>
         <p className="text-muted-foreground">
-          Import security findings from various formats
+          Import assets and security findings from various formats
         </p>
+      </div>
+
+      {/* Import Type Selection */}
+      <div className="mb-6 flex gap-4">
+        <Button
+          variant={importType === 'findings' ? 'default' : 'outline'}
+          onClick={() => handleImportTypeChange('findings')}
+          className="flex items-center gap-2"
+        >
+          <Shield className="h-4 w-4" />
+          Import Findings
+        </Button>
+        <Button
+          variant={importType === 'assets' ? 'default' : 'outline'}
+          onClick={() => handleImportTypeChange('assets')}
+          className="flex items-center gap-2"
+        >
+          <Server className="h-4 w-4" />
+          Import Assets
+        </Button>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
-              <CardTitle>Import Security Data</CardTitle>
+              <CardTitle>
+                {importType === 'findings' ? 'Import Security Findings' : 'Import Assets'}
+              </CardTitle>
               <CardDescription>
-                Upload or paste security scan results to import findings
+                {importType === 'findings'
+                  ? 'Upload or paste security scan results to import findings'
+                  : 'Upload or paste asset inventory data to import assets'}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -189,7 +274,7 @@ export function Import() {
                 <Label htmlFor="format">Import Format</Label>
                 <Select
                   value={format}
-                  onValueChange={(value) => setFormat(value as ImportFormat)}
+                  onValueChange={(value) => setFormat(value)}
                 >
                   <SelectTrigger className="mt-2">
                     <SelectValue />
@@ -209,40 +294,17 @@ export function Import() {
                 )}
               </div>
 
-              <Tabs defaultValue="paste">
+              <Tabs defaultValue="upload">
                 <TabsList className="mb-4">
-                  <TabsTrigger value="paste">
-                    <FileText className="mr-2 h-4 w-4" />
-                    Paste Data
-                  </TabsTrigger>
                   <TabsTrigger value="upload">
                     <Upload className="mr-2 h-4 w-4" />
                     Upload File
                   </TabsTrigger>
+                  <TabsTrigger value="paste">
+                    <FileText className="mr-2 h-4 w-4" />
+                    Paste Data
+                  </TabsTrigger>
                 </TabsList>
-
-                <TabsContent value="paste">
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="data">Data</Label>
-                      <Textarea
-                        id="data"
-                        value={data}
-                        onChange={(e) => setData(e.target.value)}
-                        placeholder={
-                          format === 'csv'
-                            ? 'title,severity,cve_id,description\n"SQL Injection",critical,CVE-2024-1234,"SQL injection vulnerability"'
-                            : '{\n  "version": "2.1.0",\n  "runs": [...]\n}'
-                        }
-                        rows={12}
-                        className="mt-2 font-mono text-sm"
-                      />
-                    </div>
-                    <Button onClick={handleDataImport} disabled={loading}>
-                      {loading ? 'Importing...' : 'Import Data'}
-                    </Button>
-                  </div>
-                </TabsContent>
 
                 <TabsContent value="upload">
                   <div
@@ -250,7 +312,11 @@ export function Import() {
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={handleDrop}
                   >
-                    <Upload className="mb-4 h-12 w-12 text-muted-foreground" />
+                    {format === 'xlsx' ? (
+                      <FileSpreadsheet className="mb-4 h-12 w-12 text-muted-foreground" />
+                    ) : (
+                      <Upload className="mb-4 h-12 w-12 text-muted-foreground" />
+                    )}
                     <p className="mb-2 text-lg font-medium">
                       Drag and drop a file here
                     </p>
@@ -260,7 +326,7 @@ export function Import() {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".json,.sarif,.xml,.csv"
+                      accept={fileAccept}
                       onChange={handleFileUpload}
                       className="hidden"
                       id="file-upload"
@@ -271,6 +337,25 @@ export function Import() {
                       disabled={loading}
                     >
                       {loading ? 'Uploading...' : 'Select File'}
+                    </Button>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="paste">
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="data">Data</Label>
+                      <Textarea
+                        id="data"
+                        value={data}
+                        onChange={(e) => setData(e.target.value)}
+                        placeholder={getPlaceholder()}
+                        rows={12}
+                        className="mt-2 font-mono text-sm"
+                      />
+                    </div>
+                    <Button onClick={handleDataImport} disabled={loading}>
+                      {loading ? 'Importing...' : 'Import Data'}
                     </Button>
                   </div>
                 </TabsContent>
@@ -292,50 +377,123 @@ export function Import() {
         </div>
 
         <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Supported Formats</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {formats.map((f) => (
-                <div key={f.value} className="flex items-start gap-3">
-                  <FileJson className="mt-0.5 h-5 w-5 text-primary" />
-                  <div>
-                    <h4 className="font-medium">{f.label}</h4>
-                    <p className="text-sm text-muted-foreground">
-                      {f.description}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+          {importType === 'assets' ? (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Asset CSV Format</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="mb-2 text-sm text-muted-foreground">
+                    Required columns:
+                  </p>
+                  <ul className="list-inside list-disc text-sm text-muted-foreground">
+                    <li><code className="bg-muted px-1 rounded">hostname</code> - Server name</li>
+                    <li><code className="bg-muted px-1 rounded">ip_address</code> - IP address</li>
+                  </ul>
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    Optional columns:
+                  </p>
+                  <ul className="list-inside list-disc text-sm text-muted-foreground">
+                    <li><code className="bg-muted px-1 rounded">fqdn</code> - Fully qualified domain name</li>
+                    <li><code className="bg-muted px-1 rounded">os</code> - Operating system</li>
+                    <li><code className="bg-muted px-1 rounded">os_version</code> - OS version</li>
+                    <li><code className="bg-muted px-1 rounded">asset_type</code> - host, container, cloud_resource</li>
+                    <li><code className="bg-muted px-1 rounded">network_zone</code> - production, staging, dev</li>
+                    <li><code className="bg-muted px-1 rounded">tags</code> - Comma-separated tags</li>
+                    <li><code className="bg-muted px-1 rounded">owner</code> - Asset owner</li>
+                    <li><code className="bg-muted px-1 rounded">department</code> - Department</li>
+                  </ul>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">CSV Format</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="mb-2 text-sm text-muted-foreground">
-                Required columns:
-              </p>
-              <ul className="list-inside list-disc text-sm text-muted-foreground">
-                <li>title</li>
-                <li>severity (critical, high, medium, low, info)</li>
-                <li>description</li>
-                <li>affected_component</li>
-              </ul>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Optional columns:
-              </p>
-              <ul className="list-inside list-disc text-sm text-muted-foreground">
-                <li>cve_id</li>
-                <li>cvss_score</li>
-                <li>remediation</li>
-                <li>asset_id</li>
-              </ul>
-            </CardContent>
-          </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Example CSV</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <pre className="text-xs bg-muted p-3 rounded-lg overflow-x-auto">
+{`hostname,ip_address,os,asset_type,tags
+web-srv-01,192.168.1.10,Ubuntu 22.04,host,web
+db-srv-01,192.168.1.20,PostgreSQL,host,database
+app-srv-01,192.168.1.30,Windows 2022,host,app`}
+                  </pre>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Download Template</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      const csv = 'hostname,ip_address,fqdn,os,os_version,asset_type,network_zone,tags,owner,department\nweb-server-01,192.168.1.10,web-server-01.example.com,Ubuntu,22.04,host,production,"web,linux",John Doe,IT\n';
+                      const blob = new Blob([csv], { type: 'text/csv' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = 'assets_template.csv';
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                  >
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                    Download CSV Template
+                  </Button>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Supported Formats</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {findingFormats.map((f) => (
+                    <div key={f.value} className="flex items-start gap-3">
+                      <FileJson className="mt-0.5 h-5 w-5 text-primary" />
+                      <div>
+                        <h4 className="font-medium">{f.label}</h4>
+                        <p className="text-sm text-muted-foreground">
+                          {f.description}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Findings CSV Format</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="mb-2 text-sm text-muted-foreground">
+                    Required columns:
+                  </p>
+                  <ul className="list-inside list-disc text-sm text-muted-foreground">
+                    <li>title</li>
+                    <li>severity (critical, high, medium, low, info)</li>
+                    <li>description</li>
+                    <li>affected_component</li>
+                  </ul>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Optional columns:
+                  </p>
+                  <ul className="list-inside list-disc text-sm text-muted-foreground">
+                    <li>cve_id</li>
+                    <li>cvss_score</li>
+                    <li>remediation</li>
+                    <li>asset_id</li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </>
+          )}
 
           <Card>
             <CardHeader>
@@ -345,8 +503,11 @@ export function Import() {
               <ul className="list-inside list-disc space-y-2">
                 <li>Ensure your data is properly formatted before importing</li>
                 <li>Large imports may take several minutes</li>
-                <li>Duplicate findings will be updated, not created</li>
+                <li>Duplicate entries will be updated, not created</li>
                 <li>Check the import results for any errors</li>
+                {importType === 'assets' && (
+                  <li>Excel files (.xlsx) will use the first sheet</li>
+                )}
               </ul>
             </CardContent>
           </Card>
