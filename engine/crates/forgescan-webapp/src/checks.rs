@@ -613,6 +613,7 @@ impl FindingExt for Finding {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::crawler::ParameterLocation;
 
     #[test]
     fn test_file_param_detection() {

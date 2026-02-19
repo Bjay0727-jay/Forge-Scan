@@ -361,6 +361,7 @@ struct Rapid7PagedResponse<T> {
     page: Rapid7Page,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct Rapid7Page {
     number: u32,
@@ -371,6 +372,7 @@ struct Rapid7Page {
     total_resources: u32,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct Rapid7Asset {
     id: i64,
@@ -385,12 +387,14 @@ struct Rapid7Asset {
     os_fingerprint: Option<Rapid7OsFingerprint>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct Rapid7HostName {
     name: String,
     source: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct Rapid7OsFingerprint {
     description: Option<String>,
@@ -400,6 +404,7 @@ struct Rapid7OsFingerprint {
     version: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct Rapid7AssetVuln {
     id: String,
