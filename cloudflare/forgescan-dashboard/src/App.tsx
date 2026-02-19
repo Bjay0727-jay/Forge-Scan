@@ -11,6 +11,7 @@ import { Import } from '@/pages/Import';
 import { Settings } from '@/pages/Settings';
 import { UserManagement } from '@/pages/UserManagement';
 import { Vulnerabilities } from '@/pages/Vulnerabilities';
+import { Scanners } from '@/pages/Scanners';
 
 function App() {
   return (
@@ -36,6 +37,14 @@ function App() {
             <Route path="import" element={<Import />} />
             <Route path="vulnerabilities" element={<Vulnerabilities />} />
             <Route path="settings" element={<Settings />} />
+            <Route
+              path="admin/scanners"
+              element={
+                <ProtectedRoute requiredRoles={['platform_admin']}>
+                  <Scanners />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="admin/users"
               element={

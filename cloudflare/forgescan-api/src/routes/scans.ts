@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
+import { createTasksForScan, getTasksForScan, cancelScanTasks } from '../services/scan-orchestrator';
 
 export const scans = new Hono<{ Bindings: Env }>();
 
@@ -168,7 +169,7 @@ scans.patch('/:id/status', async (c) => {
   return c.json({ message: 'Scan status updated' });
 });
 
-// Start scan
+// Start scan - creates scanner tasks for the Rust engine to pick up
 scans.post('/:id/start', async (c) => {
   const id = c.req.param('id');
 
@@ -184,27 +185,40 @@ scans.post('/:id/start', async (c) => {
     return c.json({ error: `Scan cannot be started - current status is '${scan.status}'` }, 400);
   }
 
-  // Update scan status to running
-  await c.env.DB.prepare(`
-    UPDATE scans SET status = 'running', started_at = datetime('now'), updated_at = datetime('now')
-    WHERE id = ?
-  `).bind(id).run();
+  try {
+    // Create scanner tasks via the orchestrator
+    const taskIds = await createTasksForScan(c.env.DB, id);
 
-  // In a real implementation, this would trigger the actual scan engine
-  // For now, we simulate scan completion after a short delay by returning running status
-  // The scan engine (Rust-based forgescan-scanner) would handle the actual scanning
+    // Update scan status to running
+    await c.env.DB.prepare(`
+      UPDATE scans SET status = 'running', started_at = datetime('now'), updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(id).run();
 
-  return c.json({
-    id: scan.id,
-    name: scan.name,
-    type: scan.scan_type,
-    status: 'running',
-    message: 'Scan started successfully',
-    started_at: new Date().toISOString(),
-  });
+    return c.json({
+      id: scan.id,
+      name: scan.name,
+      type: scan.scan_type,
+      status: 'running',
+      message: 'Scan started - tasks queued for scanner engine',
+      tasks_created: taskIds.length,
+      task_ids: taskIds,
+      started_at: new Date().toISOString(),
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: 'Failed to start scan', message }, 500);
+  }
 });
 
-// Cancel scan
+// Get scan tasks - returns tasks for a specific scan
+scans.get('/:id/tasks', async (c) => {
+  const id = c.req.param('id');
+  const tasks = await getTasksForScan(c.env.DB, id);
+  return c.json({ tasks });
+});
+
+// Cancel scan - also cancels associated scanner tasks
 scans.post('/:id/cancel', async (c) => {
   const id = c.req.param('id');
 
@@ -216,16 +230,19 @@ scans.post('/:id/cancel', async (c) => {
     return c.json({ error: 'Scan not found' }, 404);
   }
 
-  if (scan.status !== 'pending' && scan.status !== 'running') {
+  if (scan.status !== 'pending' && scan.status !== 'running' && scan.status !== 'queued') {
     return c.json({ error: 'Scan cannot be cancelled' }, 400);
   }
+
+  // Cancel all associated scanner tasks
+  const cancelledTasks = await cancelScanTasks(c.env.DB, id);
 
   await c.env.DB.prepare(`
     UPDATE scans SET status = 'cancelled', completed_at = datetime('now'), updated_at = datetime('now')
     WHERE id = ?
   `).bind(id).run();
 
-  return c.json({ message: 'Scan cancelled' });
+  return c.json({ message: 'Scan cancelled', tasks_cancelled: cancelledTasks });
 });
 
 // Delete scan

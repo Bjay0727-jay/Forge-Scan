@@ -7,6 +7,7 @@ import {
   Upload,
   Shield,
   ShieldAlert,
+  Cpu,
   Settings,
   Users,
   LogOut,
@@ -30,6 +31,7 @@ const bottomNavigation = [
 ];
 
 const adminNavigation = [
+  { name: 'Scanners', href: '/admin/scanners', icon: Cpu },
   { name: 'Users', href: '/admin/users', icon: Users },
 ];
 
