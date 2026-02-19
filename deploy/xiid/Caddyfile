@@ -1,0 +1,57 @@
+# ForgeScan SealedTunnel — Caddy Reverse Proxy Configuration
+#
+# This Caddyfile runs on the forgescan-infra exitpoint VM.
+# STLink delivers decrypted tunnel traffic to loopback addresses;
+# Caddy re-encrypts with TLS and forwards to Cloudflare Workers API.
+#
+# Install: copy to /etc/caddy/Caddyfile and restart Caddy
+#   sudo cp Caddyfile /etc/caddy/Caddyfile
+#   sudo systemctl restart caddy
+
+# ──────────────────────────────────────────────────────────────
+# External scanner tunnel exitpoint (port 8443)
+# Receives traffic from: forgescan-scanner-ext via SealedTunnel
+# ──────────────────────────────────────────────────────────────
+http://127.0.0.1:8443 {
+    reverse_proxy https://forgescan-api.stanley-riley.workers.dev {
+        header_up Host forgescan-api.stanley-riley.workers.dev
+        transport http {
+            tls
+            tls_server_name forgescan-api.stanley-riley.workers.dev
+        }
+    }
+    log {
+        output file /var/log/caddy/forgescan-ext.log {
+            roll_size 10mb
+            roll_keep 3
+        }
+        level WARN
+    }
+}
+
+# ──────────────────────────────────────────────────────────────
+# On-prem scanner tunnel exitpoint (port 8444)
+# Receives traffic from: customer on-prem scanner via SealedTunnel
+# ──────────────────────────────────────────────────────────────
+http://127.0.0.1:8444 {
+    reverse_proxy https://forgescan-api.stanley-riley.workers.dev {
+        header_up Host forgescan-api.stanley-riley.workers.dev
+        transport http {
+            tls
+            tls_server_name forgescan-api.stanley-riley.workers.dev
+        }
+    }
+    log {
+        output file /var/log/caddy/forgescan-onprem.log {
+            roll_size 10mb
+            roll_keep 3
+        }
+        level WARN
+    }
+}
+
+# ──────────────────────────────────────────────────────────────
+# Additional on-prem scanner tunnels
+# Duplicate the block above with ports 8445, 8446, etc.
+# for each additional on-prem scanner instance.
+# ──────────────────────────────────────────────────────────────

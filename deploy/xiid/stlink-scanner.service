@@ -1,0 +1,44 @@
+# Xiid SealedTunnel STLink Agent — systemd service template
+#
+# This unit runs the STLink client on ForgeScan scanner hosts.
+# STLink creates a loopback binding (127.0.0.5:443) that the
+# scanner connects to for tunneled API communication.
+#
+# Install:
+#   sudo cp stlink-scanner.service /etc/systemd/system/stlink.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable stlink
+#   sudo systemctl start stlink
+#
+# Verify:
+#   ss -tlnp | grep 127.0.0.5:443
+#   curl http://127.0.0.5:443/api/v1/scanner/heartbeat
+
+[Unit]
+Description=Xiid SealedTunnel STLink Agent (ForgeScan Scanner)
+Documentation=https://xiid.com/docs
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# Update this path to match your STLink installation
+# Common locations: /usr/local/bin/stlink, /opt/xiid/bin/stlink
+ExecStart=/usr/local/bin/stlink
+
+Restart=always
+RestartSec=5
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+# Security hardening
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+ReadWritePaths=/etc/xiid /var/lib/xiid /var/log/xiid
+
+[Install]
+WantedBy=multi-user.target

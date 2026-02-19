@@ -8,6 +8,10 @@
 # Prerequisites:
 #   - Docker + Docker Compose v2
 #   - Scanner registered in ForgeScan dashboard
+#
+# Xiid SealedTunnel Mode:
+#   Set FORGESCAN_PLATFORM_URL=http://127.0.0.5:443 in .env
+#   and ensure STLink is running on the host (see deploy/xiid/)
 
 services:
   scanner:

@@ -27,6 +27,8 @@ FORGESCAN_API_KEY=""
 FORGESCAN_SCANNER_ID=""
 INSTALL_DIR="/etc/forgescan"
 DATA_DIR="/var/lib/forgescan"
+USE_SEALEDTUNNEL=false
+STLINK_CONFIG=""
 
 # ── Colors ────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -50,12 +52,15 @@ banner() {
 # ── Parse arguments ───────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --api-key)      FORGESCAN_API_KEY="$2"; shift 2 ;;
-        --scanner-id)   FORGESCAN_SCANNER_ID="$2"; shift 2 ;;
-        --platform)     FORGESCAN_PLATFORM="$2"; shift 2 ;;
-        --image)        FORGESCAN_IMAGE="$2"; shift 2 ;;
+        --api-key)            FORGESCAN_API_KEY="$2"; shift 2 ;;
+        --scanner-id)         FORGESCAN_SCANNER_ID="$2"; shift 2 ;;
+        --platform)           FORGESCAN_PLATFORM="$2"; shift 2 ;;
+        --image)              FORGESCAN_IMAGE="$2"; shift 2 ;;
+        --use-sealedtunnel)   USE_SEALEDTUNNEL=true; shift ;;
+        --stlink-config)      STLINK_CONFIG="$2"; shift 2 ;;
         -h|--help)
             echo "Usage: $0 --api-key <KEY> --scanner-id <ID> [--platform <URL>] [--image <IMG>]"
+            echo "       [--use-sealedtunnel --stlink-config <PATH>]"
             exit 0
             ;;
         *) err "Unknown argument: $1"; exit 1 ;;
@@ -74,9 +79,18 @@ if [[ -z "$FORGESCAN_SCANNER_ID" ]]; then
     exit 1
 fi
 
+# ── SealedTunnel mode: override platform URL ──────────────────
+if [[ "$USE_SEALEDTUNNEL" == "true" ]]; then
+    FORGESCAN_PLATFORM="http://127.0.0.5:443"
+    log "SealedTunnel mode ENABLED — platform URL overridden to loopback"
+fi
+
 log "Platform:   $FORGESCAN_PLATFORM"
 log "Scanner ID: $FORGESCAN_SCANNER_ID"
 log "Image:      $FORGESCAN_IMAGE"
+if [[ "$USE_SEALEDTUNNEL" == "true" ]]; then
+    log "Tunnel:     Xiid SealedTunnel via STLink (127.0.0.5:443)"
+fi
 
 # ── Check root ────────────────────────────────────────────────
 if [[ $EUID -ne 0 ]]; then
@@ -124,6 +138,23 @@ EOF
 chmod 600 "${INSTALL_DIR}/scanner.env"
 log "Config written to ${INSTALL_DIR}/scanner.env (mode 600)"
 
+# ── Install STLink if SealedTunnel mode ───────────────────────
+if [[ "$USE_SEALEDTUNNEL" == "true" ]]; then
+    log "Setting up Xiid SealedTunnel STLink client..."
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    STLINK_SCRIPT="${SCRIPT_DIR}/../xiid/install-stlink-scanner.sh"
+
+    if [[ -f "$STLINK_SCRIPT" ]]; then
+        bash "$STLINK_SCRIPT" \
+            --stlink-config "${STLINK_CONFIG}" \
+            --loopback-ip 127.0.0.5 \
+            --loopback-port 443
+    else
+        warn "STLink install script not found at $STLINK_SCRIPT"
+        warn "Install STLink manually — see deploy/xiid/README.md"
+    fi
+fi
+
 # ── Pull scanner image ────────────────────────────────────────
 log "Pulling scanner image..."
 docker pull "$FORGESCAN_IMAGE"
@@ -133,9 +164,9 @@ cat > /etc/systemd/system/forgescan-scanner.service <<EOF
 [Unit]
 Description=ForgeScan External Scanner
 Documentation=https://github.com/Bjay0727-jay/Forge-Scan
-After=network-online.target docker.service
+After=network-online.target docker.service$(if [[ "$USE_SEALEDTUNNEL" == "true" ]]; then echo " stlink.service"; fi)
 Wants=network-online.target
-Requires=docker.service
+Requires=docker.service$(if [[ "$USE_SEALEDTUNNEL" == "true" ]]; then echo "\nRequires=stlink.service"; fi)
 
 [Service]
 Type=simple

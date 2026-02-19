@@ -38,7 +38,11 @@ param(
 
     [string]$Version = "latest",
 
-    [string]$LogLevel = "info"
+    [string]$LogLevel = "info",
+
+    [switch]$UseSealedTunnel,
+
+    [string]$StLinkConfigPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -50,6 +54,17 @@ $DisplayName = "ForgeScan Internal Scanner"
 $InstallDir = "C:\Program Files\ForgeScan"
 $DataDir = "C:\ProgramData\ForgeScan"
 $BinaryName = "forgescan-scanner.exe"
+
+# ── SealedTunnel mode: override platform URL ──────────────────
+if ($UseSealedTunnel) {
+    $PlatformUrl = "http://127.0.0.5:443"
+    Write-Host "[ForgeScan] SealedTunnel mode ENABLED - platform URL overridden to loopback" -ForegroundColor Yellow
+    if ($StLinkConfigPath -and (Test-Path $StLinkConfigPath)) {
+        Write-Host "[ForgeScan] STLink config: $StLinkConfigPath" -ForegroundColor Green
+    } else {
+        Write-Host "[ForgeScan] WARNING: Install Xiid STLink manually - see deploy/xiid/README.md" -ForegroundColor Yellow
+    }
+}
 
 # ── Banner ────────────────────────────────────────────────────
 Write-Host ""
@@ -145,12 +160,17 @@ Write-Host "[ForgeScan] API key stored as machine environment variable" -Foregro
 # ── Create Windows Service ────────────────────────────────────
 $BinaryPath = "`"$InstallDir\$BinaryName`" --config `"$ConfigPath`" --platform `"$PlatformUrl`" --log-level $LogLevel"
 
+$ServiceDeps = @("Tcpip")
+if ($UseSealedTunnel) {
+    $ServiceDeps += "XiidSTLink"
+}
+
 New-Service -Name $ServiceName `
     -DisplayName $DisplayName `
     -Description "ForgeScan agentless internal network vulnerability scanner" `
     -BinaryPathName $BinaryPath `
     -StartupType Automatic `
-    -DependsOn @("Tcpip")
+    -DependsOn $ServiceDeps
 
 # Configure service recovery (restart on failure)
 sc.exe failure $ServiceName reset= 86400 actions= restart/10000/restart/10000/restart/30000 | Out-Null

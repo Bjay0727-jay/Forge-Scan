@@ -31,6 +31,8 @@ INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/forgescan"
 DATA_DIR="/var/lib/forgescan"
 LOG_LEVEL="info"
+USE_SEALEDTUNNEL=false
+STLINK_CONFIG=""
 
 # ── Colors ────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -54,13 +56,16 @@ banner() {
 # ── Parse arguments ───────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --api-key)      FORGESCAN_API_KEY="$2"; shift 2 ;;
-        --scanner-id)   FORGESCAN_SCANNER_ID="$2"; shift 2 ;;
-        --platform)     FORGESCAN_PLATFORM="$2"; shift 2 ;;
-        --version)      FORGESCAN_VERSION="$2"; shift 2 ;;
-        --log-level)    LOG_LEVEL="$2"; shift 2 ;;
+        --api-key)            FORGESCAN_API_KEY="$2"; shift 2 ;;
+        --scanner-id)         FORGESCAN_SCANNER_ID="$2"; shift 2 ;;
+        --platform)           FORGESCAN_PLATFORM="$2"; shift 2 ;;
+        --version)            FORGESCAN_VERSION="$2"; shift 2 ;;
+        --log-level)          LOG_LEVEL="$2"; shift 2 ;;
+        --use-sealedtunnel)   USE_SEALEDTUNNEL=true; shift ;;
+        --stlink-config)      STLINK_CONFIG="$2"; shift 2 ;;
         -h|--help)
             echo "Usage: $0 --api-key <KEY> --scanner-id <ID> [--platform <URL>] [--version <TAG>]"
+            echo "       [--use-sealedtunnel --stlink-config <PATH>]"
             exit 0
             ;;
         *) err "Unknown argument: $1"; exit 1 ;;
@@ -68,6 +73,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 banner
+
+# ── SealedTunnel mode: override platform URL ──────────────────
+if [[ "$USE_SEALEDTUNNEL" == "true" ]]; then
+    FORGESCAN_PLATFORM="http://127.0.0.5:443"
+    log "SealedTunnel mode ENABLED — platform URL overridden to loopback"
+fi
 
 # ── Validate required inputs ─────────────────────────────────
 if [[ -z "$FORGESCAN_API_KEY" ]]; then
@@ -177,13 +188,39 @@ chmod 600 "${CONFIG_DIR}/scanner.env"
 chown root:root "${CONFIG_DIR}/scanner.env"
 log "API key stored in ${CONFIG_DIR}/scanner.env (mode 600)"
 
+# ── Install STLink if SealedTunnel mode ───────────────────────
+if [[ "$USE_SEALEDTUNNEL" == "true" ]]; then
+    log "Setting up Xiid SealedTunnel STLink client..."
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    STLINK_SCRIPT="${SCRIPT_DIR}/../xiid/install-stlink-scanner.sh"
+
+    if [[ -f "$STLINK_SCRIPT" ]]; then
+        bash "$STLINK_SCRIPT" \
+            --stlink-config "${STLINK_CONFIG}" \
+            --loopback-ip 127.0.0.5 \
+            --loopback-port 443
+    else
+        warn "STLink install script not found at $STLINK_SCRIPT"
+        warn "Install STLink manually — see deploy/xiid/README.md"
+    fi
+fi
+
 # ── Create systemd service ────────────────────────────────────
+STLINK_UNIT_DEPS=""
+if [[ "$USE_SEALEDTUNNEL" == "true" ]]; then
+    STLINK_UNIT_DEPS="After=network-online.target stlink.service
+Wants=network-online.target
+Requires=stlink.service"
+else
+    STLINK_UNIT_DEPS="After=network-online.target
+Wants=network-online.target"
+fi
+
 cat > /etc/systemd/system/forgescan-scanner.service <<EOF
 [Unit]
 Description=ForgeScan Internal Scanner
 Documentation=https://github.com/Bjay0727-jay/Forge-Scan
-After=network-online.target
-Wants=network-online.target
+${STLINK_UNIT_DEPS}
 
 [Service]
 Type=simple

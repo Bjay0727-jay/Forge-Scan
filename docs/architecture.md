@@ -1,17 +1,20 @@
 # ForgeScan 360 — Hybrid Scanning Architecture
 
-> Cloudflare Edge + Hetzner External Scanner + On-Prem Internal Scanner
+> Cloudflare Edge + Xiid SealedTunnel + Hetzner External Scanner + On-Prem Internal Scanner
 
 ## Overview
 
-ForgeScan 360 uses a **hybrid deployment model** that combines cloud-hosted management (Cloudflare) with distributed scanner nodes. External scanners run on Hetzner Cloud VPS (~$4/mo), while internal scanners deploy as native binaries or Docker containers inside customer networks.
+ForgeScan 360 uses a **hybrid deployment model** with cloud-hosted management (Cloudflare), distributed scanner nodes, and **Xiid SealedTunnel** for quantum-resistant, zero-inbound-port secure communication between all components.
 
 **Key design principles:**
-- All scanner connections are **outbound-only** (HTTPS port 443)
-- No VPN, no inbound ports, no firewall rules needed
+- **Zero inbound ports** — all connections outbound-only on port 443
+- **Xiid SealedTunnel** provides triple-encrypted, quantum-secure transport
+- Scanner connects to local STLink loopback (`http://127.0.0.5:443`) — STLink handles encryption
+- Caddy exitpoint proxies tunnel traffic to Cloudflare Workers API
 - Scanner authentication via `X-Scanner-Key` header (separate from user JWT)
-- NVD vulnerability database is **local** to each scanner (no runtime API calls)
-- Scanners poll the platform for tasks — no push mechanism required
+- NVD vulnerability database is **local** to each scanner
+- **Zero code changes** to scanner — STLink is transparent at the network layer
+- Backward compatible — SealedTunnel is opt-in via `--use-sealedtunnel` flag
 
 ## Network Diagram
 
@@ -25,29 +28,39 @@ graph TB
     subgraph CF["Cloudflare Edge Network"]
         Pages["Dashboard<br/>Cloudflare Pages<br/>React SPA"]
         Workers["API Server<br/>Cloudflare Workers<br/>Hono + REST"]
-        D1["D1 Database<br/>SQLite"]
-        R2["R2 Storage<br/>Reports / Exports"]
-        KV["KV Cache<br/>Sessions / NVD"]
+        D1["D1 Database"]
+        R2["R2 Storage"]
+        KV["KV Cache"]
+    end
+
+    subgraph XiidInfra["Xiid SealedTunnel Infrastructure"]
+        subgraph InfraVM["forgescan-infra - CX22 - $4/mo"]
+            Commander["Xiid Commander<br/>Management Plane<br/>Private: 10.0.1.20"]
+            STLinkExit["STLink Exitpoint<br/>Receives tunnel traffic<br/>Binds 127.0.0.1:8443-8444"]
+            Caddy["Caddy Reverse Proxy<br/>Loopback to HTTPS<br/>Forwards to Workers API"]
+        end
+        ConnectorFleet["Xiid Connector Fleet<br/>SaaS - Triple Encrypted<br/>Quantum Secure<br/>Auto-Failover"]
     end
 
     subgraph Hetzner["Hetzner Cloud - Falkenstein DC"]
-        HetzScanner["External Scanner<br/>forgescan-scanner<br/>Docker + host networking<br/>CX22 - 2 vCPU - 4GB"]
+        HetzScanner["External Scanner<br/>forgescan-scanner<br/>--platform http://127.0.0.5:443<br/>CX22 - 2 vCPU - 4GB"]
+        STLinkExt["STLink Client<br/>Binds 127.0.0.5:443"]
         NVD_H["NVD Database<br/>Docker Volume"]
     end
 
     subgraph CustomerNet["Customer Network - On-Premises"]
         subgraph DMZ["DMZ"]
-            OnPremScanner["Internal Scanner<br/>forgescan-scanner<br/>systemd service or Docker"]
-            NVD_O["NVD Database<br/>/var/lib/forgescan"]
+            OnPremScanner["Internal Scanner<br/>forgescan-scanner<br/>--platform http://127.0.0.5:443"]
+            STLinkOnPrem["STLink Client<br/>Binds 127.0.0.5:443"]
+            NVD_O["NVD Database"]
         end
         subgraph Internal["Internal Network - RFC1918"]
-            IntTargets["Internal Targets<br/>192.168.x.x / 10.x.x.x<br/>Servers - Switches - IoT"]
+            IntTargets["Internal Targets<br/>192.168.x.x / 10.x.x.x"]
         end
     end
 
     subgraph CICD["GitHub"]
-        Repo["Forge-Scan Repo"]
-        Actions["GitHub Actions"]
+        Actions["GitHub Actions<br/>CI/CD"]
         GHCR["GHCR<br/>Container Registry"]
         Releases["GitHub Releases<br/>Static Binaries"]
     end
@@ -62,39 +75,63 @@ graph TB
     Workers --- R2
     Workers --- KV
 
-    %% Scanner - API outbound HTTPS only
-    HetzScanner -->|"HTTPS :443<br/>X-Scanner-Key auth<br/>POST /heartbeat<br/>GET /tasks/next<br/>POST /tasks/:id/results"| Workers
-    OnPremScanner -->|"HTTPS :443<br/>X-Scanner-Key auth<br/>Outbound only"| Workers
+    %% Scanner to STLink local
+    HetzScanner -->|"http://127.0.0.5:443"| STLinkExt
+    OnPremScanner -->|"http://127.0.0.5:443"| STLinkOnPrem
 
-    %% Scanner - Targets
-    HetzScanner -->|"TCP SYN/Connect<br/>HTTP/HTTPS<br/>Raw sockets"| ExtTargets
-    OnPremScanner -->|"TCP SYN/Connect<br/>HTTP/HTTPS<br/>Raw sockets"| IntTargets
+    %% STLink to Connector Fleet outbound 443
+    STLinkExt -->|"Outbound :443<br/>Quantum encrypted"| ConnectorFleet
+    STLinkOnPrem -->|"Outbound :443<br/>Quantum encrypted"| ConnectorFleet
 
-    %% NVD volumes
+    %% Connector Fleet to Exitpoint
+    ConnectorFleet -->|"Outbound :443"| STLinkExit
+
+    %% Exitpoint to Caddy to Workers
+    STLinkExit -->|"127.0.0.1:8443"| Caddy
+    Caddy -->|"HTTPS :443<br/>TLS to Cloudflare"| Workers
+
+    %% Scanner to Targets
+    HetzScanner -->|"TCP SYN/Connect<br/>Raw sockets"| ExtTargets
+    OnPremScanner -->|"TCP SYN/Connect<br/>Raw sockets"| IntTargets
+
+    %% NVD
     HetzScanner --- NVD_H
     OnPremScanner --- NVD_O
 
-    %% CI/CD flows
-    Repo -->|"push / tag"| Actions
+    %% CI/CD
     Actions -->|"docker push"| GHCR
-    Actions -->|"upload artifacts"| Releases
+    Actions -->|"upload"| Releases
     GHCR -.->|"docker pull"| HetzScanner
-    GHCR -.->|"docker pull"| OnPremScanner
-    Releases -.->|"binary download"| OnPremScanner
+    Releases -.->|"binary"| OnPremScanner
 
     %% Styling
     classDef cloudflare fill:#f48120,color:#fff,stroke:#e0740c
-    classDef hetzner fill:#d50c2d,color:#fff,stroke:#b00a25
-    classDef customer fill:#2563eb,color:#fff,stroke:#1d4ed8
+    classDef xiid fill:#dc2626,color:#fff,stroke:#b91c1c
+    classDef hetzner fill:#0ea5e9,color:#fff,stroke:#0284c7
+    classDef customer fill:#10b981,color:#fff,stroke:#059669
     classDef github fill:#24292e,color:#fff,stroke:#1b1f23
     classDef target fill:#6b7280,color:#fff,stroke:#4b5563
 
     class Pages,Workers,D1,R2,KV cloudflare
-    class HetzScanner,NVD_H hetzner
-    class OnPremScanner,NVD_O,IntTargets customer
-    class Repo,Actions,GHCR,Releases github
+    class Commander,STLinkExit,Caddy,ConnectorFleet xiid
+    class HetzScanner,STLinkExt,NVD_H hetzner
+    class OnPremScanner,STLinkOnPrem,NVD_O,IntTargets customer
+    class Actions,GHCR,Releases github
     class ExtTargets target
 ```
+
+## Data Flow
+
+1. Scanner starts with `--platform http://127.0.0.5:443`
+2. `reqwest` sends `POST http://127.0.0.5:443/api/v1/scanner/heartbeat` (plain HTTP to loopback)
+3. STLink intercepts traffic at `127.0.0.5:443`, encrypts (quantum-resistant)
+4. STLink sends outbound :443 to Xiid Connector Fleet
+5. Connector Fleet routes to exitpoint's STLink on `forgescan-infra` VM
+6. STLink exitpoint decrypts, delivers to `127.0.0.1:8443`
+7. Caddy receives, re-encrypts with TLS, forwards to `https://forgescan-api.stanley-riley.workers.dev`
+8. Workers API processes request, response returns through the same path
+
+**Why HTTP to loopback?** STLink provides encryption. Using HTTPS would be unnecessary double-encryption. The `X-Scanner-Key` header on loopback never leaves the machine.
 
 ## Component Details
 
@@ -102,96 +139,75 @@ graph TB
 
 | Component | Service | Purpose |
 |-----------|---------|---------|
-| **Workers API** | Hono + REST | Scanner task queue, result ingestion, auth |
+| **Workers API** | Hono + REST | Scanner task queue, result ingestion |
 | **Pages Dashboard** | React SPA | Security analyst interface |
 | **D1** | SQLite | Scans, tasks, findings, assets |
 | **R2** | Object Storage | PDF reports, CSV exports |
-| **KV** | Key-Value Cache | Sessions, NVD metadata cache |
+| **KV** | Key-Value | Sessions, NVD metadata cache |
 
-**API Endpoints (Scanner-facing):**
-- `POST /api/v1/scanners/heartbeat` — Scanner health check + status
-- `GET /api/v1/tasks/next` — Poll for next assigned task
-- `POST /api/v1/tasks/:id/start` — Mark task as running
-- `POST /api/v1/tasks/:id/results` — Submit scan results (findings, assets, ports)
-- `POST /api/v1/tasks/:id/failure` — Report task failure
+### Xiid SealedTunnel Infrastructure
 
-### Hetzner Cloud (External Scanner)
+| Component | VM | Purpose |
+|-----------|-----|---------|
+| **Xiid Commander** | forgescan-infra (CX22) | Tunnel management, mapping config, private IP 10.0.1.20 |
+| **STLink Exitpoint** | forgescan-infra (CX22) | Receives tunnel traffic, binds 127.0.0.1:8443-8444 |
+| **Caddy** | forgescan-infra (CX22) | Reverse proxy: loopback to Cloudflare Workers HTTPS |
+| **Connector Fleet** | Xiid SaaS | Triple-encrypted bridge, quantum secure, auto-failover |
 
-| Spec | Value |
-|------|-------|
-| **Server** | CX22 (shared) |
-| **Cost** | ~$3.99/mo |
-| **CPU** | 2 vCPU (AMD EPYC) |
-| **RAM** | 4 GB |
-| **Disk** | 40 GB NVMe |
-| **OS** | Ubuntu 22.04 LTS |
-| **Runtime** | Docker + host networking |
-| **Capabilities** | NET_RAW, NET_ADMIN |
+### Tunnel Mapping Table
 
-**Docker run flags:**
-```bash
-docker run --network host \
-  --cap-add NET_RAW --cap-add NET_ADMIN \
-  -v forgescan-nvd:/var/lib/forgescan \
-  ghcr.io/bjay0727-jay/forgescan-scanner:latest \
-  --platform https://forgescan-api.stanley-riley.workers.dev
-```
+| Tunnel | Scanner Side Bind | Exitpoint Side Bind | Purpose |
+|--------|------------------|--------------------|---------|
+| `fs-ext-to-platform` | `127.0.0.5:443` on scanner VM | `127.0.0.1:8443` on infra VM | External scanner to API |
+| `fs-onprem-to-platform` | `127.0.0.5:443` on customer host | `127.0.0.1:8444` on infra VM | On-prem scanner to API |
 
-### Customer On-Premises (Internal Scanner)
+### Hetzner Cloud
 
-| Deployment | Method |
-|------------|--------|
-| **Linux** | Native binary + systemd service |
-| **Linux (Docker)** | Same image as Hetzner, `--network host` |
-| **Windows** | Native binary + Windows Service |
-
-**Systemd capabilities (non-root):**
-```ini
-AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
-CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
-```
-
-### CI/CD Pipeline (GitHub Actions)
-
-| Workflow | Trigger | Output |
-|----------|---------|--------|
-| **ci.yml** | Pull requests | fmt + clippy + test |
-| **build-docker.yml** | Push to main / tags | Multi-arch Docker image → GHCR |
-| **release-binaries.yml** | Version tags (v*) | Cross-compiled binaries → GitHub Releases |
-
-**Targets:**
-- `x86_64-unknown-linux-gnu` (amd64)
-- `aarch64-unknown-linux-gnu` (arm64)
-- `x86_64-pc-windows-gnu` (Windows)
+| VM | Spec | Cost | Role |
+|----|------|------|------|
+| `forgescan-scanner-ext` | CX22, 2 vCPU, 4 GB, 40 GB | ~$4/mo | Scanner + STLink client |
+| `forgescan-infra` | CX22, 2 vCPU, 4 GB, 40 GB | ~$4/mo | Commander + exitpoint + Caddy |
+| **Total** | | **~$8/mo** | |
 
 ## Security Model
 
-1. **No inbound ports** — Scanners only make outbound HTTPS connections
-2. **Separate auth** — Scanner API keys (`X-Scanner-Key`) are independent of user JWT tokens
-3. **Least privilege** — Scanner runs as non-root `forgescan` user with only NET_RAW/NET_ADMIN caps
-4. **Credential isolation** — API keys stored in env files (mode 600) or machine environment variables
-5. **NVD locality** — Vulnerability database is local to each scanner; no external NVD API calls during scans
-6. **TLS everywhere** — All scanner-to-platform communication is HTTPS with certificate validation
+1. **Zero inbound ports** — All connections outbound-only on port 443 (post-lockdown)
+2. **Quantum-resistant encryption** — Xiid SealedTunnel triple-encrypted transport
+3. **No VPN required** — STLink replaces traditional VPN with zero-trust tunnels
+4. **Separate auth** — Scanner API keys (`X-Scanner-Key`) independent of user JWT
+5. **Least privilege** — Scanner runs as non-root `forgescan` user with only NET_RAW/NET_ADMIN caps
+6. **Credential isolation** — API keys in env files (mode 600) or machine environment variables
+7. **NVD locality** — Vulnerability database local to each scanner, no external API calls
+8. **Commander isolation** — Management plane bound to private IP (10.0.1.20) on isolated VLAN
+9. **Post-lockdown** — After setup, remove SSH access; manage everything through SealedTunnel
 
 ## Quick Start
 
-### External Scanner (Hetzner)
+### External Scanner (Hetzner + SealedTunnel)
 
 ```bash
-# On a fresh Hetzner CX22 VPS
-curl -fsSL https://raw.githubusercontent.com/Bjay0727-jay/Forge-Scan/main/deploy/hetzner/install.sh | \
-  sudo bash -s -- --api-key <KEY> --scanner-id <ID>
+./deploy/hetzner/install.sh \
+  --api-key <KEY> --scanner-id <ID> \
+  --use-sealedtunnel --stlink-config /path/to/stlink.json
 ```
 
-### Internal Scanner (Linux)
+### Internal Scanner (Linux + SealedTunnel)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Bjay0727-jay/Forge-Scan/main/deploy/onprem/install.sh | \
-  sudo bash -s -- --api-key <KEY> --scanner-id <ID>
+./deploy/onprem/install.sh \
+  --api-key <KEY> --scanner-id <ID> \
+  --use-sealedtunnel --stlink-config /path/to/stlink.json
 ```
 
-### Internal Scanner (Windows)
+### Internal Scanner (Windows + SealedTunnel)
 
 ```powershell
-.\install-windows.ps1 -ApiKey "sk_scanner_xxx" -ScannerId "scan_xxx"
+.\install-windows.ps1 -ApiKey "sk_xxx" -ScannerId "scan_xxx" `
+  -UseSealedTunnel -StLinkConfigPath "C:\path\to\stlink.json"
+```
+
+### Direct Mode (No SealedTunnel)
+
+```bash
+./deploy/hetzner/install.sh --api-key <KEY> --scanner-id <ID>
 ```
