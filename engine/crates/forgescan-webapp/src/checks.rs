@@ -1,12 +1,12 @@
 //! Web security checks (OWASP Top 10)
 
 use crate::client::HttpClient;
-use crate::crawler::{CrawlResult, DiscoveredForm, Parameter, ParameterLocation};
+use crate::crawler::{CrawlResult, DiscoveredForm, Parameter};
 use crate::{OwaspCategory, ScanConfig};
 use forgescan_core::{Finding, Severity};
 use regex::Regex;
 use std::collections::HashMap;
-use tracing::{debug, warn};
+use tracing::debug;
 
 /// Web check trait
 pub trait WebCheck: Send + Sync {
@@ -25,7 +25,7 @@ pub struct WebCheckResult {
 }
 
 /// Run passive checks on crawl results (no additional requests)
-pub fn run_passive_checks(crawl: &CrawlResult, config: &ScanConfig) -> Vec<Finding> {
+pub fn run_passive_checks(crawl: &CrawlResult, _config: &ScanConfig) -> Vec<Finding> {
     let mut findings = Vec::new();
 
     // Check for sensitive information disclosure
@@ -53,7 +53,7 @@ pub fn run_passive_checks(crawl: &CrawlResult, config: &ScanConfig) -> Vec<Findi
 pub async fn run_active_checks(
     crawl: &CrawlResult,
     client: &HttpClient,
-    config: &ScanConfig,
+    _config: &ScanConfig,
 ) -> Vec<Finding> {
     let mut findings = Vec::new();
 
@@ -96,9 +96,9 @@ pub async fn run_active_checks(
 
 /// Check for information disclosure in responses
 fn check_information_disclosure(crawl: &CrawlResult) -> Vec<Finding> {
-    let mut findings = Vec::new();
+    let findings = Vec::new();
 
-    let sensitive_patterns = [
+    let _sensitive_patterns = [
         (
             r#"(?i)password\s*[:=]\s*['"][^'"]+['"]"#,
             "Hardcoded password",
@@ -299,9 +299,9 @@ fn check_js_secrets(crawl: &CrawlResult) -> Vec<Finding> {
 
 /// Check for directory listing indicators
 fn check_directory_listing(crawl: &CrawlResult) -> Vec<Finding> {
-    let mut findings = Vec::new();
+    let findings = Vec::new();
 
-    let listing_patterns = [
+    let _listing_patterns = [
         "Index of /",
         "Directory listing for",
         "Parent Directory",
@@ -320,7 +320,7 @@ fn check_directory_listing(crawl: &CrawlResult) -> Vec<Finding> {
 fn check_debug_indicators(crawl: &CrawlResult) -> Vec<Finding> {
     let mut findings = Vec::new();
 
-    let debug_patterns = [
+    let _debug_patterns = [
         (r"(?i)debug\s*[:=]\s*true", "Debug mode enabled"),
         (r"(?i)stack\s*trace", "Stack trace exposed"),
         (r"(?i)exception\s+details", "Exception details exposed"),
@@ -533,19 +533,19 @@ fn check_csrf(form: &DiscoveredForm) -> Vec<Finding> {
 /// Test for path traversal
 async fn check_path_traversal(
     param: &Parameter,
-    crawl: &CrawlResult,
-    client: &HttpClient,
+    _crawl: &CrawlResult,
+    _client: &HttpClient,
 ) -> Vec<Finding> {
-    let mut findings = Vec::new();
+    let findings = Vec::new();
 
-    let traversal_payloads = [
+    let _traversal_payloads = [
         ("../../../etc/passwd", "/etc/passwd"),
         ("..\\..\\..\\windows\\win.ini", "win.ini"),
         ("....//....//....//etc/passwd", "encoded traversal"),
         ("%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd", "URL encoded"),
     ];
 
-    let success_patterns = ["root:x:", "[extensions]", "[fonts]"];
+    let _success_patterns = ["root:x:", "[extensions]", "[fonts]"];
 
     // Would test each traversal payload against endpoints that use this parameter
     debug!("Path traversal check for parameter: {}", param.name);
@@ -556,12 +556,12 @@ async fn check_path_traversal(
 /// Test for open redirect
 async fn check_open_redirect(
     param: &Parameter,
-    crawl: &CrawlResult,
-    client: &HttpClient,
+    _crawl: &CrawlResult,
+    _client: &HttpClient,
 ) -> Vec<Finding> {
-    let mut findings = Vec::new();
+    let findings = Vec::new();
 
-    let redirect_payloads = [
+    let _redirect_payloads = [
         "https://evil.com",
         "//evil.com",
         "/\\evil.com",

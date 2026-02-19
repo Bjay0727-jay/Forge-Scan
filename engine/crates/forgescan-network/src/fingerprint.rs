@@ -6,8 +6,6 @@
 
 use std::collections::HashMap;
 use std::net::IpAddr;
-use std::time::Duration;
-use tracing::debug;
 
 use crate::banner::BannerResult;
 use crate::service_detect::ServiceInfo;
@@ -65,6 +63,7 @@ struct OsPattern {
     pattern: &'static str,
     os_name: &'static str,
     os_family: OsFamily,
+    #[allow(dead_code)]
     version_regex: Option<&'static str>,
 }
 

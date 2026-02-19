@@ -2,7 +2,6 @@
 //!
 //! This module provides high-performance port scanning with multiple scan types.
 
-use forgescan_core::{Error, Result};
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;

@@ -3,7 +3,7 @@
 //! CSV file format parser for vulnerability data
 
 use crate::formats::CsvMapping;
-use crate::normalize::{NormalizedAsset, NormalizedFinding, NormalizedFindingBuilder, Normalizer};
+use crate::normalize::{NormalizedAsset, NormalizedFindingBuilder, Normalizer};
 use crate::{IngestResult, IngestStats, Vendor};
 use chrono::Utc;
 use csv::ReaderBuilder;

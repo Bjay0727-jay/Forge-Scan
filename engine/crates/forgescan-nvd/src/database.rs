@@ -224,9 +224,9 @@ impl NvdDb {
 
             if let Some(ref start) = version_start {
                 let cmp = compare_versions(version, start);
-                if version_start_type == "including" && cmp < 0 {
-                    matches = false;
-                } else if version_start_type == "excluding" && cmp <= 0 {
+                if (version_start_type == "including" && cmp < 0)
+                    || (version_start_type == "excluding" && cmp <= 0)
+                {
                     matches = false;
                 }
             }
@@ -234,9 +234,9 @@ impl NvdDb {
             if matches {
                 if let Some(ref end) = version_end {
                     let cmp = compare_versions(version, end);
-                    if version_end_type == "including" && cmp > 0 {
-                        matches = false;
-                    } else if version_end_type == "excluding" && cmp >= 0 {
+                    if (version_end_type == "including" && cmp > 0)
+                        || (version_end_type == "excluding" && cmp >= 0)
+                    {
                         matches = false;
                     }
                 }

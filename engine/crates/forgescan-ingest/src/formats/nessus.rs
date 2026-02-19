@@ -1,6 +1,6 @@
 //! Nessus file format parser (.nessus XML)
 
-use crate::normalize::{NormalizedAsset, NormalizedFinding, NormalizedFindingBuilder, Normalizer};
+use crate::normalize::{NormalizedAsset, NormalizedFindingBuilder, Normalizer};
 use crate::{IngestResult, IngestStats, Vendor};
 use chrono::Utc;
 use quick_xml::events::Event;
@@ -8,7 +8,7 @@ use quick_xml::Reader;
 use std::collections::HashMap;
 use std::path::Path;
 use std::time::Instant;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 /// Parse a Nessus XML file
 pub async fn parse_nessus_file(path: impl AsRef<Path>) -> anyhow::Result<IngestResult> {
@@ -109,12 +109,8 @@ pub fn parse_nessus_xml(xml: &str, start: Instant) -> anyhow::Result<IngestResul
                 let text = e.unescape().unwrap_or_default().to_string();
 
                 if let Some(ref mut host) = current_host {
-                    // Host properties
-                    match current_element.as_str() {
-                        "tag" => {
-                            // Handle host properties in tag elements
-                        }
-                        _ => {}
+                    if current_element.as_str() == "tag" {
+                        // Handle host properties in tag elements
                     }
                 }
 

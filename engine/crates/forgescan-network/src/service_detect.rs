@@ -6,7 +6,6 @@
 //! - Port-based defaults
 
 use regex::Regex;
-use std::collections::HashMap;
 use tracing::debug;
 
 /// Information about a detected service
@@ -65,7 +64,7 @@ impl ServiceInfo {
         }
 
         let product = self.product.as_ref()?;
-        let version = self.version.as_ref().map(|v| v.as_str()).unwrap_or("*");
+        let version = self.version.as_deref().unwrap_or("*");
 
         // Normalize product name for CPE
         let product_normalized = product.to_lowercase().replace(' ', "_");
@@ -159,7 +158,7 @@ impl ServiceDetector {
             119 => "nntp",
             123 => "ntp",
             135 => "msrpc",
-            137 | 138 | 139 => "netbios",
+            137..=139 => "netbios",
             143 => "imap",
             161 | 162 => "snmp",
             389 => "ldap",
