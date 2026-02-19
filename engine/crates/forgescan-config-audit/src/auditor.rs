@@ -3,7 +3,7 @@
 use crate::checks::{CheckResult, CheckType, ConfigCheck};
 use forgescan_core::Severity;
 use std::collections::HashMap;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// Configuration auditor that runs checks against the local system
 pub struct ConfigAuditor {

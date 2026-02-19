@@ -112,7 +112,7 @@ impl Default for CheckRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use forgescan_core::{CheckContext, CheckResult, ScanTarget};
+    use forgescan_core::{CheckContext, CheckResult};
 
     struct TestCheck {
         metadata: CheckMetadata,

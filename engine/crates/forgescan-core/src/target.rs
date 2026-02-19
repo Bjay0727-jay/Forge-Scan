@@ -153,21 +153,16 @@ impl std::fmt::Display for TargetParseError {
 impl std::error::Error for TargetParseError {}
 
 /// Scanning mode
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ScanMode {
     /// Network-based scanning from central scanner
+    #[default]
     Agentless,
     /// Local scanning via deployed agent
     Agent,
     /// Both agentless and agent scanning
     Hybrid,
-}
-
-impl Default for ScanMode {
-    fn default() -> Self {
-        ScanMode::Agentless
-    }
 }
 
 impl ScanMode {

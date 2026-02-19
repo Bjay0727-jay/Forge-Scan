@@ -172,30 +172,30 @@ impl Check for YamlCheck {
             } => self.check_version_match(ctx, cpe, affected_versions, banner_pattern.as_deref()),
             YamlDetection::BannerMatch { pattern } => self.check_banner_match(ctx, pattern),
             YamlDetection::ActiveProbe {
-                method,
-                path,
-                match_response,
-                match_status,
+                method: _,
+                path: _,
+                match_response: _,
+                match_status: _,
             } => {
                 // Active probing would be implemented here
                 // For now, return empty (requires HTTP client)
                 Ok(vec![])
             }
             YamlDetection::FilePermission {
-                path,
-                expected_mode,
-                expected_owner,
-                expected_group,
+                path: _,
+                expected_mode: _,
+                expected_owner: _,
+                expected_group: _,
             } => {
                 // File permission check requires agent mode
                 // Implementation in forgescan-config-audit
                 Ok(vec![])
             }
             YamlDetection::ConfigValue {
-                file,
-                key,
-                expected,
-                format,
+                file: _,
+                key: _,
+                expected: _,
+                format: _,
             } => {
                 // Config value check requires agent mode
                 Ok(vec![])
@@ -209,7 +209,7 @@ impl YamlCheck {
         &self,
         ctx: &CheckContext,
         cpe_pattern: &str,
-        affected_versions: &[String],
+        _affected_versions: &[String],
         banner_pattern: Option<&str>,
     ) -> CheckResult {
         // Check if the detected CPE matches

@@ -25,8 +25,8 @@ pub fn load_checks_from_dir(dir: impl AsRef<Path>) -> Result<CheckRegistry> {
 }
 
 fn load_recursive(registry: &mut CheckRegistry, dir: &Path) -> Result<()> {
-    for entry in std::fs::read_dir(dir).map_err(|e| Error::Io(e))? {
-        let entry = entry.map_err(|e| Error::Io(e))?;
+    for entry in std::fs::read_dir(dir).map_err(Error::Io)? {
+        let entry = entry.map_err(Error::Io)?;
         let path = entry.path();
 
         if path.is_dir() {
@@ -50,7 +50,7 @@ fn load_recursive(registry: &mut CheckRegistry, dir: &Path) -> Result<()> {
 }
 
 fn load_yaml_check(path: &Path) -> Result<YamlCheck> {
-    let content = std::fs::read_to_string(path).map_err(|e| Error::Io(e))?;
+    let content = std::fs::read_to_string(path).map_err(Error::Io)?;
 
     YamlCheck::from_yaml(&content).map_err(|e| Error::InvalidCheckDefinition {
         path: path.display().to_string(),

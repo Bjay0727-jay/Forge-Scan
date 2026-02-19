@@ -4,7 +4,7 @@ use crate::checks::{CheckResult, ConfigCheck, ServiceState, UserAccountCheck};
 use std::fs;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::process::Command;
-use tracing::debug;
+
 
 /// Check file permissions on Linux
 pub fn check_file_permission(

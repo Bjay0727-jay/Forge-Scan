@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 /// Main configuration structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Config {
     /// Platform connection settings
     #[serde(default)]
@@ -30,19 +30,6 @@ pub struct Config {
     /// TLS/mTLS settings
     #[serde(default)]
     pub tls: TlsConfig,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            platform: PlatformConfig::default(),
-            scanner: ScannerConfig::default(),
-            agent: AgentConfig::default(),
-            nvd: NvdConfig::default(),
-            logging: LoggingConfig::default(),
-            tls: TlsConfig::default(),
-        }
-    }
 }
 
 impl Config {
@@ -313,7 +300,7 @@ impl Default for LoggingConfig {
 }
 
 /// TLS configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TlsConfig {
     /// Path to CA certificate
     pub ca_cert_path: Option<String>,
@@ -327,17 +314,6 @@ pub struct TlsConfig {
     /// Skip server certificate verification (NOT recommended for production)
     #[serde(default)]
     pub insecure_skip_verify: bool,
-}
-
-impl Default for TlsConfig {
-    fn default() -> Self {
-        Self {
-            ca_cert_path: None,
-            cert_path: None,
-            key_path: None,
-            insecure_skip_verify: false,
-        }
-    }
 }
 
 /// Builder for constructing Config

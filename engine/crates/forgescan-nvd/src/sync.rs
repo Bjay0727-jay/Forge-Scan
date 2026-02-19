@@ -303,6 +303,7 @@ pub struct SyncStats {
 // NVD API Response structures
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 struct NvdResponse {
     results_per_page: u32,
     start_index: u32,
@@ -317,6 +318,7 @@ struct NvdVulnerability {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 struct NvdCve {
     id: String,
     published: Option<String>,
@@ -365,6 +367,7 @@ struct NvdConfiguration {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 struct NvdNode {
     operator: Option<String>,
     negate: Option<bool>,
