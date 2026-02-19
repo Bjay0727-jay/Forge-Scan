@@ -258,8 +258,8 @@ impl AwsScanner {
 
         let buckets = self.s3.list_buckets().send().await?;
 
-        for bucket in buckets.buckets().unwrap_or_default() {
-            let name = bucket.name().unwrap_or_default();
+        for bucket in buckets.buckets() {
+            let name = bucket.name().unwrap_or("");
 
             // Get bucket details
             let mut metadata = HashMap::new();
@@ -331,7 +331,7 @@ impl AwsScanner {
                 name: name.to_string(),
                 region: "global".to_string(), // S3 buckets are global
                 tags,
-                created_at: bucket.creation_date().map(|d| d.to_string()),
+                created_at: bucket.creation_date().map(|d| format!("{:?}", d)),
                 metadata,
             });
         }
@@ -350,9 +350,9 @@ impl AwsScanner {
 
         let instances = self.ec2.describe_instances().send().await?;
 
-        for reservation in instances.reservations().unwrap_or_default() {
-            for instance in reservation.instances().unwrap_or_default() {
-                let instance_id = instance.instance_id().unwrap_or_default();
+        for reservation in instances.reservations() {
+            for instance in reservation.instances() {
+                let instance_id = instance.instance_id().unwrap_or("");
 
                 let mut metadata = HashMap::new();
 
@@ -409,8 +409,8 @@ impl AwsScanner {
                     .iter()
                     .map(|t| {
                         (
-                            t.key().unwrap_or_default().to_string(),
-                            t.value().unwrap_or_default().to_string(),
+                            t.key().unwrap_or("").to_string(),
+                            t.value().unwrap_or("").to_string(),
                         )
                     })
                     .collect();
@@ -430,7 +430,7 @@ impl AwsScanner {
                     name,
                     region: self.config.region.clone(),
                     tags,
-                    created_at: instance.launch_time().map(|t| t.to_string()),
+                    created_at: instance.launch_time().map(|t| format!("{:?}", t)),
                     metadata,
                 });
             }
@@ -450,8 +450,8 @@ impl AwsScanner {
 
         let sgs = self.ec2.describe_security_groups().send().await?;
 
-        for sg in sgs.security_groups().unwrap_or_default() {
-            let sg_id = sg.group_id().unwrap_or_default();
+        for sg in sgs.security_groups() {
+            let sg_id = sg.group_id().unwrap_or("");
 
             let mut metadata = HashMap::new();
 
@@ -462,9 +462,9 @@ impl AwsScanner {
                 .flat_map(|perm| {
                     perm.ip_ranges().iter().map(move |range| {
                         serde_json::json!({
-                            "cidr": range.cidr_ip().unwrap_or_default(),
+                            "cidr": range.cidr_ip().unwrap_or(""),
                             "port": perm.from_port().unwrap_or_default(),
-                            "protocol": perm.ip_protocol().unwrap_or_default(),
+                            "protocol": perm.ip_protocol().unwrap_or(""),
                         })
                     })
                 })
@@ -482,9 +482,9 @@ impl AwsScanner {
                 .flat_map(|perm| {
                     perm.ip_ranges().iter().map(move |range| {
                         serde_json::json!({
-                            "cidr": range.cidr_ip().unwrap_or_default(),
+                            "cidr": range.cidr_ip().unwrap_or(""),
                             "port": perm.from_port().unwrap_or_default(),
-                            "protocol": perm.ip_protocol().unwrap_or_default(),
+                            "protocol": perm.ip_protocol().unwrap_or(""),
                         })
                     })
                 })
@@ -509,13 +509,14 @@ impl AwsScanner {
                 .iter()
                 .map(|t| {
                     (
-                        t.key().unwrap_or_default().to_string(),
-                        t.value().unwrap_or_default().to_string(),
+                        t.key().unwrap_or("").to_string(),
+                        t.value().unwrap_or("").to_string(),
                     )
                 })
                 .collect();
 
             let name = sg.group_name().unwrap_or(sg_id).to_string();
+
 
             resources.push(CloudResource {
                 id: sg_id.to_string(),
@@ -548,7 +549,7 @@ impl AwsScanner {
                     let mut metadata = HashMap::new();
                     metadata.insert(
                         "minimum_length".to_string(),
-                        serde_json::Value::Number(pp.minimum_password_length().into()),
+                        serde_json::Value::Number(pp.minimum_password_length().unwrap_or(0).into()),
                     );
                     metadata.insert(
                         "require_uppercase".to_string(),

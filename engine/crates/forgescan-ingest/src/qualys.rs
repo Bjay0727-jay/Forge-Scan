@@ -162,10 +162,10 @@ impl QualysIngester {
 
                     if let Some(ref mut host) = current_host {
                         match current_element.as_str() {
-                            "IP" => host.ip = Some(text),
-                            "DNS" => host.dns = Some(text),
-                            "NETBIOS" => host.netbios = Some(text),
-                            "OS" => host.os = Some(text),
+                            "IP" => host.ip = Some(text.clone()),
+                            "DNS" => host.dns = Some(text.clone()),
+                            "NETBIOS" => host.netbios = Some(text.clone()),
+                            "OS" => host.os = Some(text.clone()),
                             _ => {}
                         }
                     }
@@ -174,12 +174,12 @@ impl QualysIngester {
                         match current_element.as_str() {
                             "QID" => det.qid = text.parse().ok(),
                             "SEVERITY" => det.severity = text.parse().ok(),
-                            "STATUS" => det.status = Some(text),
-                            "RESULTS" => det.results = Some(text),
-                            "FIRST_FOUND_DATETIME" => det.first_found = Some(text),
-                            "LAST_FOUND_DATETIME" => det.last_found = Some(text),
+                            "STATUS" => det.status = Some(text.clone()),
+                            "RESULTS" => det.results = Some(text.clone()),
+                            "FIRST_FOUND_DATETIME" => det.first_found = Some(text.clone()),
+                            "LAST_FOUND_DATETIME" => det.last_found = Some(text.clone()),
                             "PORT" => det.port = text.parse().ok(),
-                            "PROTOCOL" => det.protocol = Some(text),
+                            "PROTOCOL" => det.protocol = Some(text.clone()),
                             "SSL" => det.ssl = Some(text == "1" || text.to_lowercase() == "true"),
                             _ => {}
                         }

@@ -91,7 +91,7 @@ async fn main() -> Result<()> {
     }
 
     // Determine config path
-    let config_path = args.config.unwrap_or_else(default_config_path);
+    let config_path = args.config.clone().unwrap_or_else(default_config_path);
 
     // Load configuration
     let config = if std::path::Path::new(&config_path).exists() {
@@ -107,6 +107,7 @@ async fn main() -> Result<()> {
     // Override platform endpoint if provided
     let platform_endpoint = args
         .platform
+        .clone()
         .unwrap_or_else(|| config.platform.endpoint.clone());
 
     if args.register {
@@ -414,7 +415,7 @@ async fn run_daemon(
     info!("CPU limit: {}%", config.agent.scan_cpu_limit_percent);
     info!("Memory limit: {}MB", config.agent.scan_memory_limit_mb);
 
-    let heartbeat_interval = Duration::from_secs(config.agent.heartbeat_interval_seconds);
+    let heartbeat_interval = Duration::from_secs(config.agent.heartbeat_interval_seconds.into());
     let mut heartbeat_timer = time::interval(heartbeat_interval);
 
     // TODO: Establish gRPC connection to platform

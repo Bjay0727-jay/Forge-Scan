@@ -2,7 +2,6 @@
 //!
 //! Implements NVD API 2.0 client for downloading CVE data and CISA KEV catalog.
 
-use crate::cpe::{Cpe, CpeMatch, VersionBoundType};
 use crate::database::NvdDb;
 use forgescan_core::{CveInfo, Error, Result};
 use reqwest::Client;
@@ -145,10 +144,10 @@ impl NvdSync {
         let response = request
             .send()
             .await
-            .map_err(|e| Error::Network(format!("Failed to fetch NVD data: {}", e)))?;
+            .map_err(|e| Error::NvdSyncFailed(format!("Failed to fetch NVD data: {}", e)))?;
 
         if !response.status().is_success() {
-            return Err(Error::Network(format!(
+            return Err(Error::NvdSyncFailed(format!(
                 "NVD API returned status {}",
                 response.status()
             )));
@@ -217,7 +216,7 @@ impl NvdSync {
         let cve_info = CveInfo {
             cve_id: cve.id.clone(),
             description,
-            cvss_v3_score: cvss_score,
+            cvss_v3_score: cvss_score.map(|s| s as f32),
             cvss_v3_vector: cvss_vector,
             cwe_ids,
             references,
@@ -269,7 +268,7 @@ impl NvdSync {
             .get(url)
             .send()
             .await
-            .map_err(|e| Error::Network(format!("Failed to fetch KEV catalog: {}", e)))?;
+            .map_err(|e| Error::NvdSyncFailed(format!("Failed to fetch KEV catalog: {}", e)))?;
 
         let kev: KevCatalog = response
             .json()

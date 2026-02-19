@@ -282,12 +282,14 @@ impl<'a> Crawler<'a> {
         for tag in &["link", "script", "img", "iframe", "form"] {
             let attr = if *tag == "form" { "action" } else { "src" };
             let attr_selector = format!("{}[{}]", tag, attr);
-            if let Ok(selector) = Selector::parse(&attr_selector) {
-                for element in document.select(&selector) {
-                    if let Some(url) = element.value().attr(attr) {
-                        if let Some(absolute) = resolve_url(url, base_url) {
-                            links.push(absolute);
-                        }
+            let selector = match Selector::parse(&attr_selector) {
+                Ok(s) => s,
+                Err(_) => continue,
+            };
+            for element in document.select(&selector) {
+                if let Some(url) = element.value().attr(attr) {
+                    if let Some(absolute) = resolve_url(url, base_url) {
+                        links.push(absolute);
                     }
                 }
             }

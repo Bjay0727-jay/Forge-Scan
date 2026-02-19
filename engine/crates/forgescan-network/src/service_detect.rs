@@ -202,18 +202,7 @@ impl ServiceDetector {
     fn default_patterns() -> Vec<ServicePattern> {
         let mut patterns = Vec::new();
 
-        // SSH
-        if let Ok(re) = Regex::new(r"SSH-[\d.]+-(\S+?)(?:_(\d+[\d.]*\S*))?") {
-            patterns.push(ServicePattern {
-                regex: re,
-                service: "ssh".to_string(),
-                product_group: Some(1),
-                version_group: Some(2),
-                cpe_template: Some("cpe:2.3:a:*:{product}:{version}:*:*:*:*:*:*:*".to_string()),
-            });
-        }
-
-        // OpenSSH specific
+        // OpenSSH specific (must be before generic SSH pattern)
         if let Ok(re) = Regex::new(r"SSH-[\d.]+-OpenSSH[_-](\d+\.\d+(?:\.\d+)?[p\d]*)") {
             patterns.push(ServicePattern {
                 regex: re,
@@ -224,18 +213,18 @@ impl ServiceDetector {
             });
         }
 
-        // HTTP Server headers
-        if let Ok(re) = Regex::new(r"Server:\s*([^\r\n/]+)(?:/(\d+[\d.]*\S*))?") {
+        // SSH (generic)
+        if let Ok(re) = Regex::new(r"SSH-[\d.]+-(\S+?)(?:_(\d+[\d.]*\S*))?") {
             patterns.push(ServicePattern {
                 regex: re,
-                service: "http".to_string(),
+                service: "ssh".to_string(),
                 product_group: Some(1),
                 version_group: Some(2),
-                cpe_template: None,
+                cpe_template: Some("cpe:2.3:a:*:{product}:{version}:*:*:*:*:*:*:*".to_string()),
             });
         }
 
-        // Apache
+        // Apache (specific, before generic Server header)
         if let Ok(re) = Regex::new(r"Apache(?:/(\d+\.\d+(?:\.\d+)?))?") {
             patterns.push(ServicePattern {
                 regex: re,
@@ -248,7 +237,7 @@ impl ServiceDetector {
             });
         }
 
-        // nginx
+        // nginx (specific, before generic Server header)
         if let Ok(re) = Regex::new(r"nginx(?:/(\d+\.\d+(?:\.\d+)?))?") {
             patterns.push(ServicePattern {
                 regex: re,
@@ -259,7 +248,7 @@ impl ServiceDetector {
             });
         }
 
-        // Microsoft IIS
+        // Microsoft IIS (specific, before generic Server header)
         if let Ok(re) = Regex::new(r"Microsoft-IIS(?:/(\d+\.\d+))?") {
             patterns.push(ServicePattern {
                 regex: re,
@@ -270,6 +259,17 @@ impl ServiceDetector {
                     "cpe:2.3:a:microsoft:internet_information_services:{version}:*:*:*:*:*:*:*"
                         .to_string(),
                 ),
+            });
+        }
+
+        // HTTP Server headers (generic, after specific patterns)
+        if let Ok(re) = Regex::new(r"Server:\s*([^\r\n/]+)(?:/(\d+[\d.]*\S*))?") {
+            patterns.push(ServicePattern {
+                regex: re,
+                service: "http".to_string(),
+                product_group: Some(1),
+                version_group: Some(2),
+                cpe_template: None,
             });
         }
 

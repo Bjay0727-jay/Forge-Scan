@@ -9,6 +9,6 @@ pub mod detector;
 pub mod frs;
 pub mod matcher;
 
-pub use detector::{DetectionResult, VulnDetector};
+pub use detector::{DetectedService, DetectionResult, VulnDetector};
 pub use frs::{FrsCalculator, FrsScore, RiskFactors};
 pub use matcher::{MatchResult, VersionMatcher};

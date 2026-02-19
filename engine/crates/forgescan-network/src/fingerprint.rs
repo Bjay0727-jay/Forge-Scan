@@ -30,7 +30,7 @@ pub struct OsFingerprint {
 }
 
 /// OS family categories
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum OsFamily {
     Linux,
     Windows,

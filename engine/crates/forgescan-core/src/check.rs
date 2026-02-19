@@ -168,7 +168,7 @@ impl CheckMetadata {
 }
 
 /// Context passed to checks during execution
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct CheckContext {
     /// The target being scanned
     pub target: ScanTarget,
@@ -208,6 +208,26 @@ pub struct CheckContext {
 
     /// Credentials for authenticated checks
     pub credentials: Option<Arc<dyn CredentialProvider>>,
+}
+
+impl std::fmt::Debug for CheckContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CheckContext")
+            .field("target", &self.target)
+            .field("resolved_ip", &self.resolved_ip)
+            .field("port", &self.port)
+            .field("protocol", &self.protocol)
+            .field("service", &self.service)
+            .field("service_version", &self.service_version)
+            .field("banner", &self.banner)
+            .field("cpe", &self.cpe)
+            .field("scan_mode", &self.scan_mode)
+            .field("timeout_ms", &self.timeout_ms)
+            .field("extra", &self.extra)
+            .field("nvd_db", &self.nvd_db.as_ref().map(|_| "..."))
+            .field("credentials", &self.credentials.as_ref().map(|_| "..."))
+            .finish()
+    }
 }
 
 impl CheckContext {

@@ -229,13 +229,13 @@ impl TenableIngester {
         }
 
         // Timestamps
-        if let Some(first) = vuln.first_found {
-            if let Ok(dt) = DateTime::parse_from_rfc3339(&first) {
+        if let Some(ref first) = vuln.first_found {
+            if let Ok(dt) = DateTime::parse_from_rfc3339(first) {
                 builder = builder.first_seen(dt.with_timezone(&Utc));
             }
         }
-        if let Some(last) = vuln.last_found {
-            if let Ok(dt) = DateTime::parse_from_rfc3339(&last) {
+        if let Some(ref last) = vuln.last_found {
+            if let Ok(dt) = DateTime::parse_from_rfc3339(last) {
                 builder = builder.last_seen(dt.with_timezone(&Utc));
             }
         }

@@ -23,40 +23,46 @@ pub fn verify_sha256(data: &[u8], expected_hex: &str) -> bool {
 /// Generate a self-signed certificate for testing/development
 pub fn generate_self_signed_cert(
     common_name: &str,
-    validity_days: u32,
+    _validity_days: u32,
 ) -> Result<(String, String)> {
-    use rcgen::{generate_simple_self_signed, CertifiedKey};
+    use rcgen::generate_simple_self_signed;
 
     let subject_alt_names = vec![common_name.to_string()];
 
-    let CertifiedKey { cert, key_pair } = generate_simple_self_signed(subject_alt_names)
+    let cert = generate_simple_self_signed(subject_alt_names)
         .map_err(|e| Error::Internal(format!("Failed to generate certificate: {}", e)))?;
 
-    Ok((cert.pem(), key_pair.serialize_pem()))
+    let cert_pem = cert
+        .serialize_pem()
+        .map_err(|e| Error::Internal(format!("Failed to serialize certificate: {}", e)))?;
+    let key_pem = cert.serialize_private_key_pem();
+
+    Ok((cert_pem, key_pem))
 }
 
 /// Generate a certificate signing request (CSR)
 pub fn generate_csr(common_name: &str) -> Result<(String, String)> {
-    use rcgen::{CertificateSigningRequestParams, KeyPair};
+    use rcgen::{Certificate, CertificateParams, KeyPair};
 
-    let key_pair = KeyPair::generate()
+    let key_pair = KeyPair::generate(&rcgen::PKCS_ECDSA_P256_SHA256)
         .map_err(|e| Error::Internal(format!("Failed to generate key pair: {}", e)))?;
 
-    let mut params = CertificateSigningRequestParams::default();
+    let mut params = CertificateParams::default();
     params.distinguished_name.push(
         rcgen::DnType::CommonName,
         rcgen::DnValue::Utf8String(common_name.to_string()),
     );
+    params.key_pair = Some(key_pair);
 
-    let csr = params
-        .serialize_request(&key_pair)
+    let cert = Certificate::from_params(params)
+        .map_err(|e| Error::Internal(format!("Failed to create certificate params: {}", e)))?;
+
+    let csr_pem = cert
+        .serialize_request_pem()
         .map_err(|e| Error::Internal(format!("Failed to serialize CSR: {}", e)))?;
+    let key_pem = cert.serialize_private_key_pem();
 
-    Ok((
-        csr.pem()
-            .map_err(|e| Error::Internal(format!("Failed to encode CSR: {}", e)))?,
-        key_pair.serialize_pem(),
-    ))
+    Ok((csr_pem, key_pem))
 }
 
 /// Load a PEM-encoded certificate
