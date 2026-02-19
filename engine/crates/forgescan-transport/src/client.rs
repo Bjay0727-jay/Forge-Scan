@@ -215,7 +215,11 @@ fn gethostname() -> std::ffi::OsString {
         let mut buf = [0i8; 256];
         unsafe {
             libc::gethostname(buf.as_mut_ptr(), buf.len());
-            CStr::from_ptr(buf.as_ptr()).to_owned().into_string().unwrap_or_else(|_| "unknown".to_string()).into()
+            CStr::from_ptr(buf.as_ptr())
+                .to_owned()
+                .into_string()
+                .unwrap_or_else(|_| "unknown".to_string())
+                .into()
         }
     }
     #[cfg(windows)]

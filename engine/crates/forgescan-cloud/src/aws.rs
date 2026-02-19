@@ -516,8 +516,6 @@ impl AwsScanner {
                 .collect();
 
             let name = sg.group_name().unwrap_or(sg_id).to_string();
-
-
             resources.push(CloudResource {
                 id: sg_id.to_string(),
                 arn: Some(format!(
