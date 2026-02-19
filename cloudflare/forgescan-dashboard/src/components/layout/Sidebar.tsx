@@ -10,6 +10,7 @@ import {
   Cpu,
   Plug,
   Bell,
+  ClipboardCheck,
   Settings,
   Users,
   LogOut,
@@ -26,6 +27,7 @@ const mainNavigation = [
   { name: 'Scans', href: '/scans', icon: Scan },
   { name: 'Vulnerabilities', href: '/vulnerabilities', icon: ShieldAlert },
   { name: 'Integrations', href: '/integrations', icon: Plug },
+  { name: 'Compliance', href: '/compliance', icon: ClipboardCheck },
   { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'Import', href: '/import', icon: Upload },
 ];

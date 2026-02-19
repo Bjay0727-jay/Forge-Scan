@@ -14,6 +14,7 @@ import { Vulnerabilities } from '@/pages/Vulnerabilities';
 import { Scanners } from '@/pages/Scanners';
 import { Integrations } from '@/pages/Integrations';
 import { Notifications } from '@/pages/Notifications';
+import { Compliance } from '@/pages/Compliance';
 
 function App() {
   return (
@@ -39,6 +40,7 @@ function App() {
             <Route path="import" element={<Import />} />
             <Route path="vulnerabilities" element={<Vulnerabilities />} />
             <Route path="integrations" element={<Integrations />} />
+            <Route path="compliance" element={<Compliance />} />
             <Route path="notifications" element={<Notifications />} />
             <Route path="settings" element={<Settings />} />
             <Route
