@@ -71,7 +71,6 @@ impl AwsConfig {
 
     /// Create with assumed role
     pub async fn assume_role(base_config: &AwsConfig, role_arn: &str) -> anyhow::Result<Self> {
-
         let sts = aws_sdk_sts::Client::new(&base_config.sdk_config);
 
         let assumed = sts
@@ -282,33 +281,27 @@ impl AwsScanner {
             }
 
             // Get encryption
-            match self.s3.get_bucket_encryption().bucket(name).send().await {
-                Ok(enc) => {
-                    if let Some(config) = enc.server_side_encryption_configuration() {
-                        if let Some(rule) = config.rules().first() {
-                            if let Some(sse) = rule.apply_server_side_encryption_by_default() {
-                                let algo = sse.sse_algorithm();
-                                metadata.insert(
-                                    "encryption".to_string(),
-                                    serde_json::Value::String(format!("{:?}", algo)),
-                                );
-                            }
+            if let Ok(enc) = self.s3.get_bucket_encryption().bucket(name).send().await {
+                if let Some(config) = enc.server_side_encryption_configuration() {
+                    if let Some(rule) = config.rules().first() {
+                        if let Some(sse) = rule.apply_server_side_encryption_by_default() {
+                            let algo = sse.sse_algorithm();
+                            metadata.insert(
+                                "encryption".to_string(),
+                                serde_json::Value::String(format!("{:?}", algo)),
+                            );
                         }
                     }
                 }
-                Err(_) => {}
             }
 
             // Get versioning
-            match self.s3.get_bucket_versioning().bucket(name).send().await {
-                Ok(versioning) => {
-                    let status = versioning.status();
-                    metadata.insert(
-                        "versioning".to_string(),
-                        serde_json::Value::String(format!("{:?}", status)),
-                    );
-                }
-                Err(_) => {}
+            if let Ok(versioning) = self.s3.get_bucket_versioning().bucket(name).send().await {
+                let status = versioning.status();
+                metadata.insert(
+                    "versioning".to_string(),
+                    serde_json::Value::String(format!("{:?}", status)),
+                );
             }
 
             // Get tags
@@ -629,8 +622,6 @@ impl AwsScanner {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     // Integration tests would require AWS credentials
     // Unit tests focus on check logic
 }
