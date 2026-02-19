@@ -77,24 +77,4 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal Server Error', message: err.message }, 500);
 });
 
-// Export Worker with Cron Trigger support
-export default {
-  fetch: app.fetch,
-
-  // Cron Trigger: processes NVD sync pages and runs periodic tasks
-  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
-    const { processNextPage, syncEPSS } = await import('./services/nvd-sync');
-
-    try {
-      // Process next page of any running NVD sync job
-      const hasMore = await processNextPage(env.DB, env.NVD_API_KEY);
-
-      // If no running sync, do periodic EPSS updates (fills in missing scores)
-      if (!hasMore) {
-        await syncEPSS(env.DB);
-      }
-    } catch (err) {
-      console.error('Cron job error:', err);
-    }
-  },
-};
+export default app;

@@ -26,10 +26,6 @@ bucket_name = "forgescan-storage"
 binding = "CACHE"
 id = "e8e1da19230448f0a5bb32245ac799db"
 
-# Cron Triggers - NVD sync processing
-[triggers]
-crons = ["*/5 * * * *"]
-
 # Environment variables
 [vars]
 ENVIRONMENT = "production"

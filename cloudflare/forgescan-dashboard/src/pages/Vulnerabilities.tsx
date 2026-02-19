@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Shield,
   RefreshCw,
@@ -137,12 +137,44 @@ export function Vulnerabilities() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Auto-refresh if there's an active job
+  // Auto-drive sync: when there's an active job, call process-next to advance it
+  // This replaces the cron trigger approach (free plan limit exceeded)
+  const processingRef = useRef(false);
   useEffect(() => {
-    if (!activeJob) return;
-    const interval = setInterval(loadData, 10000);
-    return () => clearInterval(interval);
-  }, [activeJob, loadData]);
+    if (!activeJob || !isAdmin) return;
+    let cancelled = false;
+
+    async function driveSync() {
+      if (processingRef.current || cancelled) return;
+      processingRef.current = true;
+      try {
+        const res = await fetch(`${API_BASE_URL}/vulnerabilities/sync/process-next`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.active_job) {
+            setActiveJob(data.active_job);
+            setSyncState(data.state);
+          } else {
+            setActiveJob(null);
+            setSyncState(data.state);
+          }
+        }
+      } catch { /* ignore */ } finally {
+        processingRef.current = false;
+      }
+      // Refresh full data periodically
+      if (!cancelled) loadData();
+    }
+
+    // Process next page every 8 seconds while sync is active
+    const interval = setInterval(driveSync, 8000);
+    // Also trigger immediately
+    driveSync();
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [activeJob, isAdmin, loadData]);
 
   async function triggerSync(type: string) {
     setSyncing(type);

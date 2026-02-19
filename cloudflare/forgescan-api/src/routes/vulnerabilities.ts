@@ -4,6 +4,7 @@ import { requireRole } from '../middleware/auth';
 import {
   startFullSync,
   startIncrementalSync,
+  processNextPage,
   syncKEV,
   syncEPSS,
   getSyncStatus,
@@ -462,6 +463,28 @@ vulnerabilities.post('/sync/epss', requireRole('platform_admin', 'scan_admin'), 
     });
   } catch (err) {
     return c.json({ error: 'EPSS sync failed', message: err instanceof Error ? err.message : 'Unknown error' }, 500);
+  }
+});
+
+// POST /api/v1/vulnerabilities/sync/process-next - Process next page of running sync
+// Replaces cron trigger - called by frontend polling or external scheduler
+vulnerabilities.post('/sync/process-next', requireRole('platform_admin', 'scan_admin'), async (c) => {
+  try {
+    const hasMore = await processNextPage(c.env.DB, c.env.NVD_API_KEY);
+
+    // If no running sync, do periodic EPSS updates
+    if (!hasMore) {
+      await syncEPSS(c.env.DB);
+    }
+
+    const status = await getSyncStatus(c.env.DB);
+    return c.json({
+      has_more: hasMore,
+      active_job: status.activeJob,
+      state: status.state,
+    });
+  } catch (err) {
+    return c.json({ error: 'Failed to process sync page', message: err instanceof Error ? err.message : 'Unknown error' }, 500);
   }
 });
 
