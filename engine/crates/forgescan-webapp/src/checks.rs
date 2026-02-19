@@ -99,9 +99,9 @@ fn check_information_disclosure(crawl: &CrawlResult) -> Vec<Finding> {
     let mut findings = Vec::new();
 
     let sensitive_patterns = [
-        (r"(?i)password\s*[:=]\s*['\"][^'\"]+['\"]", "Hardcoded password", Severity::High),
-        (r"(?i)api[_-]?key\s*[:=]\s*['\"][^'\"]+['\"]", "API key exposed", Severity::High),
-        (r"(?i)secret\s*[:=]\s*['\"][^'\"]+['\"]", "Secret value exposed", Severity::High),
+        (r#"(?i)password\s*[:=]\s*['"][^'"]+['"]"#, "Hardcoded password", Severity::High),
+        (r#"(?i)api[_-]?key\s*[:=]\s*['"][^'"]+['"]"#, "API key exposed", Severity::High),
+        (r#"(?i)secret\s*[:=]\s*['"][^'"]+['"]"#, "Secret value exposed", Severity::High),
         (r"(?i)aws[_-]?access[_-]?key", "AWS access key pattern", Severity::High),
         (r"(?i)private[_-]?key", "Private key reference", Severity::High),
         (r"(?i)database\s*[:=]", "Database connection string", Severity::Medium),
