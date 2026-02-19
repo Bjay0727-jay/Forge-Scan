@@ -32,9 +32,8 @@ pub mod checks;
 pub use aws::{AwsConfig, AwsScanner};
 pub use checks::{CloudCheck, CloudCheckResult, CloudResource};
 
-use forgescan_core::{Finding, Severity};
+use forgescan_core::Finding;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// Cloud provider type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

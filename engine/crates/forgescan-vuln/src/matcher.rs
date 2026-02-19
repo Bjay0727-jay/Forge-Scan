@@ -2,8 +2,8 @@
 //!
 //! Matches detected software versions against vulnerability database entries.
 
-use forgescan_core::{CveInfo, NvdDatabase, Severity};
-use forgescan_nvd::{compare_versions, Cpe, CpeMatch, NvdDb, VersionBoundType};
+use forgescan_core::{CveInfo, NvdDatabase as _};
+use forgescan_nvd::{compare_versions, Cpe, NvdDb};
 use tracing::debug;
 
 /// Version matcher for correlating detected software with CVEs

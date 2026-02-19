@@ -1,13 +1,11 @@
 //! AWS security scanner implementation
 
-use crate::checks::{aws_checks, CloudCheck, CloudCheckResult, CloudResource};
+use crate::checks::{aws_checks, CloudCheck, CloudResource};
 use crate::{CloudProvider, CloudScanConfig, CloudScanResult, CloudScanStats};
 use aws_config::SdkConfig;
 use aws_sdk_ec2::Client as Ec2Client;
 use aws_sdk_iam::Client as IamClient;
 use aws_sdk_s3::Client as S3Client;
-use forgescan_core::Finding;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Instant;
 use tracing::{debug, info, warn};
@@ -26,7 +24,7 @@ pub struct AwsConfig {
 impl AwsConfig {
     /// Load from environment/profile
     pub async fn from_env() -> anyhow::Result<Self> {
-        let sdk_config = aws_config::load_from_env().await;
+        let sdk_config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
         let region = sdk_config
             .region()
             .map(|r| r.to_string())
@@ -54,7 +52,7 @@ impl AwsConfig {
 
         let credentials = Credentials::new(access_key, secret_key, None, None, "forgescan");
 
-        let sdk_config = aws_config::from_env()
+        let sdk_config = aws_config::defaults(aws_config::BehaviorVersion::latest())
             .credentials_provider(credentials)
             .region(aws_config::Region::new(region.to_string()))
             .load()
@@ -73,7 +71,6 @@ impl AwsConfig {
 
     /// Create with assumed role
     pub async fn assume_role(base_config: &AwsConfig, role_arn: &str) -> anyhow::Result<Self> {
-        use aws_credential_types::provider::ProvideCredentials;
 
         let sts = aws_sdk_sts::Client::new(&base_config.sdk_config);
 
@@ -96,7 +93,7 @@ impl AwsConfig {
             "forgescan-assumed",
         );
 
-        let sdk_config = aws_config::from_env()
+        let sdk_config = aws_config::defaults(aws_config::BehaviorVersion::latest())
             .credentials_provider(credentials)
             .region(aws_config::Region::new(base_config.region.clone()))
             .load()
@@ -343,7 +340,7 @@ impl AwsScanner {
     /// Collect EC2 instances
     async fn collect_ec2_instances(
         &self,
-        regions: &[String],
+        _regions: &[String],
     ) -> anyhow::Result<Vec<CloudResource>> {
         debug!("Collecting EC2 instances");
         let mut resources = Vec::new();
