@@ -10,9 +10,14 @@
 //! the generated protobuf code.
 
 pub mod client;
+pub mod rest_client;
 pub mod server;
 pub mod types;
 
 pub use client::ScannerClient;
+pub use rest_client::{
+    ApiTask, AssetPayload, FindingPayload, PortPayload, RestApiClient, RestClientConfig,
+    RestClientError, TaskResultsPayload,
+};
 pub use server::ScanServiceServer;
 pub use types::*;
