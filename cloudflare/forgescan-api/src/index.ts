@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import { authMiddleware } from './middleware/auth';
+import { auth } from './routes/auth';
 import { assets } from './routes/assets';
 import { findings } from './routes/findings';
 import { scans } from './routes/scans';
@@ -18,6 +20,7 @@ export interface Env {
   ENVIRONMENT: string;
   API_VERSION: string;
   CORS_ORIGIN: string;
+  JWT_SECRET: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -26,11 +29,11 @@ const app = new Hono<{ Bindings: Env }>();
 app.use('*', logger());
 app.use('*', cors({
   origin: '*',
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
 }));
 
-// Health check
+// Health check (public)
 app.get('/', (c) => {
   return c.json({
     name: 'ForgeScan 360 API',
@@ -44,7 +47,13 @@ app.get('/health', (c) => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// API Routes
+// Auth middleware for all /api/v1/* routes (skips public paths internally)
+app.use('/api/v1/*', authMiddleware);
+
+// Auth routes (login/register are public, others require auth)
+app.route('/api/v1/auth', auth);
+
+// Protected API Routes
 app.route('/api/v1/assets', assets);
 app.route('/api/v1/findings', findings);
 app.route('/api/v1/scans', scans);

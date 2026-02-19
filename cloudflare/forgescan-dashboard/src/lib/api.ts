@@ -34,16 +34,34 @@ async function request<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
 
+  // Inject auth token if available
+  const token = localStorage.getItem('forgescan_token');
+  const authHeaders: Record<string, string> = {};
+  if (token) {
+    authHeaders['Authorization'] = `Bearer ${token}`;
+  }
+
   const config: RequestInit = {
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      ...authHeaders,
       ...options.headers,
     },
   };
 
   try {
     const response = await fetch(url, config);
+
+    // Handle 401 - redirect to login
+    if (response.status === 401) {
+      localStorage.removeItem('forgescan_token');
+      localStorage.removeItem('forgescan_user');
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+      throw new ApiError('Session expired. Please log in again.', 401);
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -260,8 +278,10 @@ export const importApi = {
     formData.append('file', file);
     formData.append('format', format);
 
+    const token = localStorage.getItem('forgescan_token');
     const response = await fetch(`${API_BASE_URL}/import/upload`, {
       method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,
     });
 
@@ -295,8 +315,10 @@ export const importApi = {
     formData.append('file', file);
     formData.append('format', format);
 
+    const token = localStorage.getItem('forgescan_token');
     const response = await fetch(`${API_BASE_URL}/import/assets/upload`, {
       method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,
     });
 

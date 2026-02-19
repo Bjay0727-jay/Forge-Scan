@@ -1,3 +1,23 @@
+// User types
+export interface User {
+  id: string;
+  email: string;
+  display_name: string;
+  role: UserRole;
+  is_active?: boolean;
+  last_login_at?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type UserRole = 'platform_admin' | 'scan_admin' | 'vuln_manager' | 'remediation_owner' | 'auditor';
+
+export interface LoginResponse {
+  token: string;
+  expires_at: string;
+  user: User;
+}
+
 // Severity levels for findings
 export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
 
