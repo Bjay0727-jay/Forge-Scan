@@ -6,6 +6,7 @@ import {
   Scan,
   Upload,
   Shield,
+  ShieldAlert,
   Settings,
   Users,
   LogOut,
@@ -20,6 +21,7 @@ const mainNavigation = [
   { name: 'Assets', href: '/assets', icon: Server },
   { name: 'Findings', href: '/findings', icon: AlertTriangle },
   { name: 'Scans', href: '/scans', icon: Scan },
+  { name: 'Vulnerabilities', href: '/vulnerabilities', icon: ShieldAlert },
   { name: 'Import', href: '/import', icon: Upload },
 ];
 

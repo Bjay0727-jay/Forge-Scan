@@ -1,7 +1,22 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
+import { requireRole } from '../middleware/auth';
+import {
+  startFullSync,
+  startIncrementalSync,
+  syncKEV,
+  syncEPSS,
+  getSyncStatus,
+} from '../services/nvd-sync';
 
-export const vulnerabilities = new Hono<{ Bindings: Env }>();
+interface AuthUser {
+  id: string;
+  email: string;
+  role: string;
+  display_name: string;
+}
+
+export const vulnerabilities = new Hono<{ Bindings: Env; Variables: { user: AuthUser } }>();
 
 // Types
 interface VulnerabilityRecord {
@@ -379,79 +394,85 @@ vulnerabilities.post('/', async (c) => {
   return c.json({ id, cve_id: cveId, message: 'Vulnerability created' }, 201);
 });
 
-// POST /api/v1/vulnerabilities/sync - Trigger NVD sync (placeholder)
-vulnerabilities.post('/sync', async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const syncId = crypto.randomUUID();
-
-  const syncConfig = {
-    sync_id: syncId,
-    sync_type: body.sync_type || 'incremental', // 'full' or 'incremental'
-    date_from: body.date_from || null,
-    date_to: body.date_to || null,
-    cve_pattern: body.cve_pattern || null,
-    include_kev: body.include_kev !== false,
-    include_epss: body.include_epss !== false,
-  };
-
-  // Store sync job in database/KV
-  const syncJob: NVDSyncResult = {
-    sync_id: syncId,
-    status: 'pending',
-    started_at: new Date().toISOString(),
-  };
-
+// GET /api/v1/vulnerabilities/sync/status - Get overall sync status
+vulnerabilities.get('/sync/status', async (c) => {
   try {
-    await c.env.DB.prepare(`
-      INSERT INTO nvd_sync_jobs (id, config, status, started_at)
-      VALUES (?, ?, 'pending', datetime('now'))
-    `).bind(syncId, JSON.stringify(syncConfig)).run();
-  } catch {
-    // Table might not exist, store in KV
-    await c.env.CACHE.put(
-      `nvd_sync:${syncId}`,
-      JSON.stringify({ ...syncJob, config: syncConfig }),
-      { expirationTtl: 86400 } // 24 hours
-    );
+    const status = await getSyncStatus(c.env.DB);
+    return c.json(status);
+  } catch (err) {
+    return c.json({ error: 'Failed to get sync status', message: err instanceof Error ? err.message : 'Unknown error' }, 500);
   }
+});
 
-  // In a real implementation, this would trigger a background job
-  // For now, return a placeholder response
+// POST /api/v1/vulnerabilities/sync - Trigger NVD CVE sync
+vulnerabilities.post('/sync', requireRole('platform_admin', 'scan_admin'), async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const syncType = body.sync_type || 'incremental';
 
-  return c.json({
-    message: 'NVD sync job queued',
-    sync_id: syncId,
-    config: syncConfig,
-    status: 'pending',
-    note: 'This is a placeholder. Implement actual NVD API integration for production.',
-    documentation: {
-      nvd_api: 'https://nvd.nist.gov/developers/vulnerabilities',
-      kev_feed: 'https://www.cisa.gov/known-exploited-vulnerabilities-catalog',
-      epss_api: 'https://api.first.org/data/v1/epss',
-    },
-  }, 202);
+    // Check for already running sync
+    const activeJob = await c.env.DB.prepare(
+      "SELECT id FROM nvd_sync_jobs WHERE status = 'running' LIMIT 1"
+    ).first();
+
+    if (activeJob) {
+      return c.json({ error: 'A sync job is already running', job_id: activeJob.id }, 409);
+    }
+
+    let jobId: string;
+    if (syncType === 'full') {
+      jobId = await startFullSync(c.env.DB, c.env.NVD_API_KEY);
+    } else {
+      jobId = await startIncrementalSync(c.env.DB, c.env.NVD_API_KEY);
+    }
+
+    return c.json({
+      message: `NVD ${syncType} sync started`,
+      job_id: jobId,
+      sync_type: syncType,
+      status: 'running',
+    }, 202);
+  } catch (err) {
+    return c.json({ error: 'Failed to start sync', message: err instanceof Error ? err.message : 'Unknown error' }, 500);
+  }
+});
+
+// POST /api/v1/vulnerabilities/sync/kev - Trigger CISA KEV sync
+vulnerabilities.post('/sync/kev', requireRole('platform_admin', 'scan_admin'), async (c) => {
+  try {
+    const result = await syncKEV(c.env.DB);
+    return c.json({
+      message: 'KEV sync completed',
+      updated: result.updated,
+      total_kev: result.total,
+    });
+  } catch (err) {
+    return c.json({ error: 'KEV sync failed', message: err instanceof Error ? err.message : 'Unknown error' }, 500);
+  }
+});
+
+// POST /api/v1/vulnerabilities/sync/epss - Trigger EPSS score sync
+vulnerabilities.post('/sync/epss', requireRole('platform_admin', 'scan_admin'), async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const result = await syncEPSS(c.env.DB, body.cve_ids);
+    return c.json({
+      message: 'EPSS sync completed',
+      updated: result.updated,
+    });
+  } catch (err) {
+    return c.json({ error: 'EPSS sync failed', message: err instanceof Error ? err.message : 'Unknown error' }, 500);
+  }
 });
 
 // GET /api/v1/vulnerabilities/sync/:id - Get sync job status
 vulnerabilities.get('/sync/:id', async (c) => {
   const id = c.req.param('id');
+  const job = await c.env.DB.prepare(
+    'SELECT * FROM nvd_sync_jobs WHERE id = ?'
+  ).bind(id).first();
 
-  try {
-    const job = await c.env.DB.prepare(
-      'SELECT * FROM nvd_sync_jobs WHERE id = ?'
-    ).bind(id).first();
-
-    if (job) {
-      return c.json(job);
-    }
-  } catch {
-    // Try KV fallback
-    const cached = await c.env.CACHE.get(`nvd_sync:${id}`);
-    if (cached) {
-      return c.json(JSON.parse(cached));
-    }
-  }
-
+  if (job) return c.json(job);
   return c.json({ error: 'Sync job not found' }, 404);
 });
 

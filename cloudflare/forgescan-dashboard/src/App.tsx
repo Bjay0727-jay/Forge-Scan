@@ -10,6 +10,7 @@ import { Scans } from '@/pages/Scans';
 import { Import } from '@/pages/Import';
 import { Settings } from '@/pages/Settings';
 import { UserManagement } from '@/pages/UserManagement';
+import { Vulnerabilities } from '@/pages/Vulnerabilities';
 
 function App() {
   return (
@@ -33,6 +34,7 @@ function App() {
             <Route path="findings" element={<Findings />} />
             <Route path="scans" element={<Scans />} />
             <Route path="import" element={<Import />} />
+            <Route path="vulnerabilities" element={<Vulnerabilities />} />
             <Route path="settings" element={<Settings />} />
             <Route
               path="admin/users"
