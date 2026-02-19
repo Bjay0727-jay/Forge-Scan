@@ -108,7 +108,7 @@ pub fn parse_nessus_xml(xml: &str, start: Instant) -> anyhow::Result<IngestResul
             Ok(Event::Text(e)) => {
                 let text = e.unescape().unwrap_or_default().to_string();
 
-                if let Some(ref mut host) = current_host {
+                if let Some(ref mut _host) = current_host {
                     if current_element.as_str() == "tag" {
                         // Handle host properties in tag elements
                     }
@@ -251,6 +251,7 @@ fn build_finding(host: &NessusHost, item: &NessusReportItem) -> NormalizedFindin
     builder.build()
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Default)]
 struct NessusHost {
     name: String,

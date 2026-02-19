@@ -458,6 +458,7 @@ struct QualysHost {
     os: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 struct QualysDetection {
     host: QualysHost,
