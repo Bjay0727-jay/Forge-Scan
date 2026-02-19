@@ -1,6 +1,6 @@
 //! Nessus file format parser (.nessus XML)
 
-use crate::normalize::{NormalizedAsset, NormalizedFindingBuilder, Normalizer};
+use crate::normalize::{NormalizedAsset, NormalizedFinding, NormalizedFindingBuilder};
 use crate::{IngestResult, IngestStats, Vendor};
 use chrono::Utc;
 use quick_xml::events::Event;
