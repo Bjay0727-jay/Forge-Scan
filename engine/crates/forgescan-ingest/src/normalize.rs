@@ -129,7 +129,7 @@ pub struct Normalizer;
 
 impl Normalizer {
     /// Convert vendor severity to normalized severity
-    pub fn normalize_severity(vendor: &str, value: &str, score: Option<f32>) -> Severity {
+    pub fn normalize_severity(_vendor: &str, value: &str, score: Option<f32>) -> Severity {
         // First try CVSS score if available
         if let Some(cvss) = score {
             return Severity::from_cvss(cvss);

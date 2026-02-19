@@ -263,7 +263,7 @@ impl VendorIngester for TenableIngester {
 
         let mut findings = Vec::new();
         let mut assets: HashMap<String, NormalizedAsset> = HashMap::new();
-        let mut errors = Vec::new();
+        let errors = Vec::new();
         let mut stats = IngestStats::default();
 
         for vuln in &vulns {
@@ -303,7 +303,7 @@ impl VendorIngester for TenableIngester {
 
     async fn sync_since(
         &self,
-        since: DateTime<Utc>,
+        _since: DateTime<Utc>,
         config: &IngestConfig,
     ) -> anyhow::Result<IngestResult> {
         // For now, just do a full sync and filter

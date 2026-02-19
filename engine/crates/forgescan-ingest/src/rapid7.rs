@@ -346,7 +346,7 @@ impl VendorIngester for Rapid7Ingester {
 
     async fn sync_since(
         &self,
-        since: DateTime<Utc>,
+        _since: DateTime<Utc>,
         config: &IngestConfig,
     ) -> anyhow::Result<IngestResult> {
         self.sync(config).await
