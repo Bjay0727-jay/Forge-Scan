@@ -1,7 +1,6 @@
 # Rust
 /engine/target/
 **/*.rs.bk
-Cargo.lock
 
 # Node.js (for future TypeScript platform)
 node_modules/
