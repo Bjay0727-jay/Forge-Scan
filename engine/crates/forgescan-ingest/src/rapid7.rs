@@ -417,6 +417,7 @@ struct Rapid7AssetVuln {
     proof: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 struct Rapid7Vulnerability {
     id: String,
@@ -434,6 +435,7 @@ struct Rapid7Vulnerability {
     categories: Vec<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 struct Rapid7Description {
     text: String,
@@ -452,6 +454,7 @@ struct Rapid7CvssScore {
     vector: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 struct Rapid7Solution {
     #[serde(rename = "type")]
@@ -460,6 +463,7 @@ struct Rapid7Solution {
     steps: Vec<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 struct Rapid7Exploit {
     id: i64,
@@ -467,12 +471,14 @@ struct Rapid7Exploit {
     source: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 struct Rapid7Reference {
     url: String,
     source: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct Rapid7SystemInfo {
     version: String,

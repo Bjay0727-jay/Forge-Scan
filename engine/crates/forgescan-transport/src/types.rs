@@ -5,7 +5,8 @@
 
 use std::collections::HashMap;
 use std::net::IpAddr;
-use std::time::{Duration, SystemTime};
+use std::fmt;
+use std::time::SystemTime;
 
 use forgescan_core::{Finding, Severity};
 
@@ -69,15 +70,14 @@ pub enum ScanTarget {
     IpRange { start: IpAddr, end: IpAddr },
 }
 
-impl ScanTarget {
-    /// Get a string representation of the target
-    pub fn to_string(&self) -> String {
+impl fmt::Display for ScanTarget {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ScanTarget::Ip(ip) => ip.to_string(),
-            ScanTarget::Cidr(cidr) => cidr.clone(),
-            ScanTarget::Hostname(host) => host.clone(),
-            ScanTarget::Url(url) => url.clone(),
-            ScanTarget::IpRange { start, end } => format!("{}-{}", start, end),
+            ScanTarget::Ip(ip) => write!(f, "{}", ip),
+            ScanTarget::Cidr(cidr) => write!(f, "{}", cidr),
+            ScanTarget::Hostname(host) => write!(f, "{}", host),
+            ScanTarget::Url(url) => write!(f, "{}", url),
+            ScanTarget::IpRange { start, end } => write!(f, "{}-{}", start, end),
         }
     }
 }
@@ -154,7 +154,7 @@ pub enum ScanEvent {
     /// Progress update
     Progress(ScanProgress),
     /// Finding discovered
-    Finding(Finding),
+    Finding(Box<Finding>),
     /// Target discovered during host discovery
     TargetDiscovered(TargetDiscoveredEvent),
     /// Port discovered during port scan

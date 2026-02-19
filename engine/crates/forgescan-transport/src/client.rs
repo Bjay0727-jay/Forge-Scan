@@ -152,7 +152,7 @@ impl ScannerClient {
 
     /// Send a finding to the platform
     pub async fn send_finding(&self, finding: forgescan_core::Finding) -> Result<(), ClientError> {
-        self.send_event(ScanEvent::Finding(finding)).await
+        self.send_event(ScanEvent::Finding(Box::new(finding))).await
     }
 
     /// Send progress update
