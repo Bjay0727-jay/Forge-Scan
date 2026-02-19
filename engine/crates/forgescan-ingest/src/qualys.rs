@@ -1,10 +1,9 @@
 //! Qualys VMDR data ingestion
 
 use crate::normalize::{NormalizedAsset, NormalizedFinding, NormalizedFindingBuilder, Normalizer};
-use crate::{IngestConfig, IngestError, IngestResult, IngestStats, Vendor, VendorIngester};
+use crate::{IngestConfig, IngestResult, IngestStats, Vendor, VendorIngester};
 use chrono::{DateTime, Utc};
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Instant;
 use tracing::{debug, info, warn};

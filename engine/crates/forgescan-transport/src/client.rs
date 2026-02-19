@@ -7,10 +7,9 @@
 //! - Streaming scan events (findings, progress, errors)
 //! - Sending heartbeats
 
-use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 
 use crate::types::*;
 
@@ -109,7 +108,7 @@ impl ScannerClient {
             loop {
                 interval.tick().await;
 
-                let request = HeartbeatRequest {
+                let _request = HeartbeatRequest {
                     scanner_id: config.scanner_id.clone(),
                     hostname: gethostname().to_string_lossy().to_string(),
                     version: env!("CARGO_PKG_VERSION").to_string(),

@@ -4,7 +4,7 @@ use forgescan_core::{Finding, Severity};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::net::TcpStream;
-use tracing::{debug, warn};
+use tracing::debug;
 use url::Url;
 
 /// TLS connection information
@@ -74,10 +74,10 @@ impl TlsAnalyzer {
         debug!("Analyzing TLS for {}:{}", host, port);
 
         let mut issues = Vec::new();
-        let mut supported_protocols = Vec::new();
+        let supported_protocols = Vec::new();
 
         // Check for deprecated protocols
-        let deprecated_protocols = [
+        let _deprecated_protocols = [
             ("SSLv2", false), // Almost never supported anymore
             ("SSLv3", false),
             ("TLSv1.0", true),
@@ -237,7 +237,7 @@ impl TlsAnalyzer {
 
         // Get peer certificate
         let certificate = session.peer_certificate().ok().flatten().map(|cert| {
-            let der = cert.to_der().unwrap_or_default();
+            let _der = cert.to_der().unwrap_or_default();
 
             // Parse certificate details using x509-parser would be ideal here
             // For now, provide basic info
@@ -321,8 +321,6 @@ impl TlsInfo {
             'D'
         } else if high_issues > 0 {
             'C'
-        } else if medium_issues > 1 {
-            'B'
         } else if medium_issues > 0 || !self.protocol_version.contains("1.3") {
             'B'
         } else {
@@ -339,12 +337,12 @@ fn extract_key_size(key_info: &str) -> Option<u32> {
         .and_then(|s| s.parse().ok())
 }
 
-fn extract_cn_from_subject(cert: &native_tls::Certificate) -> String {
+fn extract_cn_from_subject(_cert: &native_tls::Certificate) -> String {
     // Would need actual x509 parsing
     "Unknown".to_string()
 }
 
-fn extract_cn_from_issuer(cert: &native_tls::Certificate) -> String {
+fn extract_cn_from_issuer(_cert: &native_tls::Certificate) -> String {
     // Would need actual x509 parsing
     "Unknown".to_string()
 }

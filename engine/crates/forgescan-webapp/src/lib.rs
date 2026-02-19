@@ -39,7 +39,7 @@ pub use crawler::{CrawlResult, Crawler, DiscoveredEndpoint};
 pub use headers::{HeaderAnalysis, SecurityHeaders};
 pub use tls::{TlsAnalyzer, TlsInfo};
 
-use forgescan_core::{Finding, Severity};
+use forgescan_core::Finding;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 

@@ -1,8 +1,7 @@
 //! HTTP client with security-focused configuration
 
 use crate::{ScanConfig, WebAuth};
-use reqwest::{header, Client, Response, StatusCode};
-use serde::{Deserialize, Serialize};
+use reqwest::{header, Client};
 use std::collections::HashMap;
 use std::time::Duration;
 use thiserror::Error;

@@ -1,10 +1,10 @@
 //! Web crawler for endpoint discovery
 
-use crate::client::{HttpClient, HttpResponse};
+use crate::client::HttpClient;
 use crate::ScanConfig;
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 use tracing::{debug, warn};
 use url::Url;
 
@@ -75,7 +75,7 @@ pub struct FormInput {
 }
 
 /// Result of crawling
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct CrawlResult {
     /// Discovered pages
     pub pages: Vec<DiscoveredEndpoint>,
@@ -91,20 +91,8 @@ pub struct CrawlResult {
     pub requests_made: u32,
 }
 
-impl Default for CrawlResult {
-    fn default() -> Self {
-        Self {
-            pages: Vec::new(),
-            forms: Vec::new(),
-            parameters: Vec::new(),
-            js_files: Vec::new(),
-            api_endpoints: Vec::new(),
-            requests_made: 0,
-        }
-    }
-}
-
 /// Web crawler
+#[allow(dead_code)]
 pub struct Crawler<'a> {
     config: &'a ScanConfig,
     client: &'a HttpClient,

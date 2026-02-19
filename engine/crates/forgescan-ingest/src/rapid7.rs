@@ -1,10 +1,10 @@
 //! Rapid7 InsightVM data ingestion
 
 use crate::normalize::{NormalizedAsset, NormalizedFinding, NormalizedFindingBuilder, Normalizer};
-use crate::{IngestConfig, IngestError, IngestResult, IngestStats, Vendor, VendorIngester};
+use crate::{IngestConfig, IngestResult, IngestStats, Vendor, VendorIngester};
 use chrono::{DateTime, Utc};
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::time::Instant;
 use tracing::{debug, info, warn};
@@ -170,8 +170,7 @@ impl Rapid7Ingester {
             vuln_details.and_then(|v| {
                 v.cvss
                     .as_ref()
-                    .map(|c| c.v3.as_ref().map(|s| s.score))
-                    .flatten()
+                    .and_then(|c| c.v3.as_ref().map(|s| s.score))
             }),
         );
 

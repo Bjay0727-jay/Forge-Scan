@@ -8,7 +8,7 @@ use quick_xml::Reader;
 use std::collections::HashMap;
 use std::path::Path;
 use std::time::Instant;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 /// Parse a Qualys XML export file
 pub async fn parse_qualys_file(path: impl AsRef<Path>) -> anyhow::Result<IngestResult> {

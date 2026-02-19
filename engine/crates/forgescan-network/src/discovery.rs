@@ -14,24 +14,19 @@ use tokio::time::timeout;
 use tracing::{debug, trace, warn};
 
 /// Discovery method to use for host detection
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DiscoveryMethod {
     /// ICMP Echo request (ping) - requires raw sockets/admin
     IcmpEcho,
     /// TCP SYN to common ports - works without raw sockets
     TcpSyn,
     /// TCP connect to common ports - most compatible
+    #[default]
     TcpConnect,
     /// ARP request - local network only, requires raw sockets
     Arp,
     /// Combination of methods for best coverage
     Combined,
-}
-
-impl Default for DiscoveryMethod {
-    fn default() -> Self {
-        DiscoveryMethod::TcpConnect
-    }
 }
 
 /// Result of host discovery
@@ -368,7 +363,7 @@ mod tests {
     #[tokio::test]
     async fn test_discovery_localhost() {
         let discovery = HostDiscovery::new();
-        let result = discovery
+        let _result = discovery
             .is_host_up(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)))
             .await
             .unwrap();
