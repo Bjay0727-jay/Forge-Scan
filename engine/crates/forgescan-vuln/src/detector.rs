@@ -276,12 +276,12 @@ impl VulnDetector {
         };
 
         Finding::new(
-            &format!("FSC-CVE-{}", vuln.cve.cve_id.replace("CVE-", "")),
-            &format!("{}: {}", vuln.cve.cve_id, self.truncate_description(&vuln.cve.description, 100)),
+            format!("{}: {}", vuln.cve.cve_id, self.truncate_description(&vuln.cve.description, 100)),
             severity,
         )
         .with_description(&vuln.cve.description)
         .with_cve(&vuln.cve.cve_id)
+        .with_affected_asset(&vuln.asset)
         .with_evidence(&format!(
             "Detected {} version {} on {}",
             vuln.service, vuln.version, vuln.asset

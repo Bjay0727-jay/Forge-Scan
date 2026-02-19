@@ -69,6 +69,68 @@ impl Finding {
     pub fn builder(check_id: impl Into<String>, target: impl Into<String>) -> FindingBuilder {
         FindingBuilder::new(check_id, target)
     }
+
+    /// Quick constructor for simple findings (convenience method)
+    pub fn new(title: impl Into<String>, severity: Severity) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            check_id: String::new(),
+            check_name: String::new(),
+            target: String::new(),
+            port: None,
+            protocol: None,
+            service: None,
+            service_version: None,
+            title: title.into(),
+            description: String::new(),
+            severity,
+            category: CheckCategory::Vulnerability,
+            cve_ids: Vec::new(),
+            cwe_ids: Vec::new(),
+            cvss_v3_score: None,
+            cvss_v3_vector: None,
+            exploit_maturity: ExploitMaturity::None,
+            cisa_kev: false,
+            affected_cpe: None,
+            evidence: String::new(),
+            remediation: None,
+            references: Vec::new(),
+            compliance_mappings: Vec::new(),
+            detection_method: String::from("unknown"),
+            detected_at: Utc::now(),
+            raw_evidence: None,
+        }
+    }
+
+    /// Chain: set description
+    pub fn with_description(mut self, desc: impl Into<String>) -> Self {
+        self.description = desc.into();
+        self
+    }
+
+    /// Chain: set affected asset (stored as target)
+    pub fn with_affected_asset(mut self, asset: impl Into<String>) -> Self {
+        self.target = asset.into();
+        self
+    }
+
+    /// Chain: set evidence
+    pub fn with_evidence(mut self, evidence: impl Into<String>) -> Self {
+        self.evidence = evidence.into();
+        self
+    }
+
+    /// Chain: set remediation
+    pub fn with_remediation(mut self, remediation: impl Into<String>) -> Self {
+        self.remediation = Some(remediation.into());
+        self
+    }
+
+    /// Chain: add a CVE reference
+    pub fn with_cve(mut self, cve: impl Into<String>) -> Self {
+        self.cve_ids.push(cve.into());
+        self
+    }
 }
 
 /// Builder for constructing findings
