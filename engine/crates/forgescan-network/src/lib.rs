@@ -6,14 +6,14 @@
 //! - Service detection (banner grabbing, protocol identification)
 //! - OS fingerprinting
 
+pub mod banner;
 pub mod discovery;
+pub mod fingerprint;
 pub mod port_scan;
 pub mod service_detect;
-pub mod banner;
-pub mod fingerprint;
 
-pub use discovery::{HostDiscovery, DiscoveryMethod, DiscoveryResult};
-pub use port_scan::{PortScanner, ScanType, PortResult, PortState};
-pub use service_detect::{ServiceDetector, ServiceInfo};
 pub use banner::{BannerGrabber, BannerResult, ProbeType};
-pub use fingerprint::{Fingerprinter, OsFingerprint, OsFamily, HostFingerprint};
+pub use discovery::{DiscoveryMethod, DiscoveryResult, HostDiscovery};
+pub use fingerprint::{Fingerprinter, HostFingerprint, OsFamily, OsFingerprint};
+pub use port_scan::{PortResult, PortScanner, PortState, ScanType};
+pub use service_detect::{ServiceDetector, ServiceInfo};

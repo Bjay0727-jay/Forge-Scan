@@ -200,7 +200,8 @@ impl BannerGrabber {
                 let info = "*1\r\n$4\r\nINFO\r\n";
                 if stream.write_all(info.as_bytes()).await.is_ok() {
                     let mut info_buffer = vec![0u8; self.max_banner_size];
-                    if let Ok(Ok(n2)) = timeout(self.read_timeout, stream.read(&mut info_buffer)).await
+                    if let Ok(Ok(n2)) =
+                        timeout(self.read_timeout, stream.read(&mut info_buffer)).await
                     {
                         buffer.extend_from_slice(&info_buffer[..n2]);
                     }

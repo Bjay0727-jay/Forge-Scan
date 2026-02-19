@@ -1,7 +1,7 @@
 //! System information collectors for configuration auditing
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Collected system information
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -597,7 +597,8 @@ impl SystemCollector {
                                 gid: parts[3].parse().unwrap_or(0),
                                 home: parts[5].to_string(),
                                 shell: parts[6].to_string(),
-                                disabled: parts[6].contains("nologin") || parts[6].contains("false"),
+                                disabled: parts[6].contains("nologin")
+                                    || parts[6].contains("false"),
                                 locked: false,
                                 last_login: None,
                                 password_expiry: None,
@@ -649,16 +650,7 @@ impl SystemCollector {
     /// Collect environment variables (filtered for security)
     pub fn collect_environment() -> HashMap<String, String> {
         let safe_vars = [
-            "PATH",
-            "HOME",
-            "USER",
-            "SHELL",
-            "TERM",
-            "LANG",
-            "LC_ALL",
-            "TZ",
-            "HOSTNAME",
-            "LOGNAME",
+            "PATH", "HOME", "USER", "SHELL", "TERM", "LANG", "LC_ALL", "TZ", "HOSTNAME", "LOGNAME",
         ];
 
         std::env::vars()

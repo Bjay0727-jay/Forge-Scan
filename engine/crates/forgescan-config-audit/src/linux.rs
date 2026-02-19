@@ -43,16 +43,12 @@ pub fn check_file_permission(
     // Check max mode if specified
     if let Some(max) = max_mode {
         if mode > max {
-            return CheckResult::fail(
-                check,
-                &format!("{:04o}", mode),
-                &format!("<= {:04o}", max),
-            )
-            .with_details(&format!(
-                "File {} has mode {:04o}, which is more permissive than {:04o}",
-                path, mode, max
-            ))
-            .with_remediation(&format!("chmod {:04o} {}", max, path));
+            return CheckResult::fail(check, &format!("{:04o}", mode), &format!("<= {:04o}", max))
+                .with_details(&format!(
+                    "File {} has mode {:04o}, which is more permissive than {:04o}",
+                    path, mode, max
+                ))
+                .with_remediation(&format!("chmod {:04o} {}", max, path));
         }
     }
 
@@ -84,7 +80,12 @@ pub fn check_file_permission(
 
     CheckResult::pass(
         check,
-        &format!("mode={:04o} owner={} group={}", mode, get_username(uid), get_groupname(gid)),
+        &format!(
+            "mode={:04o} owner={} group={}",
+            mode,
+            get_username(uid),
+            get_groupname(gid)
+        ),
     )
 }
 
@@ -255,7 +256,10 @@ pub fn check_sysctl(check: &ConfigCheck, key: &str, expected: &str) -> CheckResu
         CheckResult::pass(check, &actual)
     } else {
         CheckResult::fail(check, &actual, expected)
-            .with_details(&format!("Sysctl {} is {}, expected {}", key, actual, expected))
+            .with_details(&format!(
+                "Sysctl {} is {}, expected {}",
+                key, actual, expected
+            ))
             .with_remediation(&format!(
                 "sysctl -w {}={} && echo '{}={}' >> /etc/sysctl.conf",
                 key, expected, key, expected
@@ -291,7 +295,7 @@ fn check_account_disabled(check: &ConfigCheck, username: &str, expected: bool) -
                     Some(
                         password_field.starts_with('!')
                             || password_field.starts_with('*')
-                            || password_field == "!!"
+                            || password_field == "!!",
                     )
                 } else {
                     None
@@ -333,9 +337,7 @@ fn check_password_max_age(check: &ConfigCheck, max_days: u32) -> CheckResult {
         });
 
     match actual {
-        Some(value) if value <= max_days => {
-            CheckResult::pass(check, &format!("{} days", value))
-        }
+        Some(value) if value <= max_days => CheckResult::pass(check, &format!("{} days", value)),
         Some(value) => CheckResult::fail(
             check,
             &format!("{} days", value),
@@ -405,40 +407,46 @@ fn check_password_min_length(check: &ConfigCheck, min_length: u32) -> CheckResul
             "echo 'minlen = {}' >> /etc/security/pwquality.conf",
             min_length
         )),
-        None => {
-            CheckResult::error(check, "Cannot determine password minimum length from system config")
-        }
+        None => CheckResult::error(
+            check,
+            "Cannot determine password minimum length from system config",
+        ),
     }
 }
 
 fn check_shell_access(check: &ConfigCheck, username: &str, allowed: bool) -> CheckResult {
-    let shell = fs::read_to_string("/etc/passwd")
-        .ok()
-        .and_then(|content| {
-            content.lines().find_map(|line| {
-                let parts: Vec<&str> = line.split(':').collect();
-                if parts.len() >= 7 && parts[0] == username {
-                    Some(parts[6].to_string())
-                } else {
-                    None
-                }
-            })
-        });
+    let shell = fs::read_to_string("/etc/passwd").ok().and_then(|content| {
+        content.lines().find_map(|line| {
+            let parts: Vec<&str> = line.split(':').collect();
+            if parts.len() >= 7 && parts[0] == username {
+                Some(parts[6].to_string())
+            } else {
+                None
+            }
+        })
+    });
 
     match shell {
         Some(shell) => {
-            let has_shell = !shell.contains("nologin")
-                && !shell.contains("false")
-                && !shell.contains("sync");
+            let has_shell =
+                !shell.contains("nologin") && !shell.contains("false") && !shell.contains("sync");
 
             if has_shell == allowed {
                 CheckResult::pass(check, &format!("shell: {}", shell))
             } else if allowed {
-                CheckResult::fail(check, &format!("no shell access ({})", shell), "shell access")
-                    .with_remediation(&format!("usermod -s /bin/bash {}", username))
+                CheckResult::fail(
+                    check,
+                    &format!("no shell access ({})", shell),
+                    "shell access",
+                )
+                .with_remediation(&format!("usermod -s /bin/bash {}", username))
             } else {
-                CheckResult::fail(check, &format!("has shell access ({})", shell), "no shell access")
-                    .with_remediation(&format!("usermod -s /sbin/nologin {}", username))
+                CheckResult::fail(
+                    check,
+                    &format!("has shell access ({})", shell),
+                    "no shell access",
+                )
+                .with_remediation(&format!("usermod -s /sbin/nologin {}", username))
             }
         }
         None => CheckResult::error(check, &format!("User {} not found", username)),

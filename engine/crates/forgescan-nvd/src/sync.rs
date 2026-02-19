@@ -142,9 +142,10 @@ impl NvdSync {
             request = request.header("apiKey", key);
         }
 
-        let response = request.send().await.map_err(|e| {
-            Error::Network(format!("Failed to fetch NVD data: {}", e))
-        })?;
+        let response = request
+            .send()
+            .await
+            .map_err(|e| Error::Network(format!("Failed to fetch NVD data: {}", e)))?;
 
         if !response.status().is_success() {
             return Err(Error::Network(format!(
@@ -153,9 +154,10 @@ impl NvdSync {
             )));
         }
 
-        let data: NvdResponse = response.json().await.map_err(|e| {
-            Error::Parse(format!("Failed to parse NVD response: {}", e))
-        })?;
+        let data: NvdResponse = response
+            .json()
+            .await
+            .map_err(|e| Error::Parse(format!("Failed to parse NVD response: {}", e)))?;
 
         Ok(data)
     }
@@ -170,7 +172,12 @@ impl NvdSync {
             .as_ref()
             .and_then(|m| m.cvss_metric_v31.as_ref())
             .and_then(|v| v.first())
-            .map(|m| (Some(m.cvss_data.base_score), Some(m.cvss_data.vector_string.clone())))
+            .map(|m| {
+                (
+                    Some(m.cvss_data.base_score),
+                    Some(m.cvss_data.vector_string.clone()),
+                )
+            })
             .unwrap_or((None, None));
 
         // Extract CWE IDs
@@ -254,15 +261,20 @@ impl NvdSync {
     pub async fn sync_kev(&self) -> Result<u32> {
         info!("Syncing CISA KEV catalog...");
 
-        let url = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json";
+        let url =
+            "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json";
 
-        let response = self.client.get(url).send().await.map_err(|e| {
-            Error::Network(format!("Failed to fetch KEV catalog: {}", e))
-        })?;
+        let response = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| Error::Network(format!("Failed to fetch KEV catalog: {}", e)))?;
 
-        let kev: KevCatalog = response.json().await.map_err(|e| {
-            Error::Parse(format!("Failed to parse KEV catalog: {}", e))
-        })?;
+        let kev: KevCatalog = response
+            .json()
+            .await
+            .map_err(|e| Error::Parse(format!("Failed to parse KEV catalog: {}", e)))?;
 
         let mut count = 0;
         for vuln in &kev.vulnerabilities {

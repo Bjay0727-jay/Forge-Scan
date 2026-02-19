@@ -66,7 +66,9 @@ pub struct TlsAnalyzer;
 impl TlsAnalyzer {
     /// Analyze TLS configuration of a target
     pub async fn analyze(url: &Url) -> anyhow::Result<TlsInfo> {
-        let host = url.host_str().ok_or_else(|| anyhow::anyhow!("No host in URL"))?;
+        let host = url
+            .host_str()
+            .ok_or_else(|| anyhow::anyhow!("No host in URL"))?;
         let port = url.port().unwrap_or(443);
 
         debug!("Analyzing TLS for {}:{}", host, port);
@@ -113,7 +115,10 @@ impl TlsAnalyzer {
             if cert.days_until_expiry <= 0 {
                 issues.push(TlsIssue {
                     title: "Certificate has expired".into(),
-                    description: format!("Certificate expired {} days ago", -cert.days_until_expiry),
+                    description: format!(
+                        "Certificate expired {} days ago",
+                        -cert.days_until_expiry
+                    ),
                     severity: Severity::Critical,
                     remediation: "Renew the SSL/TLS certificate immediately".into(),
                 });
@@ -142,7 +147,10 @@ impl TlsAnalyzer {
                     if size < 2048 {
                         issues.push(TlsIssue {
                             title: "Weak RSA key".into(),
-                            description: format!("RSA key size is {} bits, minimum recommended is 2048", size),
+                            description: format!(
+                                "RSA key size is {} bits, minimum recommended is 2048",
+                                size
+                            ),
                             severity: Severity::High,
                             remediation: "Use RSA 2048+ or switch to ECDSA".into(),
                         });
@@ -212,11 +220,8 @@ impl TlsAnalyzer {
         let connector = TlsConnector::from(connector);
 
         let addr = format!("{}:{}", host, port);
-        let stream = tokio::time::timeout(
-            Duration::from_secs(10),
-            TcpStream::connect(&addr),
-        )
-        .await??;
+        let stream =
+            tokio::time::timeout(Duration::from_secs(10), TcpStream::connect(&addr)).await??;
 
         let tls_stream = connector.connect(host, stream).await?;
 
@@ -294,9 +299,21 @@ impl TlsInfo {
 
     /// Get overall TLS grade (A-F)
     pub fn grade(&self) -> char {
-        let critical_issues = self.issues.iter().filter(|i| i.severity == Severity::Critical).count();
-        let high_issues = self.issues.iter().filter(|i| i.severity == Severity::High).count();
-        let medium_issues = self.issues.iter().filter(|i| i.severity == Severity::Medium).count();
+        let critical_issues = self
+            .issues
+            .iter()
+            .filter(|i| i.severity == Severity::Critical)
+            .count();
+        let high_issues = self
+            .issues
+            .iter()
+            .filter(|i| i.severity == Severity::High)
+            .count();
+        let medium_issues = self
+            .issues
+            .iter()
+            .filter(|i| i.severity == Severity::Medium)
+            .count();
 
         if critical_issues > 0 {
             'F'

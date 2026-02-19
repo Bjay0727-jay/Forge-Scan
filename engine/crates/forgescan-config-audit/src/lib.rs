@@ -37,7 +37,7 @@ pub mod linux;
 #[cfg(windows)]
 pub mod windows;
 
-pub use auditor::{ConfigAuditor, AuditResult, AuditSummary, ComplianceCoverage, Platform};
+pub use auditor::{AuditResult, AuditSummary, ComplianceCoverage, ConfigAuditor, Platform};
 pub use checks::{
     CheckResult, CheckType, ComplianceMapping, ConfigCheck, RegistryValue, ServiceState,
     UserAccountCheck,

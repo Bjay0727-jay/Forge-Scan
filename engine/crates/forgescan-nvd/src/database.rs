@@ -1,7 +1,7 @@
 //! SQLite database for NVD/CVE data
 
 use forgescan_core::{CveInfo, Error, NvdDatabase, Result};
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -13,9 +13,8 @@ pub struct NvdDb {
 impl NvdDb {
     /// Open or create the NVD database at the given path
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
-        let conn = Connection::open(path.as_ref()).map_err(|e| {
-            Error::Database(format!("Failed to open NVD database: {}", e))
-        })?;
+        let conn = Connection::open(path.as_ref())
+            .map_err(|e| Error::Database(format!("Failed to open NVD database: {}", e)))?;
 
         let db = Self {
             conn: Arc::new(Mutex::new(conn)),
@@ -27,9 +26,8 @@ impl NvdDb {
 
     /// Create an in-memory database (for testing)
     pub fn in_memory() -> Result<Self> {
-        let conn = Connection::open_in_memory().map_err(|e| {
-            Error::Database(format!("Failed to create in-memory database: {}", e))
-        })?;
+        let conn = Connection::open_in_memory()
+            .map_err(|e| Error::Database(format!("Failed to create in-memory database: {}", e)))?;
 
         let db = Self {
             conn: Arc::new(Mutex::new(conn)),
@@ -107,7 +105,13 @@ impl NvdDb {
     }
 
     /// Add a CVE to CISA KEV
-    pub fn add_kev(&self, cve_id: &str, vendor: &str, product: &str, date_added: &str) -> Result<()> {
+    pub fn add_kev(
+        &self,
+        cve_id: &str,
+        vendor: &str,
+        product: &str,
+        date_added: &str,
+    ) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "INSERT OR REPLACE INTO cisa_kev (cve_id, vendor, product, date_added) VALUES (?1, ?2, ?3, ?4)",
@@ -171,10 +175,7 @@ impl NvdDb {
             Err(_) => return vec![],
         };
 
-        let search_pattern = format!(
-            "cpe:2.3:{}:{}:{}:%",
-            cpe.part, cpe.vendor, cpe.product
-        );
+        let search_pattern = format!("cpe:2.3:{}:{}:{}:%", cpe.part, cpe.vendor, cpe.product);
 
         let mut stmt = match conn.prepare(
             r#"
@@ -308,11 +309,9 @@ impl NvdDatabase for NvdDb {
 
     fn is_cisa_kev(&self, cve_id: &str) -> bool {
         let conn = self.conn.lock().unwrap();
-        conn.query_row(
-            "SELECT 1 FROM cisa_kev WHERE cve_id = ?1",
-            [cve_id],
-            |_| Ok(true),
-        )
+        conn.query_row("SELECT 1 FROM cisa_kev WHERE cve_id = ?1", [cve_id], |_| {
+            Ok(true)
+        })
         .unwrap_or(false)
     }
 
@@ -376,7 +375,8 @@ mod tests {
     #[test]
     fn test_kev() {
         let db = NvdDb::in_memory().unwrap();
-        db.add_kev("CVE-2021-44228", "Apache", "Log4j", "2021-12-10").unwrap();
+        db.add_kev("CVE-2021-44228", "Apache", "Log4j", "2021-12-10")
+            .unwrap();
 
         assert!(db.is_cisa_kev("CVE-2021-44228"));
         assert!(!db.is_cisa_kev("CVE-9999-9999"));

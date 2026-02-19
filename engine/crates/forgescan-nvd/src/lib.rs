@@ -7,10 +7,10 @@
 //! - CPE 2.3 parsing and matching
 //! - Version comparison for vulnerability detection
 
+pub mod cpe;
 pub mod database;
 pub mod sync;
-pub mod cpe;
 
+pub use cpe::{compare_versions, Cpe, CpeMatch, CpeParseError, CpePart, VersionBoundType};
 pub use database::NvdDb;
 pub use sync::{NvdSync, SyncStats};
-pub use cpe::{Cpe, CpePart, CpeMatch, CpeParseError, VersionBoundType, compare_versions};

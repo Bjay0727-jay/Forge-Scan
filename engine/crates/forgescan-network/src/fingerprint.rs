@@ -281,10 +281,16 @@ impl Fingerprinter {
         let ver = version.unwrap_or("*");
 
         if os_lower.contains("ubuntu") {
-            return Some(format!("cpe:2.3:o:canonical:ubuntu_linux:{}:*:*:*:*:*:*:*", ver));
+            return Some(format!(
+                "cpe:2.3:o:canonical:ubuntu_linux:{}:*:*:*:*:*:*:*",
+                ver
+            ));
         }
         if os_lower.contains("debian") {
-            return Some(format!("cpe:2.3:o:debian:debian_linux:{}:*:*:*:*:*:*:*", ver));
+            return Some(format!(
+                "cpe:2.3:o:debian:debian_linux:{}:*:*:*:*:*:*:*",
+                ver
+            ));
         }
         if os_lower.contains("centos") {
             return Some(format!("cpe:2.3:o:centos:centos:{}:*:*:*:*:*:*:*", ver));

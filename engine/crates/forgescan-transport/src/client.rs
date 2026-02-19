@@ -144,7 +144,9 @@ impl ScannerClient {
     /// Send a scan event to the platform
     pub async fn send_event(&self, event: ScanEvent) -> Result<(), ClientError> {
         if let Some(tx) = &self.event_tx {
-            tx.send(event).await.map_err(|_| ClientError::ChannelClosed)?;
+            tx.send(event)
+                .await
+                .map_err(|_| ClientError::ChannelClosed)?;
         }
         Ok(())
     }
@@ -165,7 +167,10 @@ impl ScannerClient {
     }
 
     /// Upload batch results (for offline mode)
-    pub async fn upload_results(&self, findings: Vec<forgescan_core::Finding>) -> Result<u32, ClientError> {
+    pub async fn upload_results(
+        &self,
+        findings: Vec<forgescan_core::Finding>,
+    ) -> Result<u32, ClientError> {
         info!("Uploading {} findings", findings.len());
         // TODO: Implement batch upload
         Ok(findings.len() as u32)

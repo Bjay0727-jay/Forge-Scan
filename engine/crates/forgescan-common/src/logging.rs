@@ -93,8 +93,8 @@ pub fn init_logging() {
 
 /// Initialize the global tracing subscriber with custom configuration
 pub fn init_logging_with_config(config: LogConfig) {
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(&config.level));
+    let env_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.level));
 
     let span_events = if config.with_spans {
         FmtSpan::NEW | FmtSpan::CLOSE

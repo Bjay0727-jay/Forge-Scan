@@ -25,7 +25,7 @@ pub fn generate_self_signed_cert(
     common_name: &str,
     validity_days: u32,
 ) -> Result<(String, String)> {
-    use rcgen::{CertifiedKey, generate_simple_self_signed};
+    use rcgen::{generate_simple_self_signed, CertifiedKey};
 
     let subject_alt_names = vec![common_name.to_string()];
 
@@ -52,7 +52,11 @@ pub fn generate_csr(common_name: &str) -> Result<(String, String)> {
         .serialize_request(&key_pair)
         .map_err(|e| Error::Internal(format!("Failed to serialize CSR: {}", e)))?;
 
-    Ok((csr.pem().map_err(|e| Error::Internal(format!("Failed to encode CSR: {}", e)))?, key_pair.serialize_pem()))
+    Ok((
+        csr.pem()
+            .map_err(|e| Error::Internal(format!("Failed to encode CSR: {}", e)))?,
+        key_pair.serialize_pem(),
+    ))
 }
 
 /// Load a PEM-encoded certificate

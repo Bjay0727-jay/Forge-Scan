@@ -15,13 +15,14 @@ use tokio::sync::Semaphore;
 use tracing::{debug, error, info, warn};
 
 use forgescan_network::discovery::{self, HostDiscovery};
-use forgescan_network::port_scan::{self, PortScanner, PortScanConfig, PortResult, PortState, ScanSummary};
+use forgescan_network::port_scan::{
+    self, PortResult, PortScanConfig, PortScanner, PortState, ScanSummary,
+};
 use forgescan_transport::{
-    AssetPayload, FindingPayload, PortPayload, RestApiClient, RestClientConfig,
-    TaskResultsPayload,
+    AssetPayload, FindingPayload, PortPayload, RestApiClient, RestClientConfig, TaskResultsPayload,
 };
 use forgescan_vuln::{DetectedService, VulnDetector};
-use forgescan_webapp::{WebScanner, ScanConfig as WebScanConfig};
+use forgescan_webapp::{ScanConfig as WebScanConfig, WebScanner};
 
 /// ForgeScan Agentless Scanner
 #[derive(Parser, Debug)]
@@ -160,8 +161,7 @@ async fn run_daemon_mode(
         ..Default::default()
     };
 
-    let client =
-        RestApiClient::new(rest_config).context("Failed to create REST API client")?;
+    let client = RestApiClient::new(rest_config).context("Failed to create REST API client")?;
 
     // Send initial heartbeat
     info!("Sending initial heartbeat...");
@@ -176,9 +176,7 @@ async fn run_daemon_mode(
     let _heartbeat_handle = client.start_heartbeat_loop();
 
     // Concurrency limiter for scan tasks
-    let semaphore = Arc::new(Semaphore::new(
-        config.scanner.max_concurrent_scans as usize,
-    ));
+    let semaphore = Arc::new(Semaphore::new(config.scanner.max_concurrent_scans as usize));
     let poll_interval = client.poll_interval();
 
     info!("Scanner daemon ready — polling for tasks");
@@ -259,9 +257,10 @@ async fn execute_task_wrapper(
     let client = RestApiClient::new(rest_config)?;
 
     // Mark task as started
-    client.start_task(task_id).await.map_err(|e| {
-        anyhow::anyhow!("Failed to mark task as started: {}", e)
-    })?;
+    client
+        .start_task(task_id)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to mark task as started: {}", e))?;
 
     // Execute the scan
     let result = execute_task(task_type, payload).await;
@@ -276,9 +275,7 @@ async fn execute_task_wrapper(
         }
         Err(e) => {
             error!("Task {} execution failed: {:#}", task_id, e);
-            let _ = client
-                .submit_failure(task_id, &format!("{:#}", e))
-                .await;
+            let _ = client.submit_failure(task_id, &format!("{:#}", e)).await;
         }
     }
 
@@ -459,10 +456,7 @@ async fn execute_vulnerability_scan(
     payload: &Option<serde_json::Value>,
 ) -> Result<TaskResultsPayload> {
     let start = Instant::now();
-    info!(
-        "Starting vulnerability scan of {} target(s)",
-        targets.len()
-    );
+    info!("Starting vulnerability scan of {} target(s)", targets.len());
 
     let ports = extract_ports(payload);
     let scanner = PortScanner::new();
@@ -474,10 +468,7 @@ async fn execute_vulnerability_scan(
             Some(db)
         }
         Err(e) => {
-            warn!(
-                "NVD database not available ({}), CVE matching disabled",
-                e
-            );
+            warn!("NVD database not available ({}), CVE matching disabled", e);
             None
         }
     };

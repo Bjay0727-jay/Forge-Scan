@@ -56,11 +56,7 @@ impl Default for RestClientConfig {
             scanner_id: String::new(),
             hostname: get_hostname(),
             version: env!("CARGO_PKG_VERSION").to_string(),
-            capabilities: vec![
-                "network".into(),
-                "webapp".into(),
-                "vulnerability".into(),
-            ],
+            capabilities: vec!["network".into(), "webapp".into(), "vulnerability".into()],
             request_timeout: Duration::from_secs(30),
             poll_interval: Duration::from_secs(10),
             heartbeat_interval: Duration::from_secs(120),
@@ -192,9 +188,7 @@ impl RestApiClient {
     /// Create a new REST API client
     pub fn new(config: RestClientConfig) -> Result<Self, RestClientError> {
         if config.api_key.is_empty() {
-            return Err(RestClientError::NotConfigured(
-                "api_key is required".into(),
-            ));
+            return Err(RestClientError::NotConfigured("api_key is required".into()));
         }
         if config.scanner_id.is_empty() {
             return Err(RestClientError::NotConfigured(
@@ -218,7 +212,11 @@ impl RestApiClient {
 
     /// Get the API base URL with prefix
     fn api_url(&self, path: &str) -> String {
-        format!("{}/api/v1/scanner{}", self.config.api_base_url.trim_end_matches('/'), path)
+        format!(
+            "{}/api/v1/scanner{}",
+            self.config.api_base_url.trim_end_matches('/'),
+            path
+        )
     }
 
     // ── Heartbeat ────────────────────────────────────────────────────────
@@ -289,10 +287,7 @@ impl RestApiClient {
                     active_task_ids: active,
                 };
 
-                let url = format!(
-                    "{}/api/v1/scanner/heartbeat",
-                    api_url.trim_end_matches('/')
-                );
+                let url = format!("{}/api/v1/scanner/heartbeat", api_url.trim_end_matches('/'));
 
                 match http
                     .post(&url)
@@ -502,9 +497,7 @@ fn get_hostname() -> String {
         let mut buf = [0i8; 256];
         unsafe {
             libc::gethostname(buf.as_mut_ptr(), buf.len());
-            CStr::from_ptr(buf.as_ptr())
-                .to_string_lossy()
-                .to_string()
+            CStr::from_ptr(buf.as_ptr()).to_string_lossy().to_string()
         }
     }
     #[cfg(windows)]

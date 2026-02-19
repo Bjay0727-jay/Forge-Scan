@@ -79,7 +79,11 @@ async fn main() -> Result<()> {
     forgescan_common::logging::init_logging_with_config(log_config);
 
     info!("ForgeScan Agent v{}", env!("CARGO_PKG_VERSION"));
-    info!("Platform: {} ({})", std::env::consts::OS, std::env::consts::ARCH);
+    info!(
+        "Platform: {} ({})",
+        std::env::consts::OS,
+        std::env::consts::ARCH
+    );
 
     // Handle system info request
     if args.system_info {
@@ -115,7 +119,9 @@ async fn main() -> Result<()> {
 
     // Check if agent is registered for daemon mode
     if config.agent.agent_id.is_none() {
-        error!("Agent not registered. Run with --register first, or use --scan-now for local testing.");
+        error!(
+            "Agent not registered. Run with --register first, or use --scan-now for local testing."
+        );
         anyhow::bail!("Agent not registered");
     }
 
@@ -194,13 +200,16 @@ fn run_immediate_scan(args: &Args) -> Result<()> {
     let result = auditor.run_audit();
 
     // Parse minimum severity filter
-    let min_severity = args.min_severity.as_ref().and_then(|s| match s.to_lowercase().as_str() {
-        "low" => Some(Severity::Low),
-        "medium" => Some(Severity::Medium),
-        "high" => Some(Severity::High),
-        "critical" => Some(Severity::Critical),
-        _ => None,
-    });
+    let min_severity = args
+        .min_severity
+        .as_ref()
+        .and_then(|s| match s.to_lowercase().as_str() {
+            "low" => Some(Severity::Low),
+            "medium" => Some(Severity::Medium),
+            "high" => Some(Severity::High),
+            "critical" => Some(Severity::Critical),
+            _ => None,
+        });
 
     match args.format.as_str() {
         "json" => {
@@ -274,7 +283,10 @@ fn print_results_table(
     failures_only: bool,
     min_severity: Option<Severity>,
 ) {
-    println!("\n{:<15} {:<50} {:<10} {:<10}", "CHECK ID", "NAME", "STATUS", "SEVERITY");
+    println!(
+        "\n{:<15} {:<50} {:<10} {:<10}",
+        "CHECK ID", "NAME", "STATUS", "SEVERITY"
+    );
     println!("{}", "-".repeat(90));
 
     for r in &result.results {
@@ -354,8 +366,15 @@ fn print_results_text(
 fn print_summary(summary: &forgescan_config_audit::AuditSummary) {
     println!("Summary:");
     println!("  Total:   {}", summary.total_checks);
-    println!("  Passed:  {} ({:.1}%)", summary.passed,
-        if summary.total_checks > 0 { summary.passed as f64 / summary.total_checks as f64 * 100.0 } else { 0.0 });
+    println!(
+        "  Passed:  {} ({:.1}%)",
+        summary.passed,
+        if summary.total_checks > 0 {
+            summary.passed as f64 / summary.total_checks as f64 * 100.0
+        } else {
+            0.0
+        }
+    );
     println!("  Failed:  {}", summary.failed);
     println!("  Errors:  {}", summary.errors);
     println!("  Skipped: {}", summary.skipped);
@@ -388,7 +407,10 @@ async fn run_daemon(
     info!("Starting agent daemon...");
     info!("Agent ID: {}", agent_id);
     info!("Platform endpoint: {}", platform_endpoint);
-    info!("Heartbeat interval: {}s", config.agent.heartbeat_interval_seconds);
+    info!(
+        "Heartbeat interval: {}s",
+        config.agent.heartbeat_interval_seconds
+    );
     info!("CPU limit: {}%", config.agent.scan_cpu_limit_percent);
     info!("Memory limit: {}MB", config.agent.scan_memory_limit_mb);
 

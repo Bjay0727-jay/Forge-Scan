@@ -47,20 +47,65 @@ pub struct CsvMapping {
 impl Default for CsvMapping {
     fn default() -> Self {
         Self {
-            vuln_id: vec!["id".to_string(), "vuln_id".to_string(), "vulnerability_id".to_string()],
-            title: vec!["title".to_string(), "name".to_string(), "summary".to_string()],
-            severity: vec!["severity".to_string(), "risk".to_string(), "level".to_string()],
+            vuln_id: vec![
+                "id".to_string(),
+                "vuln_id".to_string(),
+                "vulnerability_id".to_string(),
+            ],
+            title: vec![
+                "title".to_string(),
+                "name".to_string(),
+                "summary".to_string(),
+            ],
+            severity: vec![
+                "severity".to_string(),
+                "risk".to_string(),
+                "level".to_string(),
+            ],
             cve: vec!["cve".to_string(), "cve_id".to_string(), "cves".to_string()],
-            cvss_score: vec!["cvss".to_string(), "cvss_score".to_string(), "cvss3_score".to_string()],
-            cvss_vector: vec!["cvss_vector".to_string(), "cvss3_vector".to_string(), "vector".to_string()],
-            asset_ip: vec!["ip".to_string(), "host_ip".to_string(), "target".to_string()],
-            asset_hostname: vec!["hostname".to_string(), "host".to_string(), "dns".to_string(), "fqdn".to_string()],
+            cvss_score: vec![
+                "cvss".to_string(),
+                "cvss_score".to_string(),
+                "cvss3_score".to_string(),
+            ],
+            cvss_vector: vec![
+                "cvss_vector".to_string(),
+                "cvss3_vector".to_string(),
+                "vector".to_string(),
+            ],
+            asset_ip: vec![
+                "ip".to_string(),
+                "host_ip".to_string(),
+                "target".to_string(),
+            ],
+            asset_hostname: vec![
+                "hostname".to_string(),
+                "host".to_string(),
+                "dns".to_string(),
+                "fqdn".to_string(),
+            ],
             port: vec!["port".to_string()],
             protocol: vec!["protocol".to_string(), "proto".to_string()],
-            description: vec!["description".to_string(), "details".to_string(), "synopsis".to_string()],
-            solution: vec!["solution".to_string(), "remediation".to_string(), "fix".to_string()],
-            evidence: vec!["evidence".to_string(), "output".to_string(), "result".to_string()],
-            family: vec!["family".to_string(), "category".to_string(), "type".to_string()],
+            description: vec![
+                "description".to_string(),
+                "details".to_string(),
+                "synopsis".to_string(),
+            ],
+            solution: vec![
+                "solution".to_string(),
+                "remediation".to_string(),
+                "fix".to_string(),
+            ],
+            evidence: vec![
+                "evidence".to_string(),
+                "output".to_string(),
+                "result".to_string(),
+            ],
+            family: vec![
+                "family".to_string(),
+                "category".to_string(),
+                "type".to_string(),
+            ],
         }
     }
 }
@@ -70,7 +115,11 @@ impl CsvMapping {
     pub fn tenable_csv() -> Self {
         Self {
             vuln_id: vec!["Plugin ID".to_string(), "plugin".to_string()],
-            title: vec!["Plugin Name".to_string(), "Name".to_string(), "Title".to_string()],
+            title: vec![
+                "Plugin Name".to_string(),
+                "Name".to_string(),
+                "Title".to_string(),
+            ],
             severity: vec!["Severity".to_string(), "Risk".to_string()],
             cve: vec!["CVE".to_string(), "CVEs".to_string()],
             cvss_score: vec![
@@ -84,8 +133,16 @@ impl CsvMapping {
                 "CVSS V3 Vector".to_string(),
                 "CVSS v2.0 Vector".to_string(),
             ],
-            asset_ip: vec!["Host".to_string(), "IP Address".to_string(), "IP".to_string()],
-            asset_hostname: vec!["DNS Name".to_string(), "NetBIOS Name".to_string(), "Hostname".to_string()],
+            asset_ip: vec![
+                "Host".to_string(),
+                "IP Address".to_string(),
+                "IP".to_string(),
+            ],
+            asset_hostname: vec![
+                "DNS Name".to_string(),
+                "NetBIOS Name".to_string(),
+                "Hostname".to_string(),
+            ],
             port: vec!["Port".to_string()],
             protocol: vec!["Protocol".to_string()],
             description: vec!["Synopsis".to_string(), "Description".to_string()],
@@ -101,7 +158,11 @@ impl CsvMapping {
             vuln_id: vec!["QID".to_string()],
             title: vec!["Title".to_string(), "Vulnerability".to_string()],
             severity: vec!["Severity".to_string()],
-            cve: vec!["CVE ID".to_string(), "CVE".to_string(), "Associated CVEs".to_string()],
+            cve: vec![
+                "CVE ID".to_string(),
+                "CVE".to_string(),
+                "Associated CVEs".to_string(),
+            ],
             cvss_score: vec![
                 "CVSS Base".to_string(),
                 "CVSS3 Base".to_string(),
@@ -109,7 +170,11 @@ impl CsvMapping {
             ],
             cvss_vector: vec!["CVSS Vector".to_string(), "CVSS3 Vector".to_string()],
             asset_ip: vec!["IP".to_string(), "IP Address".to_string()],
-            asset_hostname: vec!["DNS".to_string(), "DNS Name".to_string(), "Hostname".to_string()],
+            asset_hostname: vec![
+                "DNS".to_string(),
+                "DNS Name".to_string(),
+                "Hostname".to_string(),
+            ],
             port: vec!["Port".to_string()],
             protocol: vec!["Protocol".to_string()],
             description: vec!["Threat".to_string(), "Description".to_string()],
@@ -153,7 +218,11 @@ impl CsvMapping {
                 "Nexpose ID".to_string(),
                 "Vuln ID".to_string(),
             ],
-            title: vec!["Vulnerability Title".to_string(), "Title".to_string(), "Name".to_string()],
+            title: vec![
+                "Vulnerability Title".to_string(),
+                "Title".to_string(),
+                "Name".to_string(),
+            ],
             severity: vec!["Severity".to_string(), "Risk Score".to_string()],
             cve: vec!["CVE".to_string(), "CVEs".to_string(), "CVE IDs".to_string()],
             cvss_score: vec![
@@ -161,11 +230,12 @@ impl CsvMapping {
                 "CVSSv3 Score".to_string(),
                 "CVSS v3 Score".to_string(),
             ],
-            cvss_vector: vec![
-                "CVSS Vector".to_string(),
-                "CVSSv3 Vector".to_string(),
+            cvss_vector: vec!["CVSS Vector".to_string(), "CVSSv3 Vector".to_string()],
+            asset_ip: vec![
+                "Asset IP Address".to_string(),
+                "IP Address".to_string(),
+                "IP".to_string(),
             ],
-            asset_ip: vec!["Asset IP Address".to_string(), "IP Address".to_string(), "IP".to_string()],
             asset_hostname: vec![
                 "Asset Name".to_string(),
                 "Hostname".to_string(),
@@ -175,7 +245,11 @@ impl CsvMapping {
             protocol: vec!["Service Protocol".to_string(), "Protocol".to_string()],
             description: vec!["Description".to_string(), "Synopsis".to_string()],
             solution: vec!["Solution".to_string(), "Remediation".to_string()],
-            evidence: vec!["Proof".to_string(), "Evidence".to_string(), "Output".to_string()],
+            evidence: vec![
+                "Proof".to_string(),
+                "Evidence".to_string(),
+                "Output".to_string(),
+            ],
             family: vec!["Category".to_string(), "Vulnerability Category".to_string()],
         }
     }
@@ -187,10 +261,7 @@ impl CsvMapping {
             title: vec!["Vulnerability Name".to_string(), "Name".to_string()],
             severity: vec!["Severity".to_string(), "ExPRT Rating".to_string()],
             cve: vec!["CVE ID".to_string(), "CVE".to_string()],
-            cvss_score: vec![
-                "Base Score".to_string(),
-                "CVSS Score".to_string(),
-            ],
+            cvss_score: vec!["Base Score".to_string(), "CVSS Score".to_string()],
             cvss_vector: vec!["Vector String".to_string()],
             asset_ip: vec!["Local IP".to_string(), "IP Address".to_string()],
             asset_hostname: vec![
@@ -210,10 +281,7 @@ impl CsvMapping {
     /// Create mapping for AWS Inspector CSV export format
     pub fn aws_inspector_csv() -> Self {
         Self {
-            vuln_id: vec![
-                "Finding ARN".to_string(),
-                "Finding ID".to_string(),
-            ],
+            vuln_id: vec!["Finding ARN".to_string(), "Finding ID".to_string()],
             title: vec!["Title".to_string(), "Finding Title".to_string()],
             severity: vec!["Severity".to_string()],
             cve: vec!["Vulnerability ID".to_string(), "CVE".to_string()],

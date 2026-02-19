@@ -2,8 +2,8 @@
 //!
 //! Matches detected software versions against vulnerability database entries.
 
-use forgescan_nvd::{compare_versions, Cpe, CpeMatch, NvdDb, VersionBoundType};
 use forgescan_core::{CveInfo, Severity};
+use forgescan_nvd::{compare_versions, Cpe, CpeMatch, NvdDb, VersionBoundType};
 use tracing::debug;
 
 /// Version matcher for correlating detected software with CVEs
@@ -31,12 +31,7 @@ impl VersionMatcher {
     }
 
     /// Check if a detected service is vulnerable
-    pub fn check_vulnerability(
-        &self,
-        vendor: &str,
-        product: &str,
-        version: &str,
-    ) -> MatchResult {
+    pub fn check_vulnerability(&self, vendor: &str, product: &str, version: &str) -> MatchResult {
         let cpe = Cpe::application(vendor, product, version);
         let cpe_string = cpe.to_cpe_string();
 
@@ -49,7 +44,10 @@ impl VersionMatcher {
                 is_vulnerable: false,
                 cves: vec![],
                 confidence: 90,
-                details: format!("No known vulnerabilities for {} {} {}", vendor, product, version),
+                details: format!(
+                    "No known vulnerabilities for {} {} {}",
+                    vendor, product, version
+                ),
             };
         }
 
@@ -222,13 +220,15 @@ impl ProductSignature {
         let vendor_lower = vendor.to_lowercase();
         let product_lower = product.to_lowercase();
 
-        let vendor_match = self.vendor_patterns.iter().any(|p| {
-            vendor_lower.contains(&p.to_lowercase())
-        });
+        let vendor_match = self
+            .vendor_patterns
+            .iter()
+            .any(|p| vendor_lower.contains(&p.to_lowercase()));
 
-        let product_match = self.product_patterns.iter().any(|p| {
-            product_lower.contains(&p.to_lowercase())
-        });
+        let product_match = self
+            .product_patterns
+            .iter()
+            .any(|p| product_lower.contains(&p.to_lowercase()));
 
         vendor_match && product_match
     }

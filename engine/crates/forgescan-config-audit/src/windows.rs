@@ -59,11 +59,10 @@ pub fn check_registry(
             if actual == *exp {
                 CheckResult::pass(check, &actual)
             } else {
-                CheckResult::fail(check, &actual, exp)
-                    .with_remediation(&format!(
-                        "reg add \"{}\" /v {} /t REG_SZ /d \"{}\" /f",
-                        path, value_name, exp
-                    ))
+                CheckResult::fail(check, &actual, exp).with_remediation(&format!(
+                    "reg add \"{}\" /v {} /t REG_SZ /d \"{}\" /f",
+                    path, value_name, exp
+                ))
             }
         }
         (Some(RegValue::MultiString(actual)), RegistryValue::MultiString(exp)) => {
@@ -73,17 +72,15 @@ pub fn check_registry(
                 CheckResult::fail(check, &actual.join(", "), &exp.join(", "))
             }
         }
-        (None, _) => CheckResult::fail(check, "value not found", &format!("{:?}", expected))
-            .with_details(&format!(
-                "Registry value {}\\{} does not exist",
-                path, value_name
-            )),
-        (Some(actual), expected) => CheckResult::fail(
-            check,
-            &format!("{:?}", actual),
-            &format!("{:?}", expected),
-        )
-        .with_details("Registry value type mismatch"),
+        (None, _) => {
+            CheckResult::fail(check, "value not found", &format!("{:?}", expected)).with_details(
+                &format!("Registry value {}\\{} does not exist", path, value_name),
+            )
+        }
+        (Some(actual), expected) => {
+            CheckResult::fail(check, &format!("{:?}", actual), &format!("{:?}", expected))
+                .with_details("Registry value type mismatch")
+        }
     }
 }
 
@@ -127,14 +124,12 @@ fn parse_reg_query_output(output: &str, value_name: &str) -> Option<RegValue> {
                     "REG_DWORD" => {
                         // Parse hex value like 0x1
                         let value = value.trim_start_matches("0x");
-                        u32::from_str_radix(value, 16)
-                            .ok()
-                            .map(RegValue::Dword)
+                        u32::from_str_radix(value, 16).ok().map(RegValue::Dword)
                     }
                     "REG_SZ" | "REG_EXPAND_SZ" => Some(RegValue::String(value)),
-                    "REG_MULTI_SZ" => {
-                        Some(RegValue::MultiString(value.split("\\0").map(String::from).collect()))
-                    }
+                    "REG_MULTI_SZ" => Some(RegValue::MultiString(
+                        value.split("\\0").map(String::from).collect(),
+                    )),
                     "REG_BINARY" => {
                         let bytes = value
                             .split_whitespace()
@@ -313,9 +308,7 @@ fn check_password_max_age(check: &ConfigCheck, max_days: u32) -> CheckResult {
         });
 
     match actual_max {
-        Some(value) if value <= max_days => {
-            CheckResult::pass(check, &format!("{} days", value))
-        }
+        Some(value) if value <= max_days => CheckResult::pass(check, &format!("{} days", value)),
         Some(value) if value == u32::MAX => {
             CheckResult::fail(check, "Unlimited", &format!("<= {} days", max_days))
                 .with_remediation(&format!("net accounts /maxpwage:{}", max_days))
@@ -389,19 +382,12 @@ pub fn check_firewall_enabled(check: &ConfigCheck, profile: &str) -> CheckResult
         CheckResult::pass(check, "firewall is enabled")
     } else {
         CheckResult::fail(check, "firewall is disabled", "firewall should be enabled")
-            .with_remediation(&format!(
-                "netsh advfirewall set {} state on",
-                profile
-            ))
+            .with_remediation(&format!("netsh advfirewall set {} state on", profile))
     }
 }
 
 /// Check if Windows audit policy is configured
-pub fn check_audit_policy(
-    check: &ConfigCheck,
-    subcategory: &str,
-    expected: &str,
-) -> CheckResult {
+pub fn check_audit_policy(check: &ConfigCheck, subcategory: &str, expected: &str) -> CheckResult {
     let output = match Command::new("auditpol")
         .args(["/get", "/subcategory:", subcategory])
         .output()
@@ -424,11 +410,10 @@ pub fn check_audit_policy(
     if actual.to_lowercase() == expected.to_lowercase() {
         CheckResult::pass(check, actual)
     } else {
-        CheckResult::fail(check, actual, expected)
-            .with_remediation(&format!(
-                "auditpol /set /subcategory:\"{}\" /success:enable /failure:enable",
-                subcategory
-            ))
+        CheckResult::fail(check, actual, expected).with_remediation(&format!(
+            "auditpol /set /subcategory:\"{}\" /success:enable /failure:enable",
+            subcategory
+        ))
     }
 }
 
@@ -440,7 +425,11 @@ pub fn check_feature_installed(
 ) -> CheckResult {
     // Use DISM or Get-WindowsFeature depending on server/desktop
     let output = Command::new("dism")
-        .args(["/online", "/get-featureinfo", &format!("/featurename:{}", feature)])
+        .args([
+            "/online",
+            "/get-featureinfo",
+            &format!("/featurename:{}", feature),
+        ])
         .output();
 
     match output {
@@ -455,17 +444,15 @@ pub fn check_feature_installed(
                     CheckResult::pass(check, "feature is not installed")
                 }
             } else if should_be_installed {
-                CheckResult::fail(check, "not installed", "installed")
-                    .with_remediation(&format!(
-                        "dism /online /enable-feature /featurename:{}",
-                        feature
-                    ))
+                CheckResult::fail(check, "not installed", "installed").with_remediation(&format!(
+                    "dism /online /enable-feature /featurename:{}",
+                    feature
+                ))
             } else {
-                CheckResult::fail(check, "installed", "not installed")
-                    .with_remediation(&format!(
-                        "dism /online /disable-feature /featurename:{}",
-                        feature
-                    ))
+                CheckResult::fail(check, "installed", "not installed").with_remediation(&format!(
+                    "dism /online /disable-feature /featurename:{}",
+                    feature
+                ))
             }
         }
         Err(e) => CheckResult::error(check, &format!("Failed to check feature: {}", e)),
@@ -478,8 +465,7 @@ mod tests {
 
     #[test]
     fn test_parse_registry_path() {
-        let (hive, subkey) =
-            parse_registry_path(r"HKLM\SOFTWARE\Microsoft\Windows").unwrap();
+        let (hive, subkey) = parse_registry_path(r"HKLM\SOFTWARE\Microsoft\Windows").unwrap();
         assert_eq!(hive, "HKLM");
         assert_eq!(subkey, r"SOFTWARE\Microsoft\Windows");
     }

@@ -313,7 +313,10 @@ impl ConfigAuditor {
         _owner: &Option<String>,
         _group: &Option<String>,
     ) -> CheckResult {
-        CheckResult::error(check, "File permission checks not supported on this platform")
+        CheckResult::error(
+            check,
+            "File permission checks not supported on this platform",
+        )
     }
 
     fn check_file_content(
@@ -334,7 +337,10 @@ impl ConfigAuditor {
                 };
 
                 if let Some(caps) = re.captures(&content) {
-                    let found = caps.get(1).map(|m| m.as_str()).unwrap_or(caps.get(0).unwrap().as_str());
+                    let found = caps
+                        .get(1)
+                        .map(|m| m.as_str())
+                        .unwrap_or(caps.get(0).unwrap().as_str());
 
                     if let Some(exp) = expected {
                         if found == exp {

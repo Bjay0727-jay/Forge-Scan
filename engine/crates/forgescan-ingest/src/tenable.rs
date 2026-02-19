@@ -1,7 +1,7 @@
 //! Tenable.io and Nessus data ingestion
 
 use crate::normalize::{
-    NormalizedAsset, NormalizedFinding, NormalizedFindingBuilder, Normalizer, FindingState,
+    FindingState, NormalizedAsset, NormalizedFinding, NormalizedFindingBuilder, Normalizer,
 };
 use crate::{IngestConfig, IngestError, IngestResult, IngestStats, Vendor, VendorIngester};
 use chrono::{DateTime, Utc};
@@ -69,10 +69,13 @@ impl TenableIngester {
         let response = self
             .client
             .get(&url)
-            .header("X-ApiKeys", format!(
-                "accessKey={}; secretKey={}",
-                self.config.access_key, self.config.secret_key
-            ))
+            .header(
+                "X-ApiKeys",
+                format!(
+                    "accessKey={}; secretKey={}",
+                    self.config.access_key, self.config.secret_key
+                ),
+            )
             .header("Accept", "application/json")
             .send()
             .await?;
@@ -105,10 +108,13 @@ impl TenableIngester {
         let start_response: VulnExportStartResponse = self
             .client
             .post(format!("{}/vulns/export", self.config.api_url))
-            .header("X-ApiKeys", format!(
-                "accessKey={}; secretKey={}",
-                self.config.access_key, self.config.secret_key
-            ))
+            .header(
+                "X-ApiKeys",
+                format!(
+                    "accessKey={}; secretKey={}",
+                    self.config.access_key, self.config.secret_key
+                ),
+            )
             .json(&export_request)
             .send()
             .await?
@@ -129,7 +135,11 @@ impl TenableIngester {
                 "ERROR" => anyhow::bail!("Tenable export failed"),
                 "CANCELLED" => anyhow::bail!("Tenable export was cancelled"),
                 _ => {
-                    debug!("Export status: {} ({} chunks)", status.status, status.chunks_available.len());
+                    debug!(
+                        "Export status: {} ({} chunks)",
+                        status.status,
+                        status.chunks_available.len()
+                    );
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 }
             }
@@ -144,7 +154,10 @@ impl TenableIngester {
 
         for chunk_id in &status.chunks_available {
             let vulns: Vec<TenableVuln> = self
-                .api_get(&format!("/vulns/export/{}/chunks/{}", export_uuid, chunk_id))
+                .api_get(&format!(
+                    "/vulns/export/{}/chunks/{}",
+                    export_uuid, chunk_id
+                ))
                 .await?;
 
             all_vulns.extend(vulns);
@@ -155,11 +168,8 @@ impl TenableIngester {
 
     /// Convert Tenable vuln to normalized finding
     fn normalize_vuln(&self, vuln: &TenableVuln) -> NormalizedFinding {
-        let severity = Normalizer::normalize_severity(
-            "tenable",
-            &vuln.severity,
-            vuln.plugin.cvss3_base_score,
-        );
+        let severity =
+            Normalizer::normalize_severity("tenable", &vuln.severity, vuln.plugin.cvss3_base_score);
 
         let mut builder = NormalizedFindingBuilder::new(
             "tenable",

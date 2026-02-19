@@ -120,8 +120,8 @@ impl YamlCheck {
             _ => Severity::Info,
         };
 
-        let mut metadata =
-            CheckMetadata::new(&def.id, &def.name, category, severity).with_description(&def.description);
+        let mut metadata = CheckMetadata::new(&def.id, &def.name, category, severity)
+            .with_description(&def.description);
 
         for cve in &def.cve_ids {
             metadata = metadata.with_cve(cve);

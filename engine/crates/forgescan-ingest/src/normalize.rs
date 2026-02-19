@@ -1,9 +1,9 @@
 //! Data normalization for cross-vendor compatibility
 
+use chrono::{DateTime, Utc};
 use forgescan_core::Severity;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use chrono::{DateTime, Utc};
 
 /// Normalized vulnerability finding
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -174,9 +174,7 @@ impl Normalizer {
     /// Extract CVE IDs from text
     pub fn extract_cve_ids(text: &str) -> Vec<String> {
         let re = regex::Regex::new(r"CVE-\d{4}-\d{4,}").unwrap();
-        re.find_iter(text)
-            .map(|m| m.as_str().to_string())
-            .collect()
+        re.find_iter(text).map(|m| m.as_str().to_string()).collect()
     }
 
     /// Alias for extract_cve_ids
@@ -187,9 +185,7 @@ impl Normalizer {
     /// Extract CWE IDs from text
     pub fn extract_cwe_ids(text: &str) -> Vec<String> {
         let re = regex::Regex::new(r"CWE-\d+").unwrap();
-        re.find_iter(text)
-            .map(|m| m.as_str().to_string())
-            .collect()
+        re.find_iter(text).map(|m| m.as_str().to_string()).collect()
     }
 
     /// Alias for extract_cwe_ids

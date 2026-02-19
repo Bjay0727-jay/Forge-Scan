@@ -51,11 +51,16 @@ pub fn parse_json(json_content: &str, start: Instant) -> anyhow::Result<IngestRe
 
 /// Check if JSON is SARIF format
 fn is_sarif(value: &Value) -> bool {
-    value.get("$schema")
+    value
+        .get("$schema")
         .and_then(|s| s.as_str())
         .map(|s| s.contains("sarif"))
         .unwrap_or(false)
-        || value.get("version").and_then(|v| v.as_str()).map(|v| v.starts_with("2.")).unwrap_or(false)
+        || value
+            .get("version")
+            .and_then(|v| v.as_str())
+            .map(|v| v.starts_with("2."))
+            .unwrap_or(false)
             && value.get("runs").is_some()
 }
 
@@ -63,8 +68,10 @@ fn is_sarif(value: &Value) -> bool {
 fn is_generic_vuln_array(value: &Value) -> bool {
     if let Some(arr) = value.as_array() {
         if let Some(first) = arr.first() {
-            return first.get("id").is_some() || first.get("vuln_id").is_some()
-                || first.get("vulnerability_id").is_some() || first.get("cve").is_some();
+            return first.get("id").is_some()
+                || first.get("vuln_id").is_some()
+                || first.get("vulnerability_id").is_some()
+                || first.get("cve").is_some();
         }
     }
     false
@@ -76,24 +83,33 @@ fn parse_sarif(value: Value, start: Instant) -> anyhow::Result<IngestResult> {
     let mut assets: HashMap<String, NormalizedAsset> = HashMap::new();
     let mut stats = IngestStats::default();
 
-    let runs = value.get("runs").and_then(|r| r.as_array()).unwrap_or(&Vec::new()).clone();
+    let runs = value
+        .get("runs")
+        .and_then(|r| r.as_array())
+        .unwrap_or(&Vec::new())
+        .clone();
 
     for run in runs {
-        let tool_name = run.get("tool")
+        let tool_name = run
+            .get("tool")
             .and_then(|t| t.get("driver"))
             .and_then(|d| d.get("name"))
             .and_then(|n| n.as_str())
             .unwrap_or("unknown");
 
         // Get rule definitions for enrichment
-        let rules: HashMap<String, &Value> = run.get("tool")
+        let rules: HashMap<String, &Value> = run
+            .get("tool")
             .and_then(|t| t.get("driver"))
             .and_then(|d| d.get("rules"))
             .and_then(|r| r.as_array())
             .map(|rules| {
-                rules.iter()
+                rules
+                    .iter()
                     .filter_map(|r| {
-                        r.get("id").and_then(|id| id.as_str()).map(|id| (id.to_string(), r))
+                        r.get("id")
+                            .and_then(|id| id.as_str())
+                            .map(|id| (id.to_string(), r))
                     })
                     .collect()
             })
@@ -113,14 +129,24 @@ fn parse_sarif(value: Value, start: Instant) -> anyhow::Result<IngestResult> {
             // Get rule details
             let rule = rules.get(rule_id);
 
-            let title = result.get("message")
+            let title = result
+                .get("message")
                 .and_then(|m| m.get("text"))
                 .and_then(|t| t.as_str())
-                .or_else(|| rule.and_then(|r| r.get("shortDescription").and_then(|d| d.get("text")).and_then(|t| t.as_str())))
+                .or_else(|| {
+                    rule.and_then(|r| {
+                        r.get("shortDescription")
+                            .and_then(|d| d.get("text"))
+                            .and_then(|t| t.as_str())
+                    })
+                })
                 .unwrap_or(rule_id);
 
             // Map SARIF level to severity
-            let level = result.get("level").and_then(|l| l.as_str()).unwrap_or("warning");
+            let level = result
+                .get("level")
+                .and_then(|l| l.as_str())
+                .unwrap_or("warning");
             let severity = match level {
                 "error" => forgescan_core::Severity::High,
                 "warning" => forgescan_core::Severity::Medium,
@@ -128,11 +154,15 @@ fn parse_sarif(value: Value, start: Instant) -> anyhow::Result<IngestResult> {
                 _ => forgescan_core::Severity::Info,
             };
 
-            let mut builder = NormalizedFindingBuilder::new(tool_name, rule_id, title)
-                .severity(severity);
+            let mut builder =
+                NormalizedFindingBuilder::new(tool_name, rule_id, title).severity(severity);
 
             // Description from rule
-            if let Some(desc) = rule.and_then(|r| r.get("fullDescription").and_then(|d| d.get("text")).and_then(|t| t.as_str())) {
+            if let Some(desc) = rule.and_then(|r| {
+                r.get("fullDescription")
+                    .and_then(|d| d.get("text"))
+                    .and_then(|t| t.as_str())
+            }) {
                 builder = builder.description(desc);
             }
 
@@ -140,7 +170,11 @@ fn parse_sarif(value: Value, start: Instant) -> anyhow::Result<IngestResult> {
             if let Some(locations) = result.get("locations").and_then(|l| l.as_array()) {
                 if let Some(loc) = locations.first() {
                     if let Some(physical) = loc.get("physicalLocation") {
-                        if let Some(uri) = physical.get("artifactLocation").and_then(|a| a.get("uri")).and_then(|u| u.as_str()) {
+                        if let Some(uri) = physical
+                            .get("artifactLocation")
+                            .and_then(|a| a.get("uri"))
+                            .and_then(|u| u.as_str())
+                        {
                             builder = builder.asset_hostname(uri);
                         }
                     }
@@ -148,8 +182,13 @@ fn parse_sarif(value: Value, start: Instant) -> anyhow::Result<IngestResult> {
             }
 
             // Extract CWE from rule tags
-            if let Some(tags) = rule.and_then(|r| r.get("properties").and_then(|p| p.get("tags")).and_then(|t| t.as_array())) {
-                let cwes: Vec<String> = tags.iter()
+            if let Some(tags) = rule.and_then(|r| {
+                r.get("properties")
+                    .and_then(|p| p.get("tags"))
+                    .and_then(|t| t.as_array())
+            }) {
+                let cwes: Vec<String> = tags
+                    .iter()
                     .filter_map(|t| t.as_str())
                     .filter(|t| t.starts_with("CWE-"))
                     .map(|t| t.to_string())
@@ -161,7 +200,11 @@ fn parse_sarif(value: Value, start: Instant) -> anyhow::Result<IngestResult> {
             }
 
             // Solution/help from rule
-            if let Some(help) = rule.and_then(|r| r.get("help").and_then(|h| h.get("text")).and_then(|t| t.as_str())) {
+            if let Some(help) = rule.and_then(|r| {
+                r.get("help")
+                    .and_then(|h| h.get("text"))
+                    .and_then(|t| t.as_str())
+            }) {
                 builder = builder.solution(help);
             }
 
@@ -212,7 +255,10 @@ fn parse_generic_array(value: Value, start: Instant) -> anyhow::Result<IngestRes
     for item in arr {
         stats.records_processed += 1;
 
-        let vuln_id = get_string_field(item, &["id", "vuln_id", "vulnerability_id", "plugin_id", "qid"]);
+        let vuln_id = get_string_field(
+            item,
+            &["id", "vuln_id", "vulnerability_id", "plugin_id", "qid"],
+        );
         let title = get_string_field(item, &["title", "name", "summary", "description"]);
 
         if vuln_id.is_empty() || title.is_empty() {
@@ -221,15 +267,24 @@ fn parse_generic_array(value: Value, start: Instant) -> anyhow::Result<IngestRes
         }
 
         let severity_str = get_string_field(item, &["severity", "risk", "level", "priority"]);
-        let cvss_str = get_string_field(item, &["cvss", "cvss_score", "cvss3_score", "cvss_base_score"]);
-        let cvss_score: Option<f32> = cvss_str.parse().ok()
+        let cvss_str = get_string_field(
+            item,
+            &["cvss", "cvss_score", "cvss3_score", "cvss_base_score"],
+        );
+        let cvss_score: Option<f32> = cvss_str
+            .parse()
+            .ok()
             .or_else(|| item.get("cvss").and_then(|v| v.as_f64()).map(|f| f as f32))
-            .or_else(|| item.get("cvss_score").and_then(|v| v.as_f64()).map(|f| f as f32));
+            .or_else(|| {
+                item.get("cvss_score")
+                    .and_then(|v| v.as_f64())
+                    .map(|f| f as f32)
+            });
 
         let severity = Normalizer::normalize_severity("generic", &severity_str, cvss_score);
 
-        let mut builder = NormalizedFindingBuilder::new("generic", &vuln_id, &title)
-            .severity(severity);
+        let mut builder =
+            NormalizedFindingBuilder::new("generic", &vuln_id, &title).severity(severity);
 
         // Description
         let description = get_string_field(item, &["description", "details", "synopsis"]);
@@ -240,7 +295,14 @@ fn parse_generic_array(value: Value, start: Instant) -> anyhow::Result<IngestRes
         // CVSS
         if let Some(score) = cvss_score {
             let vector = get_string_field(item, &["cvss_vector", "cvss3_vector", "vector"]);
-            builder = builder.cvss(score, if vector.is_empty() { None } else { Some(&vector) });
+            builder = builder.cvss(
+                score,
+                if vector.is_empty() {
+                    None
+                } else {
+                    Some(&vector)
+                },
+            );
         }
 
         // CVEs
@@ -253,8 +315,13 @@ fn parse_generic_array(value: Value, start: Instant) -> anyhow::Result<IngestRes
         }
 
         // Also check for CVE array
-        if let Some(cve_arr) = item.get("cves").or(item.get("cve")).and_then(|c| c.as_array()) {
-            let cves: Vec<String> = cve_arr.iter()
+        if let Some(cve_arr) = item
+            .get("cves")
+            .or(item.get("cve"))
+            .and_then(|c| c.as_array())
+        {
+            let cves: Vec<String> = cve_arr
+                .iter()
                 .filter_map(|c| c.as_str())
                 .filter(|c| c.starts_with("CVE-"))
                 .map(|c| c.to_string())
@@ -270,23 +337,34 @@ fn parse_generic_array(value: Value, start: Instant) -> anyhow::Result<IngestRes
             builder = builder.asset_ip(&ip);
         }
 
-        let hostname = get_string_field(item, &["hostname", "host", "dns", "fqdn", "asset_hostname"]);
+        let hostname =
+            get_string_field(item, &["hostname", "host", "dns", "fqdn", "asset_hostname"]);
         if !hostname.is_empty() {
             builder = builder.asset_hostname(&hostname);
         }
 
         // Port
         let port_str = get_string_field(item, &["port"]);
-        let port: Option<u16> = port_str.parse().ok()
+        let port: Option<u16> = port_str
+            .parse()
+            .ok()
             .or_else(|| item.get("port").and_then(|p| p.as_u64()).map(|p| p as u16));
 
         if let Some(port) = port {
             let protocol = get_string_field(item, &["protocol", "proto"]);
-            builder = builder.port(port, if protocol.is_empty() { None } else { Some(&protocol) });
+            builder = builder.port(
+                port,
+                if protocol.is_empty() {
+                    None
+                } else {
+                    Some(&protocol)
+                },
+            );
         }
 
         // Solution
-        let solution = get_string_field(item, &["solution", "remediation", "fix", "recommendation"]);
+        let solution =
+            get_string_field(item, &["solution", "remediation", "fix", "recommendation"]);
         if !solution.is_empty() {
             builder = builder.solution(&solution);
         }
@@ -340,7 +418,8 @@ fn parse_generic_array(value: Value, start: Instant) -> anyhow::Result<IngestRes
 
 /// Parse object with findings array
 fn parse_findings_object(value: Value, start: Instant) -> anyhow::Result<IngestResult> {
-    let findings_arr = value.get("findings")
+    let findings_arr = value
+        .get("findings")
         .or(value.get("vulnerabilities"))
         .and_then(|f| f.as_array())
         .cloned()

@@ -143,13 +143,24 @@ impl Cpe {
         let other = Self::unescape(parts.get(12).unwrap_or(&"*"));
 
         Ok(Self {
-            part, vendor, product, version, update, edition,
-            language, sw_edition, target_sw, target_hw, other,
+            part,
+            vendor,
+            product,
+            version,
+            update,
+            edition,
+            language,
+            sw_edition,
+            target_sw,
+            target_hw,
+            other,
         })
     }
 
     fn convert_22_to_23(cpe_22: &str) -> Result<String, CpeParseError> {
-        let without_prefix = cpe_22.strip_prefix("cpe:/").ok_or(CpeParseError::InvalidPrefix)?;
+        let without_prefix = cpe_22
+            .strip_prefix("cpe:/")
+            .ok_or(CpeParseError::InvalidPrefix)?;
         let parts: Vec<&str> = without_prefix.split(':').collect();
 
         let mut result = String::from("cpe:2.3");
@@ -170,11 +181,21 @@ impl Cpe {
     }
 
     fn unescape(s: &str) -> String {
-        s.replace("\\:", ":").replace("\\*", "*").replace("\\?", "?")
-            .replace("%21", "!").replace("%22", "\"").replace("%23", "#")
-            .replace("%24", "$").replace("%25", "%").replace("%26", "&")
-            .replace("%27", "'").replace("%28", "(").replace("%29", ")")
-            .replace("%2a", "*").replace("%2b", "+").replace("%2c", ",")
+        s.replace("\\:", ":")
+            .replace("\\*", "*")
+            .replace("\\?", "?")
+            .replace("%21", "!")
+            .replace("%22", "\"")
+            .replace("%23", "#")
+            .replace("%24", "$")
+            .replace("%25", "%")
+            .replace("%26", "&")
+            .replace("%27", "'")
+            .replace("%28", "(")
+            .replace("%29", ")")
+            .replace("%2a", "*")
+            .replace("%2b", "+")
+            .replace("%2c", ",")
             .replace("%2f", "/")
     }
 
@@ -182,9 +203,17 @@ impl Cpe {
     pub fn to_cpe_string(&self) -> String {
         format!(
             "cpe:2.3:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}",
-            self.part, self.vendor, self.product, self.version, self.update,
-            self.edition, self.language, self.sw_edition, self.target_sw,
-            self.target_hw, self.other
+            self.part,
+            self.vendor,
+            self.product,
+            self.version,
+            self.update,
+            self.edition,
+            self.language,
+            self.sw_edition,
+            self.target_sw,
+            self.target_hw,
+            self.other
         )
     }
 
@@ -305,16 +334,32 @@ impl CpeMatch {
         if let Some(ref start) = self.version_start {
             let cmp = compare_versions(version, start);
             match self.version_start_type {
-                VersionBoundType::Including => { if cmp < 0 { return false; } }
-                VersionBoundType::Excluding => { if cmp <= 0 { return false; } }
+                VersionBoundType::Including => {
+                    if cmp < 0 {
+                        return false;
+                    }
+                }
+                VersionBoundType::Excluding => {
+                    if cmp <= 0 {
+                        return false;
+                    }
+                }
             }
         }
 
         if let Some(ref end) = self.version_end {
             let cmp = compare_versions(version, end);
             match self.version_end_type {
-                VersionBoundType::Including => { if cmp > 0 { return false; } }
-                VersionBoundType::Excluding => { if cmp >= 0 { return false; } }
+                VersionBoundType::Including => {
+                    if cmp > 0 {
+                        return false;
+                    }
+                }
+                VersionBoundType::Excluding => {
+                    if cmp >= 0 {
+                        return false;
+                    }
+                }
             }
         }
 
@@ -334,16 +379,18 @@ pub fn compare_versions(a: &str, b: &str) -> i32 {
 
         match (a_part, b_part) {
             (VersionPart::Numeric(a_num), VersionPart::Numeric(b_num)) => {
-                if a_num < b_num { return -1; }
-                if a_num > b_num { return 1; }
-            }
-            (VersionPart::Alpha(a_str), VersionPart::Alpha(b_str)) => {
-                match a_str.cmp(&b_str) {
-                    std::cmp::Ordering::Less => return -1,
-                    std::cmp::Ordering::Greater => return 1,
-                    std::cmp::Ordering::Equal => {}
+                if a_num < b_num {
+                    return -1;
+                }
+                if a_num > b_num {
+                    return 1;
                 }
             }
+            (VersionPart::Alpha(a_str), VersionPart::Alpha(b_str)) => match a_str.cmp(&b_str) {
+                std::cmp::Ordering::Less => return -1,
+                std::cmp::Ordering::Greater => return 1,
+                std::cmp::Ordering::Equal => {}
+            },
             (VersionPart::Numeric(_), VersionPart::Alpha(_)) => return -1,
             (VersionPart::Alpha(_), VersionPart::Numeric(_)) => return 1,
         }

@@ -389,11 +389,7 @@ impl PortScanner {
     }
 
     /// Grab banner from an open TCP connection
-    async fn grab_banner_from_stream(
-        &self,
-        mut stream: TcpStream,
-        port: u16,
-    ) -> Option<String> {
+    async fn grab_banner_from_stream(&self, mut stream: TcpStream, port: u16) -> Option<String> {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
         // Some services send banner immediately, others need a probe

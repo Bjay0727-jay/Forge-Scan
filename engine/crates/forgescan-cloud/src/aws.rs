@@ -84,9 +84,9 @@ impl AwsConfig {
             .send()
             .await?;
 
-        let creds = assumed.credentials().ok_or_else(|| {
-            anyhow::anyhow!("No credentials returned from assume role")
-        })?;
+        let creds = assumed
+            .credentials()
+            .ok_or_else(|| anyhow::anyhow!("No credentials returned from assume role"))?;
 
         let credentials = aws_credential_types::Credentials::new(
             creds.access_key_id(),
@@ -143,7 +143,10 @@ impl AwsScanner {
     /// Scan all resource types
     pub async fn scan_all(&self, config: &CloudScanConfig) -> anyhow::Result<CloudScanResult> {
         let start = Instant::now();
-        info!("Starting AWS security scan for account {}", self.config.account_id);
+        info!(
+            "Starting AWS security scan for account {}",
+            self.config.account_id
+        );
 
         let mut resources = Vec::new();
         let mut findings = Vec::new();
@@ -157,7 +160,10 @@ impl AwsScanner {
         };
 
         // S3 Buckets
-        if resource_types.iter().any(|t| *t == "s3" || t.starts_with("aws:s3")) {
+        if resource_types
+            .iter()
+            .any(|t| *t == "s3" || t.starts_with("aws:s3"))
+        {
             match self.collect_s3_buckets().await {
                 Ok(buckets) => resources.extend(buckets),
                 Err(e) => warn!("Failed to collect S3 buckets: {}", e),
@@ -165,7 +171,10 @@ impl AwsScanner {
         }
 
         // EC2 Instances
-        if resource_types.iter().any(|t| *t == "ec2" || t.starts_with("aws:ec2")) {
+        if resource_types
+            .iter()
+            .any(|t| *t == "ec2" || t.starts_with("aws:ec2"))
+        {
             match self.collect_ec2_instances(&config.regions).await {
                 Ok(instances) => resources.extend(instances),
                 Err(e) => warn!("Failed to collect EC2 instances: {}", e),
@@ -178,7 +187,10 @@ impl AwsScanner {
         }
 
         // IAM
-        if resource_types.iter().any(|t| *t == "iam" || t.starts_with("aws:iam")) {
+        if resource_types
+            .iter()
+            .any(|t| *t == "iam" || t.starts_with("aws:iam"))
+        {
             match self.collect_iam_resources().await {
                 Ok(iam_resources) => resources.extend(iam_resources),
                 Err(e) => warn!("Failed to collect IAM resources: {}", e),
@@ -191,7 +203,11 @@ impl AwsScanner {
         for resource in &resources {
             for check in &self.checks {
                 // Check if this check applies to this resource type
-                if !check.resource_types().iter().any(|t| *t == resource.resource_type) {
+                if !check
+                    .resource_types()
+                    .iter()
+                    .any(|t| *t == resource.resource_type)
+                {
                     continue;
                 }
 
@@ -249,13 +265,7 @@ impl AwsScanner {
             let mut metadata = HashMap::new();
 
             // Get public access block
-            match self
-                .s3
-                .get_public_access_block()
-                .bucket(name)
-                .send()
-                .await
-            {
+            match self.s3.get_public_access_block().bucket(name).send().await {
                 Ok(pab) => {
                     if let Some(config) = pab.public_access_block_configuration() {
                         metadata.insert(
@@ -275,13 +285,7 @@ impl AwsScanner {
             }
 
             // Get encryption
-            match self
-                .s3
-                .get_bucket_encryption()
-                .bucket(name)
-                .send()
-                .await
-            {
+            match self.s3.get_bucket_encryption().bucket(name).send().await {
                 Ok(enc) => {
                     if let Some(config) = enc.server_side_encryption_configuration() {
                         if let Some(rule) = config.rules().first() {
@@ -337,7 +341,10 @@ impl AwsScanner {
     }
 
     /// Collect EC2 instances
-    async fn collect_ec2_instances(&self, regions: &[String]) -> anyhow::Result<Vec<CloudResource>> {
+    async fn collect_ec2_instances(
+        &self,
+        regions: &[String],
+    ) -> anyhow::Result<Vec<CloudResource>> {
         debug!("Collecting EC2 instances");
         let mut resources = Vec::new();
 
@@ -391,7 +398,9 @@ impl AwsScanner {
                     .collect();
                 metadata.insert(
                     "security_groups".to_string(),
-                    serde_json::Value::Array(sg_ids.into_iter().map(serde_json::Value::String).collect()),
+                    serde_json::Value::Array(
+                        sg_ids.into_iter().map(serde_json::Value::String).collect(),
+                    ),
                 );
 
                 // Tags
@@ -406,7 +415,10 @@ impl AwsScanner {
                     })
                     .collect();
 
-                let name = tags.get("Name").cloned().unwrap_or_else(|| instance_id.to_string());
+                let name = tags
+                    .get("Name")
+                    .cloned()
+                    .unwrap_or_else(|| instance_id.to_string());
 
                 resources.push(CloudResource {
                     id: instance_id.to_string(),
@@ -429,7 +441,10 @@ impl AwsScanner {
     }
 
     /// Collect security groups
-    async fn collect_security_groups(&self, _regions: &[String]) -> anyhow::Result<Vec<CloudResource>> {
+    async fn collect_security_groups(
+        &self,
+        _regions: &[String],
+    ) -> anyhow::Result<Vec<CloudResource>> {
         debug!("Collecting security groups");
         let mut resources = Vec::new();
 

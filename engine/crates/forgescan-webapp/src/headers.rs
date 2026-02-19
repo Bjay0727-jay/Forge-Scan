@@ -156,9 +156,7 @@ impl SecurityHeaders {
                 name: "X-Frame-Options".into(),
                 value: None,
                 status: HeaderCheckStatus::Missing,
-                recommendation: Some(
-                    "Add X-Frame-Options header to prevent clickjacking".into(),
-                ),
+                recommendation: Some("Add X-Frame-Options header to prevent clickjacking".into()),
             },
         }
     }
@@ -278,9 +276,7 @@ impl SecurityHeaders {
                 name: "Strict-Transport-Security".into(),
                 value: None,
                 status: HeaderCheckStatus::Missing,
-                recommendation: Some(
-                    "Add HSTS header to enforce HTTPS connections".into(),
-                ),
+                recommendation: Some("Add HSTS header to enforce HTTPS connections".into()),
             },
         }
     }
@@ -341,9 +337,7 @@ impl SecurityHeaders {
                 name: "Permissions-Policy".into(),
                 value: None,
                 status: HeaderCheckStatus::Missing,
-                recommendation: Some(
-                    "Add Permissions-Policy to control browser features".into(),
-                ),
+                recommendation: Some("Add Permissions-Policy to control browser features".into()),
             },
         }
     }
@@ -362,7 +356,9 @@ impl SecurityHeaders {
                 name: "X-Permitted-Cross-Domain-Policies".into(),
                 value: Some(v.clone()),
                 status: HeaderCheckStatus::Insecure,
-                recommendation: Some("Set to 'none' to prevent Flash/PDF cross-domain access".into()),
+                recommendation: Some(
+                    "Set to 'none' to prevent Flash/PDF cross-domain access".into(),
+                ),
             },
             None => HeaderStatus {
                 name: "X-Permitted-Cross-Domain-Policies".into(),
@@ -412,8 +408,8 @@ impl SecurityHeaders {
         match value {
             Some(v) => {
                 // Check if server header reveals version info
-                let reveals_version = v.chars().any(|c| c.is_numeric())
-                    || v.to_lowercase().contains("version");
+                let reveals_version =
+                    v.chars().any(|c| c.is_numeric()) || v.to_lowercase().contains("version");
 
                 if reveals_version {
                     HeaderStatus {
@@ -479,9 +475,7 @@ impl SecurityHeaders {
                 name: "Cross-Origin-Opener-Policy".into(),
                 value: None,
                 status: HeaderCheckStatus::Missing,
-                recommendation: Some(
-                    "Add COOP header for cross-origin isolation".into(),
-                ),
+                recommendation: Some("Add COOP header for cross-origin isolation".into()),
             },
         }
     }
@@ -500,9 +494,7 @@ impl SecurityHeaders {
                 name: "Cross-Origin-Embedder-Policy".into(),
                 value: None,
                 status: HeaderCheckStatus::Missing,
-                recommendation: Some(
-                    "Add COEP header for cross-origin isolation".into(),
-                ),
+                recommendation: Some("Add COEP header for cross-origin isolation".into()),
             },
         }
     }
@@ -521,9 +513,7 @@ impl SecurityHeaders {
                 name: "Cross-Origin-Resource-Policy".into(),
                 value: None,
                 status: HeaderCheckStatus::Missing,
-                recommendation: Some(
-                    "Add CORP header to control resource loading".into(),
-                ),
+                recommendation: Some("Add CORP header to control resource loading".into()),
             },
         }
     }
@@ -584,39 +574,42 @@ impl HeaderAnalysis {
 
 fn header_to_finding(header: &HeaderStatus, url: &str) -> Option<Finding> {
     match header.status {
-        HeaderCheckStatus::Missing => Some(Finding::new(
-            format!("Missing {} header", header.name),
-            Severity::Medium,
-        )
-        .with_description(
-            header
-                .recommendation
-                .clone()
-                .unwrap_or_else(|| format!("{} header is not set", header.name)),
-        )
-        .with_affected_asset(url)),
+        HeaderCheckStatus::Missing => Some(
+            Finding::new(format!("Missing {} header", header.name), Severity::Medium)
+                .with_description(
+                    header
+                        .recommendation
+                        .clone()
+                        .unwrap_or_else(|| format!("{} header is not set", header.name)),
+                )
+                .with_affected_asset(url),
+        ),
 
-        HeaderCheckStatus::Insecure => Some(Finding::new(
-            format!("Insecure {} header configuration", header.name),
-            Severity::Medium,
-        )
-        .with_description(header.recommendation.clone().unwrap_or_default())
-        .with_affected_asset(url)
-        .with_evidence(format!(
-            "Current value: {}",
-            header.value.as_deref().unwrap_or("N/A")
-        ))),
+        HeaderCheckStatus::Insecure => Some(
+            Finding::new(
+                format!("Insecure {} header configuration", header.name),
+                Severity::Medium,
+            )
+            .with_description(header.recommendation.clone().unwrap_or_default())
+            .with_affected_asset(url)
+            .with_evidence(format!(
+                "Current value: {}",
+                header.value.as_deref().unwrap_or("N/A")
+            )),
+        ),
 
-        HeaderCheckStatus::ShouldNotBePresent => Some(Finding::new(
-            format!("{} header reveals information", header.name),
-            Severity::Low,
-        )
-        .with_description(header.recommendation.clone().unwrap_or_default())
-        .with_affected_asset(url)
-        .with_evidence(format!(
-            "Value: {}",
-            header.value.as_deref().unwrap_or("N/A")
-        ))),
+        HeaderCheckStatus::ShouldNotBePresent => Some(
+            Finding::new(
+                format!("{} header reveals information", header.name),
+                Severity::Low,
+            )
+            .with_description(header.recommendation.clone().unwrap_or_default())
+            .with_affected_asset(url)
+            .with_evidence(format!(
+                "Value: {}",
+                header.value.as_deref().unwrap_or("N/A")
+            )),
+        ),
 
         HeaderCheckStatus::Present => None,
     }
@@ -632,11 +625,19 @@ mod tests {
         let response = HttpResponse {
             status: 200,
             headers: [
-                ("content-security-policy".to_string(), "default-src 'self'".to_string()),
+                (
+                    "content-security-policy".to_string(),
+                    "default-src 'self'".to_string(),
+                ),
                 ("x-frame-options".to_string(), "DENY".to_string()),
                 ("x-content-type-options".to_string(), "nosniff".to_string()),
-                ("strict-transport-security".to_string(), "max-age=31536000; includeSubDomains".to_string()),
-            ].into_iter().collect(),
+                (
+                    "strict-transport-security".to_string(),
+                    "max-age=31536000; includeSubDomains".to_string(),
+                ),
+            ]
+            .into_iter()
+            .collect(),
             body: String::new(),
             final_url: "https://example.com".to_string(),
             response_time_ms: 100,
@@ -647,7 +648,10 @@ mod tests {
 
         assert_eq!(analysis.csp.status, HeaderCheckStatus::Present);
         assert_eq!(analysis.x_frame_options.status, HeaderCheckStatus::Present);
-        assert_eq!(analysis.x_content_type_options.status, HeaderCheckStatus::Present);
+        assert_eq!(
+            analysis.x_content_type_options.status,
+            HeaderCheckStatus::Present
+        );
         assert_eq!(analysis.hsts.status, HeaderCheckStatus::Present);
     }
 

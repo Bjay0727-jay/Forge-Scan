@@ -1,8 +1,6 @@
 //! Qualys VMDR data ingestion
 
-use crate::normalize::{
-    NormalizedAsset, NormalizedFinding, NormalizedFindingBuilder, Normalizer,
-};
+use crate::normalize::{NormalizedAsset, NormalizedFinding, NormalizedFindingBuilder, Normalizer};
 use crate::{IngestConfig, IngestError, IngestResult, IngestStats, Vendor, VendorIngester};
 use chrono::{DateTime, Utc};
 use reqwest::Client;
@@ -98,7 +96,9 @@ impl QualysIngester {
             params.push(("severities", "1,2,3,4,5"));
         }
 
-        let xml = self.api_post("/api/2.0/fo/asset/host/vm/detection/", &params).await?;
+        let xml = self
+            .api_post("/api/2.0/fo/asset/host/vm/detection/", &params)
+            .await?;
 
         // Parse XML response
         let detections = self.parse_detection_xml(&xml)?;
@@ -204,14 +204,17 @@ impl QualysIngester {
             return Ok(HashMap::new());
         }
 
-        let qid_list: String = qids.iter().map(|q| q.to_string()).collect::<Vec<_>>().join(",");
+        let qid_list: String = qids
+            .iter()
+            .map(|q| q.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
 
-        let params = vec![
-            ("action", "list"),
-            ("ids", &qid_list),
-        ];
+        let params = vec![("action", "list"), ("ids", &qid_list)];
 
-        let xml = self.api_post("/api/2.0/fo/knowledge_base/vuln/", &params).await?;
+        let xml = self
+            .api_post("/api/2.0/fo/knowledge_base/vuln/", &params)
+            .await?;
 
         let vulns = self.parse_kb_xml(&xml)?;
         Ok(vulns)
@@ -299,12 +302,9 @@ impl QualysIngester {
             vuln.and_then(|v| v.cvss_base),
         );
 
-        let mut builder = NormalizedFindingBuilder::new(
-            "qualys",
-            &detection.qid.to_string(),
-            &title,
-        )
-        .severity(severity);
+        let mut builder =
+            NormalizedFindingBuilder::new("qualys", &detection.qid.to_string(), &title)
+                .severity(severity);
 
         // Description from consequence
         if let Some(v) = vuln {
@@ -389,7 +389,12 @@ impl VendorIngester for QualysIngester {
 
         // Get unique QIDs
         let qids: Vec<u64> = detections.iter().map(|d| d.qid).collect();
-        let unique_qids: Vec<u64> = qids.clone().into_iter().collect::<std::collections::HashSet<_>>().into_iter().collect();
+        let unique_qids: Vec<u64> = qids
+            .clone()
+            .into_iter()
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect();
 
         // Get vulnerability details from knowledge base
         let vulns = self.get_vuln_details(&unique_qids).await?;
@@ -500,11 +505,7 @@ mod tests {
 
     #[test]
     fn test_config_validation() {
-        let config = QualysConfig::new(
-            "https://qualysapi.qualys.com",
-            "user",
-            "pass",
-        );
+        let config = QualysConfig::new("https://qualysapi.qualys.com", "user", "pass");
         assert!(!config.api_url.is_empty());
     }
 }

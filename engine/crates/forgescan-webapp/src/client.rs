@@ -158,11 +158,7 @@ impl HttpClient {
     }
 
     /// Perform a POST request with JSON body
-    pub async fn post_json(
-        &self,
-        url: &str,
-        body: &str,
-    ) -> Result<HttpResponse, ClientError> {
+    pub async fn post_json(&self, url: &str, body: &str) -> Result<HttpResponse, ClientError> {
         self.request(reqwest::Method::POST, url, None, Some(body))
             .await
     }
@@ -190,7 +186,9 @@ impl HttpClient {
         // Add authentication
         if let Some(auth) = &self.config.auth {
             request = match auth {
-                WebAuth::Basic { username, password } => request.basic_auth(username, Some(password)),
+                WebAuth::Basic { username, password } => {
+                    request.basic_auth(username, Some(password))
+                }
                 WebAuth::Bearer { token } => request.bearer_auth(token),
                 WebAuth::Cookie { name, value } => {
                     request.header(header::COOKIE, format!("{}={}", name, value))

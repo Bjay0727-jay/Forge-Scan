@@ -220,9 +220,7 @@ impl ServiceDetector {
                 service: "ssh".to_string(),
                 product_group: None,
                 version_group: Some(1),
-                cpe_template: Some(
-                    "cpe:2.3:a:openbsd:openssh:{version}:*:*:*:*:*:*:*".to_string(),
-                ),
+                cpe_template: Some("cpe:2.3:a:openbsd:openssh:{version}:*:*:*:*:*:*:*".to_string()),
             });
         }
 
@@ -276,7 +274,8 @@ impl ServiceDetector {
         }
 
         // FTP banners
-        if let Ok(re) = Regex::new(r"220[- ].*\b(vsftpd|ProFTPD|Pure-FTPd|FileZilla)\s*(\d+[\d.]*)?")
+        if let Ok(re) =
+            Regex::new(r"220[- ].*\b(vsftpd|ProFTPD|Pure-FTPd|FileZilla)\s*(\d+[\d.]*)?")
         {
             patterns.push(ServicePattern {
                 regex: re,
@@ -305,9 +304,7 @@ impl ServiceDetector {
                 service: "mysql".to_string(),
                 product_group: None,
                 version_group: Some(1),
-                cpe_template: Some(
-                    "cpe:2.3:a:mariadb:mariadb:{version}:*:*:*:*:*:*:*".to_string(),
-                ),
+                cpe_template: Some("cpe:2.3:a:mariadb:mariadb:{version}:*:*:*:*:*:*:*".to_string()),
             });
         }
 
@@ -325,7 +322,8 @@ impl ServiceDetector {
         }
 
         // SMTP
-        if let Ok(re) = Regex::new(r"220[- ].*\b(Postfix|Sendmail|Exim|Exchange)\b.*?(\d+[\d.]*)?") {
+        if let Ok(re) = Regex::new(r"220[- ].*\b(Postfix|Sendmail|Exim|Exchange)\b.*?(\d+[\d.]*)?")
+        {
             patterns.push(ServicePattern {
                 regex: re,
                 service: "smtp".to_string(),

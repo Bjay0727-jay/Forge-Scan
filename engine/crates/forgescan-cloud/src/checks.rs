@@ -150,7 +150,11 @@ impl CloudCheck for S3PublicAccessCheck {
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
 
-            if block_public_acls && block_public_policy && ignore_public_acls && restrict_public_buckets {
+            if block_public_acls
+                && block_public_policy
+                && ignore_public_acls
+                && restrict_public_buckets
+            {
                 return CloudCheckResult::pass(self.id(), &resource.id);
             }
         }
@@ -198,15 +202,10 @@ impl CloudCheck for S3EncryptionCheck {
     }
 
     fn check(&self, resource: &CloudResource) -> CloudCheckResult {
-        let encryption = resource
-            .metadata
-            .get("encryption")
-            .and_then(|v| v.as_str());
+        let encryption = resource.metadata.get("encryption").and_then(|v| v.as_str());
 
         match encryption {
-            Some("AES256") | Some("aws:kms") => {
-                CloudCheckResult::pass(self.id(), &resource.id)
-            }
+            Some("AES256") | Some("aws:kms") => CloudCheckResult::pass(self.id(), &resource.id),
             _ => {
                 let finding = Finding::new(
                     format!("S3 bucket '{}' lacks encryption", resource.name),
@@ -260,15 +259,14 @@ impl CloudCheck for IamRootMfaCheck {
         if mfa_enabled {
             CloudCheckResult::pass(self.id(), &resource.id)
         } else {
-            let finding = Finding::new(
-                "Root account does not have MFA enabled",
-                self.severity(),
-            )
-            .with_description(
-                "The AWS root account should have MFA enabled to prevent unauthorized access",
-            )
-            .with_affected_asset("arn:aws:iam::*:root")
-            .with_remediation("Enable MFA for the root account using a hardware or virtual MFA device");
+            let finding = Finding::new("Root account does not have MFA enabled", self.severity())
+                .with_description(
+                    "The AWS root account should have MFA enabled to prevent unauthorized access",
+                )
+                .with_affected_asset("arn:aws:iam::*:root")
+                .with_remediation(
+                    "Enable MFA for the root account using a hardware or virtual MFA device",
+                );
 
             CloudCheckResult::fail(self.id(), &resource.id, finding)
         }
@@ -404,10 +402,7 @@ impl CloudCheck for Ec2PublicIpCheck {
     }
 
     fn check(&self, resource: &CloudResource) -> CloudCheckResult {
-        let public_ip = resource
-            .metadata
-            .get("public_ip")
-            .and_then(|v| v.as_str());
+        let public_ip = resource.metadata.get("public_ip").and_then(|v| v.as_str());
 
         if public_ip.is_some() {
             let finding = Finding::new(
@@ -480,10 +475,7 @@ impl CloudCheck for SecurityGroupOpenCheck {
                             ),
                             self.severity(),
                         )
-                        .with_description(format!(
-                            "Ingress rule allows {} from 0.0.0.0/0",
-                            port
-                        ))
+                        .with_description(format!("Ingress rule allows {} from 0.0.0.0/0", port))
                         .with_affected_asset(resource.arn.as_deref().unwrap_or(&resource.id))
                         .with_remediation(
                             "Restrict CIDR range to specific IPs or use VPN/bastion host",
@@ -647,17 +639,14 @@ impl CloudCheck for CloudTrailEnabledCheck {
         if is_multi_region && is_logging {
             CloudCheckResult::pass(self.id(), &resource.id)
         } else {
-            let finding = Finding::new(
-                "CloudTrail is not properly configured",
-                self.severity(),
-            )
-            .with_description(if !is_multi_region {
-                "CloudTrail is not configured for all regions"
-            } else {
-                "CloudTrail logging is disabled"
-            })
-            .with_affected_asset(resource.arn.as_deref().unwrap_or(&resource.id))
-            .with_remediation("Enable multi-region CloudTrail with logging enabled");
+            let finding = Finding::new("CloudTrail is not properly configured", self.severity())
+                .with_description(if !is_multi_region {
+                    "CloudTrail is not configured for all regions"
+                } else {
+                    "CloudTrail logging is disabled"
+                })
+                .with_affected_asset(resource.arn.as_deref().unwrap_or(&resource.id))
+                .with_remediation("Enable multi-region CloudTrail with logging enabled");
 
             CloudCheckResult::fail(self.id(), &resource.id, finding)
         }

@@ -163,10 +163,11 @@ pub fn parse_qualys_xml(xml: &str, start: Instant) -> anyhow::Result<IngestResul
 }
 
 fn build_finding(host: &QualysHost, vuln: &QualysVuln) -> NormalizedFinding {
-    let severity = Normalizer::normalize_severity("qualys", &vuln.severity.to_string(), vuln.cvss_score);
+    let severity =
+        Normalizer::normalize_severity("qualys", &vuln.severity.to_string(), vuln.cvss_score);
 
-    let mut builder = NormalizedFindingBuilder::new("qualys", &vuln.qid, &vuln.title)
-        .severity(severity);
+    let mut builder =
+        NormalizedFindingBuilder::new("qualys", &vuln.qid, &vuln.title).severity(severity);
 
     // Description
     if let Some(ref consequence) = vuln.consequence {

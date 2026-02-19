@@ -27,16 +27,16 @@
 //! }
 //! ```
 
+pub mod checks;
 pub mod client;
 pub mod crawler;
-pub mod checks;
 pub mod headers;
 pub mod tls;
 
-pub use client::{HttpClient, HttpResponse};
-pub use crawler::{Crawler, CrawlResult, DiscoveredEndpoint};
 pub use checks::{WebCheck, WebCheckResult};
-pub use headers::{SecurityHeaders, HeaderAnalysis};
+pub use client::{HttpClient, HttpResponse};
+pub use crawler::{CrawlResult, Crawler, DiscoveredEndpoint};
+pub use headers::{HeaderAnalysis, SecurityHeaders};
 pub use tls::{TlsAnalyzer, TlsInfo};
 
 use forgescan_core::{Finding, Severity};
@@ -101,10 +101,7 @@ impl Default for ScanConfig {
             max_depth: 3,
             max_pages: 100,
             timeout_seconds: 30,
-            user_agent: format!(
-                "ForgeScan/{} (Security Scanner)",
-                env!("CARGO_PKG_VERSION")
-            ),
+            user_agent: format!("ForgeScan/{} (Security Scanner)", env!("CARGO_PKG_VERSION")),
             follow_redirects: true,
             max_redirects: 10,
             concurrency: 5,
@@ -203,7 +200,7 @@ impl WebScanner {
     /// Scan a target URL
     pub async fn scan(&self, target: &str) -> anyhow::Result<ScanResult> {
         use std::time::Instant;
-        use tracing::{info, debug};
+        use tracing::{debug, info};
 
         let start = Instant::now();
         info!("Starting web scan of {}", target);
@@ -266,7 +263,8 @@ impl WebScanner {
         // Run active checks if enabled
         if self.config.active_checks {
             debug!("Running active security checks");
-            let active_findings = checks::run_active_checks(&crawl_result, &self.client, &self.config).await;
+            let active_findings =
+                checks::run_active_checks(&crawl_result, &self.client, &self.config).await;
             findings.extend(active_findings);
         }
 

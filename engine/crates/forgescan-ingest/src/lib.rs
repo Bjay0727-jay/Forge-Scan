@@ -25,22 +25,22 @@
 //! }
 //! ```
 
-pub mod tenable;
+pub mod formats;
+pub mod normalize;
 pub mod qualys;
 pub mod rapid7;
-pub mod normalize;
-pub mod formats;
+pub mod tenable;
 
-pub use tenable::{TenableConfig, TenableIngester};
+pub use normalize::{NormalizedAsset, NormalizedFinding, Normalizer};
 pub use qualys::{QualysConfig, QualysIngester};
 pub use rapid7::{Rapid7Config, Rapid7Ingester};
-pub use normalize::{Normalizer, NormalizedFinding, NormalizedAsset};
+pub use tenable::{TenableConfig, TenableIngester};
 
+use chrono::{DateTime, Utc};
 use forgescan_core::{Finding, Severity};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
-use chrono::{DateTime, Utc};
 
 /// Vendor type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

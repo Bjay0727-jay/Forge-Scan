@@ -1,8 +1,6 @@
 //! Rapid7 InsightVM data ingestion
 
-use crate::normalize::{
-    NormalizedAsset, NormalizedFinding, NormalizedFindingBuilder, Normalizer,
-};
+use crate::normalize::{NormalizedAsset, NormalizedFinding, NormalizedFindingBuilder, Normalizer};
 use crate::{IngestConfig, IngestError, IngestResult, IngestStats, Vendor, VendorIngester};
 use chrono::{DateTime, Utc};
 use reqwest::Client;
@@ -97,16 +95,10 @@ impl Rapid7Ingester {
             request = request.header("X-Api-Key", &self.config.api_key);
         } else {
             // Basic auth
-            request = request.basic_auth(
-                &self.config.api_key,
-                self.config.api_secret.as_deref(),
-            );
+            request = request.basic_auth(&self.config.api_key, self.config.api_secret.as_deref());
         }
 
-        let response = request
-            .header("Accept", "application/json")
-            .send()
-            .await?;
+        let response = request.header("Accept", "application/json").send().await?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -175,15 +167,16 @@ impl Rapid7Ingester {
         let severity = Normalizer::normalize_severity(
             "rapid7",
             &asset_vuln.severity.to_lowercase(),
-            vuln_details.and_then(|v| v.cvss.as_ref().map(|c| c.v3.as_ref().map(|s| s.score)).flatten()),
+            vuln_details.and_then(|v| {
+                v.cvss
+                    .as_ref()
+                    .map(|c| c.v3.as_ref().map(|s| s.score))
+                    .flatten()
+            }),
         );
 
-        let mut builder = NormalizedFindingBuilder::new(
-            "rapid7",
-            &asset_vuln.id,
-            &title,
-        )
-        .severity(severity);
+        let mut builder =
+            NormalizedFindingBuilder::new("rapid7", &asset_vuln.id, &title).severity(severity);
 
         // Description
         if let Some(v) = vuln_details {
@@ -493,11 +486,8 @@ mod tests {
 
     #[test]
     fn test_config_with_credentials() {
-        let config = Rapid7Config::with_credentials(
-            "https://console.example.com:3780",
-            "user",
-            "pass",
-        );
+        let config =
+            Rapid7Config::with_credentials("https://console.example.com:3780", "user", "pass");
         assert!(!config.use_api_key);
     }
 }

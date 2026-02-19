@@ -62,10 +62,7 @@ pub enum CheckType {
         should_be_installed: bool,
     },
     /// Check sysctl value (Linux)
-    Sysctl {
-        key: String,
-        expected: String,
-    },
+    Sysctl { key: String, expected: String },
     /// Check registry value (Windows)
     Registry {
         path: String,
@@ -73,9 +70,7 @@ pub enum CheckType {
         expected: RegistryValue,
     },
     /// Check user account settings
-    UserAccount {
-        check: UserAccountCheck,
-    },
+    UserAccount { check: UserAccountCheck },
     /// Run a command and check output
     Command {
         command: String,
@@ -348,7 +343,8 @@ pub fn cis_windows_checks() -> Vec<ConfigCheck> {
         ConfigCheck {
             id: "CIS-WIN-1.1.1".into(),
             name: "Ensure 'Enforce password history' is set to '24 or more password(s)'".into(),
-            description: "This policy setting determines the number of renewed, unique passwords".into(),
+            description: "This policy setting determines the number of renewed, unique passwords"
+                .into(),
             check_type: CheckType::Registry {
                 path: r"HKLM\SYSTEM\CurrentControlSet\Services\Netlogon\Parameters".into(),
                 value_name: "PasswordHistorySize".into(),
@@ -366,7 +362,8 @@ pub fn cis_windows_checks() -> Vec<ConfigCheck> {
         ConfigCheck {
             id: "CIS-WIN-1.1.2".into(),
             name: "Ensure 'Maximum password age' is set to '365 or fewer days, but not 0'".into(),
-            description: "This policy setting defines how long a user can use their password".into(),
+            description: "This policy setting defines how long a user can use their password"
+                .into(),
             check_type: CheckType::Registry {
                 path: r"HKLM\SYSTEM\CurrentControlSet\Services\Netlogon\Parameters".into(),
                 value_name: "MaximumPasswordAge".into(),
@@ -403,7 +400,9 @@ pub fn cis_windows_checks() -> Vec<ConfigCheck> {
         ConfigCheck {
             id: "CIS-WIN-2.3.1.2".into(),
             name: "Ensure 'Accounts: Guest account status' is set to 'Disabled'".into(),
-            description: "This policy setting determines whether the Guest account is enabled or disabled".into(),
+            description:
+                "This policy setting determines whether the Guest account is enabled or disabled"
+                    .into(),
             check_type: CheckType::UserAccount {
                 check: UserAccountCheck::AccountDisabled {
                     username: "Guest".into(),
@@ -440,7 +439,8 @@ pub fn cis_windows_checks() -> Vec<ConfigCheck> {
         ConfigCheck {
             id: "CIS-WIN-18.9.102.1".into(),
             name: "Ensure 'Windows Firewall: Domain: Firewall state' is set to 'On'".into(),
-            description: "Select On to have Windows Firewall with Advanced Security use the settings".into(),
+            description:
+                "Select On to have Windows Firewall with Advanced Security use the settings".into(),
             check_type: CheckType::Registry {
                 path: r"HKLM\SOFTWARE\Policies\Microsoft\WindowsFirewall\DomainProfile".into(),
                 value_name: "EnableFirewall".into(),

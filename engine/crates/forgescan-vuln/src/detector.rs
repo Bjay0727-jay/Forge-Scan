@@ -2,13 +2,13 @@
 //!
 //! The main detection engine that takes scan results and produces vulnerability findings.
 
-use std::collections::HashMap;
 use forgescan_core::{CveInfo, Finding, Severity};
 use forgescan_nvd::{Cpe, NvdDb};
+use std::collections::HashMap;
 use tracing::{debug, info};
 
 use crate::frs::{FrsCalculator, FrsScore};
-use crate::matcher::{VersionMatcher, MatchResult};
+use crate::matcher::{MatchResult, VersionMatcher};
 
 /// Vulnerability detector engine
 pub struct VulnDetector {
@@ -148,9 +148,10 @@ impl VulnDetector {
         };
 
         // Generate or use existing CPE
-        let cpe_string = service.cpe.clone().unwrap_or_else(|| {
-            self.generate_cpe(&service.service, product, version)
-        });
+        let cpe_string = service
+            .cpe
+            .clone()
+            .unwrap_or_else(|| self.generate_cpe(&service.service, product, version));
 
         debug!(
             "Checking {} on {}:{} (CPE: {})",
@@ -276,7 +277,11 @@ impl VulnDetector {
         };
 
         Finding::new(
-            format!("{}: {}", vuln.cve.cve_id, self.truncate_description(&vuln.cve.description, 100)),
+            format!(
+                "{}: {}",
+                vuln.cve.cve_id,
+                self.truncate_description(&vuln.cve.description, 100)
+            ),
             severity,
         )
         .with_description(&vuln.cve.description)
@@ -289,7 +294,11 @@ impl VulnDetector {
         .with_remediation(&format!(
             "Update {} to a non-vulnerable version. See {} for details.",
             vuln.service,
-            vuln.cve.references.first().map(|s| s.as_str()).unwrap_or("NVD")
+            vuln.cve
+                .references
+                .first()
+                .map(|s| s.as_str())
+                .unwrap_or("NVD")
         ))
     }
 

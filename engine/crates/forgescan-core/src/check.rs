@@ -379,8 +379,7 @@ mod tests {
     #[test]
     fn test_check_execution() {
         let check = TestCheck;
-        let ctx =
-            CheckContext::new(ScanTarget::parse("192.168.1.1").unwrap()).with_port(22, "tcp");
+        let ctx = CheckContext::new(ScanTarget::parse("192.168.1.1").unwrap()).with_port(22, "tcp");
 
         let findings = check.execute(&ctx).unwrap();
         assert_eq!(findings.len(), 1);

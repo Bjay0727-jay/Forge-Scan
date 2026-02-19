@@ -99,19 +99,71 @@ fn check_information_disclosure(crawl: &CrawlResult) -> Vec<Finding> {
     let mut findings = Vec::new();
 
     let sensitive_patterns = [
-        (r#"(?i)password\s*[:=]\s*['"][^'"]+['"]"#, "Hardcoded password", Severity::High),
-        (r#"(?i)api[_-]?key\s*[:=]\s*['"][^'"]+['"]"#, "API key exposed", Severity::High),
-        (r#"(?i)secret\s*[:=]\s*['"][^'"]+['"]"#, "Secret value exposed", Severity::High),
-        (r"(?i)aws[_-]?access[_-]?key", "AWS access key pattern", Severity::High),
-        (r"(?i)private[_-]?key", "Private key reference", Severity::High),
-        (r"(?i)database\s*[:=]", "Database connection string", Severity::Medium),
-        (r"(?i)jdbc:.*://", "JDBC connection string", Severity::Medium),
-        (r"mongodb(\+srv)?://[^/\s]+", "MongoDB connection string", Severity::High),
-        (r"(?i)bearer\s+[a-zA-Z0-9\-._~+/]+=*", "Bearer token", Severity::High),
-        (r"(?i)authorization:\s*basic\s+", "Basic auth credentials", Severity::High),
-        (r"\b[0-9]{3}-[0-9]{2}-[0-9]{4}\b", "SSN-like pattern", Severity::Medium),
-        (r"(?i)BEGIN\s+(RSA\s+)?PRIVATE\s+KEY", "Private key block", Severity::Critical),
-        (r"(?i)-----BEGIN\s+CERTIFICATE-----", "Certificate exposed", Severity::Medium),
+        (
+            r#"(?i)password\s*[:=]\s*['"][^'"]+['"]"#,
+            "Hardcoded password",
+            Severity::High,
+        ),
+        (
+            r#"(?i)api[_-]?key\s*[:=]\s*['"][^'"]+['"]"#,
+            "API key exposed",
+            Severity::High,
+        ),
+        (
+            r#"(?i)secret\s*[:=]\s*['"][^'"]+['"]"#,
+            "Secret value exposed",
+            Severity::High,
+        ),
+        (
+            r"(?i)aws[_-]?access[_-]?key",
+            "AWS access key pattern",
+            Severity::High,
+        ),
+        (
+            r"(?i)private[_-]?key",
+            "Private key reference",
+            Severity::High,
+        ),
+        (
+            r"(?i)database\s*[:=]",
+            "Database connection string",
+            Severity::Medium,
+        ),
+        (
+            r"(?i)jdbc:.*://",
+            "JDBC connection string",
+            Severity::Medium,
+        ),
+        (
+            r"mongodb(\+srv)?://[^/\s]+",
+            "MongoDB connection string",
+            Severity::High,
+        ),
+        (
+            r"(?i)bearer\s+[a-zA-Z0-9\-._~+/]+=*",
+            "Bearer token",
+            Severity::High,
+        ),
+        (
+            r"(?i)authorization:\s*basic\s+",
+            "Basic auth credentials",
+            Severity::High,
+        ),
+        (
+            r"\b[0-9]{3}-[0-9]{2}-[0-9]{4}\b",
+            "SSN-like pattern",
+            Severity::Medium,
+        ),
+        (
+            r"(?i)BEGIN\s+(RSA\s+)?PRIVATE\s+KEY",
+            "Private key block",
+            Severity::Critical,
+        ),
+        (
+            r"(?i)-----BEGIN\s+CERTIFICATE-----",
+            "Certificate exposed",
+            Severity::Medium,
+        ),
     ];
 
     for endpoint in &crawl.pages {
@@ -132,15 +184,12 @@ fn check_insecure_forms(crawl: &CrawlResult) -> Vec<Finding> {
             let has_password = form.inputs.iter().any(|i| i.input_type == "password");
             if has_password {
                 findings.push(
-                    Finding::new(
-                        "Password form submits over HTTP",
-                        Severity::High,
-                    )
-                    .with_description(
-                        "Form with password field submits to an unencrypted HTTP endpoint",
-                    )
-                    .with_affected_asset(&form.action)
-                    .with_owasp("A02:2021"),
+                    Finding::new("Password form submits over HTTP", Severity::High)
+                        .with_description(
+                            "Form with password field submits to an unencrypted HTTP endpoint",
+                        )
+                        .with_affected_asset(&form.action)
+                        .with_owasp("A02:2021"),
                 );
             }
         }
@@ -165,15 +214,12 @@ fn check_insecure_forms(crawl: &CrawlResult) -> Vec<Finding> {
 
             if has_sensitive {
                 findings.push(
-                    Finding::new(
-                        "Sensitive form uses GET method",
-                        Severity::Medium,
-                    )
-                    .with_description(
-                        "Form with sensitive fields uses GET, exposing data in URL/logs",
-                    )
-                    .with_affected_asset(&form.found_on)
-                    .with_owasp("A02:2021"),
+                    Finding::new("Sensitive form uses GET method", Severity::Medium)
+                        .with_description(
+                            "Form with sensitive fields uses GET, exposing data in URL/logs",
+                        )
+                        .with_affected_asset(&form.found_on)
+                        .with_owasp("A02:2021"),
                 );
             }
         }
@@ -241,12 +287,9 @@ fn check_js_secrets(crawl: &CrawlResult) -> Vec<Finding> {
     for api in &crawl.api_endpoints {
         if api.contains("api/v") || api.contains("/graphql") {
             findings.push(
-                Finding::new(
-                    format!("API endpoint discovered: {}", api),
-                    Severity::Info,
-                )
-                .with_description("API endpoint found in JavaScript, may require testing")
-                .with_owasp("A01:2021"),
+                Finding::new(format!("API endpoint discovered: {}", api), Severity::Info)
+                    .with_description("API endpoint found in JavaScript, may require testing")
+                    .with_owasp("A01:2021"),
             );
         }
     }
@@ -476,13 +519,10 @@ fn check_csrf(form: &DiscoveredForm) -> Vec<Finding> {
 
         if !has_csrf_token {
             findings.push(
-                Finding::new(
-                    "Missing CSRF protection",
-                    Severity::Medium,
-                )
-                .with_description("POST form does not appear to have CSRF token protection")
-                .with_affected_asset(&form.action)
-                .with_owasp("A01:2021"),
+                Finding::new("Missing CSRF protection", Severity::Medium)
+                    .with_description("POST form does not appear to have CSRF token protection")
+                    .with_affected_asset(&form.action)
+                    .with_owasp("A01:2021"),
             );
         }
     }
@@ -505,11 +545,7 @@ async fn check_path_traversal(
         ("%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd", "URL encoded"),
     ];
 
-    let success_patterns = [
-        "root:x:",
-        "[extensions]",
-        "[fonts]",
-    ];
+    let success_patterns = ["root:x:", "[extensions]", "[fonts]"];
 
     // Would test each traversal payload against endpoints that use this parameter
     debug!("Path traversal check for parameter: {}", param.name);

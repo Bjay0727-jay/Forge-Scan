@@ -311,11 +311,7 @@ impl<'a> Crawler<'a> {
                 .map(|a| resolve_url(a, base_url).unwrap_or_else(|| a.to_string()))
                 .unwrap_or_else(|| page_url.to_string());
 
-            let method = form
-                .value()
-                .attr("method")
-                .unwrap_or("GET")
-                .to_uppercase();
+            let method = form.value().attr("method").unwrap_or("GET").to_uppercase();
 
             let mut inputs = Vec::new();
             for input in form.select(&input_selector) {
@@ -324,11 +320,7 @@ impl<'a> Crawler<'a> {
                     continue;
                 }
 
-                let input_type = input
-                    .value()
-                    .attr("type")
-                    .unwrap_or("text")
-                    .to_string();
+                let input_type = input.value().attr("type").unwrap_or("text").to_string();
 
                 let value = input.value().attr("value").map(String::from);
                 let required = input.value().attr("required").is_some();

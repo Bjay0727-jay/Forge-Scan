@@ -176,15 +176,9 @@ impl FrsScore {
             FrsRating::High => {
                 "Urgent remediation needed. Significant risk of exploitation.".into()
             }
-            FrsRating::Medium => {
-                "Remediation recommended within 30 days.".into()
-            }
-            FrsRating::Low => {
-                "Address during regular maintenance cycles.".into()
-            }
-            FrsRating::Minimal => {
-                "Monitor only. Low risk to the environment.".into()
-            }
+            FrsRating::Medium => "Remediation recommended within 30 days.".into(),
+            FrsRating::Low => "Address during regular maintenance cycles.".into(),
+            FrsRating::Minimal => "Monitor only. Low risk to the environment.".into(),
         }
     }
 
@@ -324,17 +318,21 @@ mod tests {
 
     #[test]
     fn test_sla_days() {
-        assert_eq!(FrsScore {
-            score: 95.0,
-            rating: FrsRating::Critical,
-            factors: RiskFactors::default(),
-            breakdown: FrsBreakdown {
-                cvss_contribution: 0.0,
-                exploit_contribution: 0.0,
-                kev_contribution: 0.0,
-                exposure_contribution: 0.0,
-                criticality_contribution: 0.0,
-            },
-        }.sla_days(), 1);
+        assert_eq!(
+            FrsScore {
+                score: 95.0,
+                rating: FrsRating::Critical,
+                factors: RiskFactors::default(),
+                breakdown: FrsBreakdown {
+                    cvss_contribution: 0.0,
+                    exploit_contribution: 0.0,
+                    kev_contribution: 0.0,
+                    exposure_contribution: 0.0,
+                    criticality_contribution: 0.0,
+                },
+            }
+            .sla_days(),
+            1
+        );
     }
 }

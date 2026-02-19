@@ -77,15 +77,11 @@ pub fn parse_csv(
         let cvss_str = get_field(&record, &header_map, &mapping.cvss_score);
         let cvss_score: Option<f32> = cvss_str.parse().ok();
 
-        let severity = Normalizer::normalize_severity(
-            vendor.as_str(),
-            &severity_str,
-            cvss_score,
-        );
+        let severity = Normalizer::normalize_severity(vendor.as_str(), &severity_str, cvss_score);
 
         // Build finding
-        let mut builder = NormalizedFindingBuilder::new(vendor.as_str(), &vuln_id, &title)
-            .severity(severity);
+        let mut builder =
+            NormalizedFindingBuilder::new(vendor.as_str(), &vuln_id, &title).severity(severity);
 
         // Description
         let description = get_field(&record, &header_map, &mapping.description);
@@ -96,7 +92,14 @@ pub fn parse_csv(
         // CVSS
         if let Some(score) = cvss_score {
             let vector = get_field(&record, &header_map, &mapping.cvss_vector);
-            builder = builder.cvss(score, if vector.is_empty() { None } else { Some(&vector) });
+            builder = builder.cvss(
+                score,
+                if vector.is_empty() {
+                    None
+                } else {
+                    Some(&vector)
+                },
+            );
         }
 
         // CVEs
@@ -124,7 +127,14 @@ pub fn parse_csv(
         let port_str = get_field(&record, &header_map, &mapping.port);
         if let Ok(port) = port_str.parse::<u16>() {
             let protocol = get_field(&record, &header_map, &mapping.protocol);
-            builder = builder.port(port, if protocol.is_empty() { None } else { Some(&protocol) });
+            builder = builder.port(
+                port,
+                if protocol.is_empty() {
+                    None
+                } else {
+                    Some(&protocol)
+                },
+            );
         }
 
         // Solution
@@ -208,10 +218,8 @@ pub fn detect_csv_format(csv_content: &str) -> Option<(CsvMapping, Vendor)> {
         .from_reader(csv_content.as_bytes());
 
     let headers = reader.headers().ok()?;
-    let header_set: std::collections::HashSet<String> = headers
-        .iter()
-        .map(|h| h.to_lowercase())
-        .collect();
+    let header_set: std::collections::HashSet<String> =
+        headers.iter().map(|h| h.to_lowercase()).collect();
 
     // Check for Tenable CSV format
     if header_set.contains("plugin id") || header_set.contains("plugin") {
