@@ -1,8 +1,6 @@
 //! Tenable.io and Nessus data ingestion
 
-use crate::normalize::{
-    NormalizedAsset, NormalizedFinding, NormalizedFindingBuilder, Normalizer,
-};
+use crate::normalize::{NormalizedAsset, NormalizedFinding, NormalizedFindingBuilder, Normalizer};
 use crate::{IngestConfig, IngestResult, IngestStats, Vendor, VendorIngester};
 use chrono::{DateTime, Utc};
 use reqwest::Client;

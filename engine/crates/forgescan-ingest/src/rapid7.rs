@@ -167,11 +167,7 @@ impl Rapid7Ingester {
         let severity = Normalizer::normalize_severity(
             "rapid7",
             &asset_vuln.severity.to_lowercase(),
-            vuln_details.and_then(|v| {
-                v.cvss
-                    .as_ref()
-                    .and_then(|c| c.v3.as_ref().map(|s| s.score))
-            }),
+            vuln_details.and_then(|v| v.cvss.as_ref().and_then(|c| c.v3.as_ref().map(|s| s.score))),
         );
 
         let mut builder =

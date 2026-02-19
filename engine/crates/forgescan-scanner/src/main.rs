@@ -769,7 +769,7 @@ async fn execute_full_scan(
 
 // ── One-Shot Mode ───────────────────────────────────────────────────────────
 
-async fn run_one_shot_scan(args: &Args, api_base_url: &str) -> Result<()> {
+async fn run_one_shot_scan(args: &Args, _api_base_url: &str) -> Result<()> {
     let target = args
         .target
         .as_deref()
@@ -858,7 +858,7 @@ async fn resolve_target(target: &str) -> Result<Vec<IpAddr>> {
             }
             // Deduplicate
             let mut unique: Vec<IpAddr> = ips;
-            unique.sort_by(|a, b| a.to_string().cmp(&b.to_string()));
+            unique.sort_by_key(|a| a.to_string());
             unique.dedup();
             Ok(unique)
         }
@@ -886,8 +886,8 @@ fn extract_ports(payload: &Option<serde_json::Value>) -> Vec<u16> {
         // "top_ports" number
         if let Some(n) = p.get("top_ports").and_then(|v| v.as_u64()) {
             return match n {
-                ..=20 => port_scan::ports::TOP_20.to_vec(),
-                ..=100 => port_scan::ports::TOP_100.to_vec(),
+                0..=20 => port_scan::ports::TOP_20.to_vec(),
+                21..=100 => port_scan::ports::TOP_100.to_vec(),
                 _ => port_scan::ports::well_known(),
             };
         }

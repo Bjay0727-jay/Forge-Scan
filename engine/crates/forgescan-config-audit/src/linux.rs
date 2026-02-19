@@ -5,7 +5,6 @@ use std::fs;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::process::Command;
 
-
 /// Check file permissions on Linux
 pub fn check_file_permission(
     check: &ConfigCheck,

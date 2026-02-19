@@ -4,8 +4,8 @@
 //! the generated gRPC code once tonic-build is configured.
 
 use std::collections::HashMap;
-use std::net::IpAddr;
 use std::fmt;
+use std::net::IpAddr;
 use std::time::SystemTime;
 
 use forgescan_core::{Finding, Severity};
