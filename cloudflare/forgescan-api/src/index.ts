@@ -14,6 +14,7 @@ import { vulnerabilities } from './routes/vulnerabilities';
 import { importRoutes } from './routes/import';
 import { scanner } from './routes/scanner';
 import { integrations } from './routes/integrations';
+import { notifications } from './routes/notifications';
 
 export interface Env {
   DB: D1Database;
@@ -34,7 +35,7 @@ app.use('*', logger());
 app.use('*', cors({
   origin: '*',
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Scanner-Key'],
 }));
 
 // Health check (public)
@@ -69,6 +70,7 @@ app.route('/api/v1/vulnerabilities', vulnerabilities);
 app.route('/api/v1/import', importRoutes);
 app.route('/api/v1/scanner', scanner);
 app.route('/api/v1/integrations', integrations);
+app.route('/api/v1/notifications', notifications);
 
 // 404 handler
 app.notFound((c) => {

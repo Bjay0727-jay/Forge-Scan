@@ -9,6 +9,7 @@ import {
   ShieldAlert,
   Cpu,
   Plug,
+  Bell,
   Settings,
   Users,
   LogOut,
@@ -25,6 +26,7 @@ const mainNavigation = [
   { name: 'Scans', href: '/scans', icon: Scan },
   { name: 'Vulnerabilities', href: '/vulnerabilities', icon: ShieldAlert },
   { name: 'Integrations', href: '/integrations', icon: Plug },
+  { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'Import', href: '/import', icon: Upload },
 ];
 
