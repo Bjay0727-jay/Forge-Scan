@@ -667,7 +667,8 @@ mod tests {
         };
 
         let analysis = SecurityHeaders::analyze(&response);
-        // With no headers, score should be 0
-        assert_eq!(analysis.score(), 0);
+        // With no headers, score is 20: absent Server (10) + absent X-Powered-By (10)
+        // are counted as "Present" (good) since their absence prevents info disclosure
+        assert_eq!(analysis.score(), 20);
     }
 }

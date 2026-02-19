@@ -6,6 +6,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 /// NVD database backed by SQLite
+#[derive(Clone)]
 pub struct NvdDb {
     conn: Arc<Mutex<Connection>>,
 }

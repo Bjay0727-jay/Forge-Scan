@@ -2,7 +2,7 @@
 //!
 //! The main detection engine that takes scan results and produces vulnerability findings.
 
-use forgescan_core::{CveInfo, Finding, Severity};
+use forgescan_core::{CveInfo, Finding, NvdDatabase, Severity};
 use forgescan_nvd::{Cpe, NvdDb};
 use std::collections::HashMap;
 use tracing::{debug, info};
@@ -167,7 +167,7 @@ impl VulnDetector {
 
                 // Calculate FRS
                 let frs = self.frs_calculator.calculate(
-                    cve.cvss_v3_score.unwrap_or(5.0),
+                    cve.cvss_v3_score.unwrap_or(5.0) as f64,
                     is_kev,
                     self.is_internet_facing(service),
                     self.has_exploit_available(&cve.cve_id),

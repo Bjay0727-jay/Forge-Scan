@@ -13,7 +13,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() {
-//!     let scanner = CloudScanner::aws(AwsConfig::from_env()).await.unwrap();
+//!     let scanner = CloudScanner::aws(AwsConfig::from_env().await.unwrap()).await.unwrap();
 //!     let results = scanner.scan_all().await.unwrap();
 //!
 //!     for finding in results.findings {

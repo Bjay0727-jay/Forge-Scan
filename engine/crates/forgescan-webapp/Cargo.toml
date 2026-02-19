@@ -9,7 +9,7 @@ license.workspace = true
 [dependencies]
 forgescan-core = { path = "../forgescan-core" }
 forgescan-common = { path = "../forgescan-common" }
-reqwest = { workspace = true }
+reqwest = { workspace = true, features = ["cookies"] }
 tokio = { workspace = true }
 tokio-native-tls = "0.3"
 native-tls = "0.2"

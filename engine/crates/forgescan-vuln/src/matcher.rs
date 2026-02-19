@@ -2,7 +2,7 @@
 //!
 //! Matches detected software versions against vulnerability database entries.
 
-use forgescan_core::{CveInfo, Severity};
+use forgescan_core::{CveInfo, NvdDatabase, Severity};
 use forgescan_nvd::{compare_versions, Cpe, CpeMatch, NvdDb, VersionBoundType};
 use tracing::debug;
 
@@ -54,7 +54,7 @@ impl VersionMatcher {
         let highest_cvss = cves
             .iter()
             .filter_map(|c| c.cvss_v3_score)
-            .fold(0.0_f64, |a, b| a.max(b));
+            .fold(0.0_f64, |a, b| a.max(b as f64));
 
         MatchResult {
             is_vulnerable: true,

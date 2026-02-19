@@ -1,7 +1,7 @@
 //! Check loader - loads check definitions from files
 
 use crate::{CheckRegistry, YamlCheck};
-use forgescan_core::{Error, Result};
+use forgescan_core::{Check, Error, Result};
 use std::path::Path;
 use std::sync::Arc;
 use tracing::{debug, info, warn};

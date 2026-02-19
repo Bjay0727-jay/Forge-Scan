@@ -83,23 +83,23 @@ pub fn parse_qualys_xml(xml: &str, start: Instant) -> anyhow::Result<IngestResul
 
                 if let Some(ref mut host) = current_host {
                     match current_element.as_str() {
-                        "IP" => host.ip = Some(text),
-                        "DNS" => host.dns = Some(text),
-                        "NETBIOS" => host.netbios = Some(text),
-                        "OS" => host.os = Some(text),
+                        "IP" => host.ip = Some(text.clone()),
+                        "DNS" => host.dns = Some(text.clone()),
+                        "NETBIOS" => host.netbios = Some(text.clone()),
+                        "OS" => host.os = Some(text.clone()),
                         _ => {}
                     }
                 }
 
                 if let Some(ref mut vuln) = current_vuln {
                     match current_element.as_str() {
-                        "QID" => vuln.qid = text,
-                        "TITLE" => vuln.title = text,
+                        "QID" => vuln.qid = text.clone(),
+                        "TITLE" => vuln.title = text.clone(),
                         "SEVERITY" => vuln.severity = text.parse().unwrap_or(1),
-                        "CATEGORY" => vuln.category = Some(text),
-                        "CONSEQUENCE" | "IMPACT" => vuln.consequence = Some(text),
-                        "SOLUTION" => vuln.solution = Some(text),
-                        "RESULT" | "RESULTS" => vuln.results = Some(text),
+                        "CATEGORY" => vuln.category = Some(text.clone()),
+                        "CONSEQUENCE" | "IMPACT" => vuln.consequence = Some(text.clone()),
+                        "SOLUTION" => vuln.solution = Some(text.clone()),
+                        "RESULT" | "RESULTS" => vuln.results = Some(text.clone()),
                         "CVE_ID" | "CVE" => {
                             for cve in text.split(',') {
                                 let cve = cve.trim();

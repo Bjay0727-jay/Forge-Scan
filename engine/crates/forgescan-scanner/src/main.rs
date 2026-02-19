@@ -97,19 +97,24 @@ async fn main() -> Result<()> {
     // Resolve platform endpoint (CLI > env > config > default)
     let api_base_url = args
         .platform
+        .clone()
         .unwrap_or_else(|| config.platform.endpoint.clone());
 
     // Resolve API key
     let api_key = args
         .api_key
+        .clone()
         .or_else(|| std::env::var("FORGESCAN_SCANNER_API_KEY").ok())
-        .unwrap_or_else(|| config.platform.api_key.clone());
+        .or_else(|| config.platform.api_key.clone())
+        .unwrap_or_default();
 
     // Resolve scanner ID
     let scanner_id = args
         .scanner_id
+        .clone()
         .or_else(|| std::env::var("FORGESCAN_SCANNER_ID").ok())
-        .unwrap_or_else(|| config.scanner.scanner_id.clone());
+        .or_else(|| config.scanner.scanner_id.clone())
+        .unwrap_or_default();
 
     if args.one_shot {
         run_one_shot_scan(&args, &api_base_url).await

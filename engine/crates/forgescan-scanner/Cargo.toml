@@ -23,7 +23,7 @@ forgescan-cloud = { path = "../forgescan-cloud" }
 
 tokio = { workspace = true }
 tonic = { workspace = true }
-clap = { workspace = true }
+clap = { workspace = true, features = ["env"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }
