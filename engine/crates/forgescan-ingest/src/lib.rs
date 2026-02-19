@@ -37,7 +37,7 @@ pub use rapid7::{Rapid7Config, Rapid7Ingester};
 pub use tenable::{TenableConfig, TenableIngester};
 
 use chrono::{DateTime, Utc};
-use forgescan_core::{Finding, Severity};
+use forgescan_core::Severity;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;

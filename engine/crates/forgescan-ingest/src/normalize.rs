@@ -57,9 +57,10 @@ pub struct NormalizedFinding {
 }
 
 /// Finding state
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FindingState {
     /// Active/open finding
+    #[default]
     Open,
     /// Finding has been fixed
     Fixed,
@@ -69,12 +70,6 @@ pub enum FindingState {
     FalsePositive,
     /// Reopened finding
     Reopened,
-}
-
-impl Default for FindingState {
-    fn default() -> Self {
-        FindingState::Open
-    }
 }
 
 /// Normalized asset
@@ -115,7 +110,7 @@ pub struct NormalizedAsset {
 }
 
 /// Asset type
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AssetType {
     Server,
     Workstation,
@@ -125,13 +120,8 @@ pub enum AssetType {
     CloudInstance,
     Database,
     WebApplication,
+    #[default]
     Unknown,
-}
-
-impl Default for AssetType {
-    fn default() -> Self {
-        AssetType::Unknown
-    }
 }
 
 /// Normalizer for converting vendor-specific data

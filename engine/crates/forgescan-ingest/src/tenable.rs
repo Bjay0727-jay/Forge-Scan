@@ -350,6 +350,7 @@ struct TenableVuln {
     state: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct TenableAsset {
     uuid: Option<String>,
