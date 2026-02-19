@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "engine/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "engine/**"
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  fmt:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all --check
+        working-directory: engine
+
+  clippy:
+    name: Clippy Lint
+    runs-on: ubuntu-latest
+    needs: fmt
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcap-dev libssl-dev protobuf-compiler
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+
+      - run: cargo clippy --all-targets --all-features -- -D warnings
+        working-directory: engine
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    needs: fmt
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcap-dev libssl-dev protobuf-compiler
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+
+      - run: cargo test --all
+        working-directory: engine

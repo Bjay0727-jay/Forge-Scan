@@ -1,0 +1,59 @@
+# ForgeScan External Scanner — Docker Compose
+#
+# Usage:
+#   1. Copy .env.example to .env and fill in credentials
+#   2. docker compose up -d
+#   3. docker compose logs -f
+#
+# Prerequisites:
+#   - Docker + Docker Compose v2
+#   - Scanner registered in ForgeScan dashboard
+
+services:
+  scanner:
+    image: ghcr.io/bjay0727-jay/forgescan-scanner:latest
+    container_name: forgescan-scanner
+    restart: unless-stopped
+
+    # Host networking required for raw socket SYN scanning
+    network_mode: host
+
+    # Raw socket capabilities for port scanning
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+
+    environment:
+      - FORGESCAN_SCANNER_API_KEY=${FORGESCAN_SCANNER_API_KEY:?Set scanner API key}
+      - FORGESCAN_SCANNER_ID=${FORGESCAN_SCANNER_ID:?Set scanner ID}
+      - FORGESCAN_PLATFORM_URL=${FORGESCAN_PLATFORM_URL:-https://forgescan-api.stanley-riley.workers.dev}
+      - FORGESCAN_DATA_DIR=/var/lib/forgescan
+      - FORGESCAN_LOG_LEVEL=${FORGESCAN_LOG_LEVEL:-info}
+
+    volumes:
+      # Persist NVD database across container restarts/updates
+      - forgescan-nvd:/var/lib/forgescan
+
+    command:
+      - --platform
+      - ${FORGESCAN_PLATFORM_URL:-https://forgescan-api.stanley-riley.workers.dev}
+      - --log-level
+      - ${FORGESCAN_LOG_LEVEL:-info}
+
+    # Health check via scanner --version
+    healthcheck:
+      test: ["/usr/local/bin/forgescan-scanner", "--version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+volumes:
+  forgescan-nvd:
+    driver: local

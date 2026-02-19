@@ -1,0 +1,94 @@
+name: Release Binaries
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+            name: forgescan-scanner-linux-amd64
+          - target: aarch64-unknown-linux-gnu
+            archive: tar.gz
+            name: forgescan-scanner-linux-arm64
+          - target: x86_64-pc-windows-gnu
+            archive: zip
+            name: forgescan-scanner-windows-amd64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cross
+        run: cargo install cross --locked
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcap-dev libssl-dev protobuf-compiler
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+          key: ${{ matrix.target }}
+
+      - name: Build with cross
+        working-directory: engine
+        run: cross build --release --target ${{ matrix.target }} --bin forgescan-scanner
+
+      - name: Package (tar.gz)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          mkdir -p staging
+          cp engine/target/${{ matrix.target }}/release/forgescan-scanner staging/
+          cp engine/checks/*.yaml staging/ 2>/dev/null || true
+          cp LICENSE staging/ 2>/dev/null || true
+          cd staging && tar czf ../${{ matrix.name }}.tar.gz .
+
+      - name: Package (zip)
+        if: matrix.archive == 'zip'
+        run: |
+          mkdir -p staging
+          cp engine/target/${{ matrix.target }}/release/forgescan-scanner.exe staging/
+          cp engine/checks/*.yaml staging/ 2>/dev/null || true
+          cp LICENSE staging/ 2>/dev/null || true
+          cd staging && zip -r ../${{ matrix.name }}.zip .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}.${{ matrix.archive }}
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/**/*.tar.gz
+            artifacts/**/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

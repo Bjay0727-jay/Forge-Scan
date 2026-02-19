@@ -1,12 +1,16 @@
-# ForgeScan Scanner - Multi-stage build for agentless network scanning
+# ForgeScan Scanner - Multi-stage build with cargo-chef for layer caching
 #
 # Build: docker build -f Dockerfile.scanner -t forgescan-scanner .
-# Run:   docker run -it --rm forgescan-scanner --targets 192.168.1.0/24
+# Run:   docker run --network host --cap-add NET_RAW --cap-add NET_ADMIN \
+#          -e FORGESCAN_SCANNER_API_KEY=<key> \
+#          -e FORGESCAN_SCANNER_ID=<id> \
+#          forgescan-scanner --platform https://forgescan-api.stanley-riley.workers.dev
 
-# Stage 1: Build environment
-FROM rust:1.75-slim-bookworm AS builder
+# ──────────────────────────────────────────────────────────────
+# Stage 1: Chef — install cargo-chef for dependency caching
+# ──────────────────────────────────────────────────────────────
+FROM rust:1.76-slim-bookworm AS chef
 
-# Install build dependencies
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
@@ -14,19 +18,41 @@ RUN apt-get update && apt-get install -y \
     libpcap-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app directory
+RUN cargo install cargo-chef --locked
 WORKDIR /app
 
-# Copy manifests first for better layer caching
+# ──────────────────────────────────────────────────────────────
+# Stage 2: Planner — analyze dependencies for caching
+# ──────────────────────────────────────────────────────────────
+FROM chef AS planner
+
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 COPY proto ./proto
 COPY checks ./checks
 
-# Build release binary
+RUN cargo chef prepare --recipe-path recipe.json
+
+# ──────────────────────────────────────────────────────────────
+# Stage 3: Builder — cook dependencies (cached), then build app
+# ──────────────────────────────────────────────────────────────
+FROM chef AS builder
+
+# Cook dependencies first (this layer is cached until Cargo.lock changes)
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+
+# Now copy full source and build (only recompiles app code, not deps)
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+COPY proto ./proto
+COPY checks ./checks
+
 RUN cargo build --release --bin forgescan-scanner
 
-# Stage 2: Runtime image
+# ──────────────────────────────────────────────────────────────
+# Stage 4: Runtime — minimal Debian image
+# ──────────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
 
 # Install runtime dependencies
@@ -53,21 +79,22 @@ ENV FORGESCAN_CHECK_DIR=/etc/forgescan/checks
 # Volume for NVD database persistence
 VOLUME /var/lib/forgescan
 
-# Scanner needs NET_RAW for raw packet operations
-# In K8s, add: securityContext.capabilities.add: ["NET_RAW"]
+# Scanner needs NET_RAW + NET_ADMIN for raw packet operations
+# Docker: --cap-add NET_RAW --cap-add NET_ADMIN
+# K8s:    securityContext.capabilities.add: ["NET_RAW", "NET_ADMIN"]
 
-# Run as non-root (still needs NET_RAW capability)
+# Run as non-root (still needs capabilities added at container level)
 USER forgescan
 
 ENTRYPOINT ["/usr/local/bin/forgescan-scanner"]
 CMD ["--help"]
 
-# Health check
+# Health check — scanner binary responds to --version
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
     CMD ["/usr/local/bin/forgescan-scanner", "--version"]
 
-# Labels
+# OCI Labels
 LABEL org.opencontainers.image.title="ForgeScan Scanner"
 LABEL org.opencontainers.image.description="Agentless network vulnerability scanner"
 LABEL org.opencontainers.image.vendor="Forge Cyber Defense"
-LABEL org.opencontainers.image.source="https://github.com/forge-cyber/forgescan"
+LABEL org.opencontainers.image.source="https://github.com/Bjay0727-jay/Forge-Scan"
