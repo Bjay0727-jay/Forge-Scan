@@ -12,6 +12,7 @@ import { Settings } from '@/pages/Settings';
 import { UserManagement } from '@/pages/UserManagement';
 import { Vulnerabilities } from '@/pages/Vulnerabilities';
 import { Scanners } from '@/pages/Scanners';
+import { Integrations } from '@/pages/Integrations';
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
             <Route path="scans" element={<Scans />} />
             <Route path="import" element={<Import />} />
             <Route path="vulnerabilities" element={<Vulnerabilities />} />
+            <Route path="integrations" element={<Integrations />} />
             <Route path="settings" element={<Settings />} />
             <Route
               path="admin/scanners"

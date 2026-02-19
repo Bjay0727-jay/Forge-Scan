@@ -8,6 +8,7 @@ import {
   Shield,
   ShieldAlert,
   Cpu,
+  Plug,
   Settings,
   Users,
   LogOut,
@@ -23,6 +24,7 @@ const mainNavigation = [
   { name: 'Findings', href: '/findings', icon: AlertTriangle },
   { name: 'Scans', href: '/scans', icon: Scan },
   { name: 'Vulnerabilities', href: '/vulnerabilities', icon: ShieldAlert },
+  { name: 'Integrations', href: '/integrations', icon: Plug },
   { name: 'Import', href: '/import', icon: Upload },
 ];
 

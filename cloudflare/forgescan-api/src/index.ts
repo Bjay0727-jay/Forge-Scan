@@ -13,6 +13,7 @@ import { exports } from './routes/exports';
 import { vulnerabilities } from './routes/vulnerabilities';
 import { importRoutes } from './routes/import';
 import { scanner } from './routes/scanner';
+import { integrations } from './routes/integrations';
 
 export interface Env {
   DB: D1Database;
@@ -67,6 +68,7 @@ app.route('/api/v1/exports', exports);
 app.route('/api/v1/vulnerabilities', vulnerabilities);
 app.route('/api/v1/import', importRoutes);
 app.route('/api/v1/scanner', scanner);
+app.route('/api/v1/integrations', integrations);
 
 // 404 handler
 app.notFound((c) => {
