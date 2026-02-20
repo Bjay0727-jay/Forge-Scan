@@ -344,23 +344,61 @@ scanner.post('/tasks/:id/results', authenticateScanner, async (c) => {
     let findingsCount = 0;
     let assetsDiscovered = 0;
 
-    // Insert findings if provided
+    // Map of IP → asset ID for linking findings to assets
+    const ipToAssetId: Record<string, string> = {};
+
+    // Step 1: Process assets FIRST so we can link findings to them
+    if (assets && Array.isArray(assets) && assets.length > 0) {
+      for (const asset of assets) {
+        const ip = asset.ip_addresses || asset.ip || '';
+        const hostname = asset.hostname || '';
+        const existing = await db.prepare(
+          'SELECT id FROM assets WHERE ip_addresses = ? OR hostname = ?'
+        ).bind(ip, hostname).first<{ id: string }>();
+
+        if (existing) {
+          await db.prepare(`
+            UPDATE assets SET os = COALESCE(?, os), asset_type = COALESCE(?, asset_type), last_seen = datetime('now'), updated_at = datetime('now')
+            WHERE id = ?
+          `).bind(asset.os || null, asset.asset_type || asset.type || null, existing.id).run();
+          ipToAssetId[ip] = existing.id;
+        } else {
+          const assetId = crypto.randomUUID();
+          await db.prepare(
+            'INSERT INTO assets (id, hostname, ip_addresses, os, asset_type, last_seen) VALUES (?, ?, ?, ?, ?, datetime(\'now\'))'
+          ).bind(assetId, hostname || null, ip, asset.os || null, asset.asset_type || asset.type || 'host').run();
+          ipToAssetId[ip] = assetId;
+          assetsDiscovered++;
+        }
+      }
+    }
+
+    // Step 2: Insert findings, linking to assets by IP extracted from title/description
     if (findings && Array.isArray(findings) && findings.length > 0) {
       for (const finding of findings) {
         const findingId = crypto.randomUUID();
-        // First, upsert the asset if provided
+
+        // Try to match finding to an asset: explicit asset_id, or match by IP in title
         let assetId = finding.asset_id;
-        if (finding.asset && !assetId) {
-          // Look up or create asset by hostname/IP
-          const existing = await db.prepare(
-            'SELECT id FROM assets WHERE hostname = ? OR ip_addresses LIKE ?'
-          ).bind(finding.asset.hostname || '', `%${finding.asset.ip || ''}%`).first();
-          assetId = existing?.id as string || crypto.randomUUID();
-          if (!existing) {
-            await db.prepare(
-              'INSERT INTO assets (id, hostname, ip_addresses, os, asset_type, last_seen) VALUES (?, ?, ?, ?, ?, datetime(\'now\'))'
-            ).bind(assetId, finding.asset.hostname, finding.asset.ip, finding.asset.os, finding.asset.type || 'host').run();
-            assetsDiscovered++;
+        if (!assetId) {
+          // Try to extract IP from finding title (e.g., "Open port 22/tcp on 127.0.0.1")
+          const ipMatch = finding.title?.match(/(\d+\.\d+\.\d+\.\d+)/);
+          if (ipMatch && ipToAssetId[ipMatch[1]]) {
+            assetId = ipToAssetId[ipMatch[1]];
+          } else {
+            // Use first available asset as fallback
+            const firstAssetId = Object.values(ipToAssetId)[0];
+            if (firstAssetId) {
+              assetId = firstAssetId;
+            } else {
+              // Create a generic asset as last resort
+              assetId = crypto.randomUUID();
+              await db.prepare(
+                'INSERT INTO assets (id, hostname, ip_addresses, asset_type, last_seen) VALUES (?, ?, ?, ?, datetime(\'now\'))'
+              ).bind(assetId, null, 'unknown', 'host').run();
+              ipToAssetId['unknown'] = assetId;
+              assetsDiscovered++;
+            }
           }
         }
 
@@ -369,7 +407,7 @@ scanner.post('/tasks/:id/results', authenticateScanner, async (c) => {
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
         `).bind(
           findingId,
-          assetId || null,
+          assetId,
           finding.vendor || 'forgescan',
           finding.vendor_id || findingId,
           finding.title,
@@ -383,30 +421,6 @@ scanner.post('/tasks/:id/results', authenticateScanner, async (c) => {
         ).run();
 
         findingsCount++;
-      }
-    }
-
-    // Upsert assets if provided separately
-    if (assets && Array.isArray(assets) && assets.length > 0) {
-      for (const asset of assets) {
-        const ip = asset.ip_addresses || asset.ip || '';
-        const hostname = asset.hostname || '';
-        const existing = await db.prepare(
-          'SELECT id FROM assets WHERE hostname = ? OR ip_addresses LIKE ?'
-        ).bind(hostname, `%${ip}%`).first();
-
-        if (existing) {
-          await db.prepare(`
-            UPDATE assets SET os = COALESCE(?, os), asset_type = COALESCE(?, asset_type), last_seen = datetime('now'), updated_at = datetime('now')
-            WHERE id = ?
-          `).bind(asset.os || null, asset.asset_type || asset.type || null, existing.id as string).run();
-        } else {
-          const assetId = crypto.randomUUID();
-          await db.prepare(
-            'INSERT INTO assets (id, hostname, ip_addresses, os, asset_type, last_seen) VALUES (?, ?, ?, ?, ?, datetime(\'now\'))'
-          ).bind(assetId, hostname, ip, asset.os || null, asset.asset_type || asset.type || 'host').run();
-          assetsDiscovered++;
-        }
       }
     }
 
