@@ -2,7 +2,6 @@
 
 use forgescan_core::Severity;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// A configuration check definition
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -5,15 +5,14 @@
 //! - SARIF (Static Analysis Results Interchange Format)
 //! - Custom vendor exports
 
-use crate::normalize::{NormalizedAsset, NormalizedFinding, NormalizedFindingBuilder, Normalizer};
+use crate::normalize::{NormalizedAsset, NormalizedFindingBuilder, Normalizer};
 use crate::{IngestResult, IngestStats, Vendor};
 use chrono::Utc;
-use forgescan_core::Severity;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::Path;
 use std::time::Instant;
-use tracing::{info, warn};
+use tracing::info;
 
 /// Parse a JSON vulnerability export file
 pub async fn parse_json_file(path: impl AsRef<Path>) -> anyhow::Result<IngestResult> {

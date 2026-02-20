@@ -35,18 +35,13 @@ pub struct Cpe {
 }
 
 /// CPE part type
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CpePart {
     Application,
     OperatingSystem,
     Hardware,
+    #[default]
     Any,
-}
-
-impl Default for CpePart {
-    fn default() -> Self {
-        CpePart::Any
-    }
 }
 
 impl fmt::Display for CpePart {

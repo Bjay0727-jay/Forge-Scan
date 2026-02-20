@@ -404,14 +404,14 @@ impl CloudCheck for Ec2PublicIpCheck {
     fn check(&self, resource: &CloudResource) -> CloudCheckResult {
         let public_ip = resource.metadata.get("public_ip").and_then(|v| v.as_str());
 
-        if public_ip.is_some() {
+        if let Some(ip) = public_ip {
             let finding = Finding::new(
                 format!("EC2 instance '{}' has public IP", resource.name),
                 self.severity(),
             )
             .with_description(format!(
                 "EC2 instance has public IP: {}",
-                public_ip.unwrap()
+                ip
             ))
             .with_affected_asset(resource.arn.as_deref().unwrap_or(&resource.id))
             .with_remediation(

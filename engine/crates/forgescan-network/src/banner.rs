@@ -8,7 +8,7 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::time::timeout;
-use tracing::{debug, trace};
+use tracing::trace;
 
 /// Banner grabber with protocol-specific probes
 pub struct BannerGrabber {

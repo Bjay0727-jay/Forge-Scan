@@ -3,10 +3,13 @@
 use serde::{Deserialize, Serialize};
 
 /// Severity level for findings
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
     /// Informational finding, no security impact
+    #[default]
     Info,
     /// Low severity, minimal risk
     Low,
@@ -50,12 +53,6 @@ impl Severity {
             Severity::High => "High",
             Severity::Critical => "Critical",
         }
-    }
-}
-
-impl Default for Severity {
-    fn default() -> Self {
-        Severity::Info
     }
 }
 

@@ -1,7 +1,6 @@
 //! Security header analysis
 
 use crate::client::HttpResponse;
-use crate::OwaspCategory;
 use forgescan_core::{Finding, Severity};
 use serde::{Deserialize, Serialize};
 

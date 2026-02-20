@@ -1,10 +1,10 @@
 //! Rapid7 InsightVM data ingestion
 
 use crate::normalize::{NormalizedAsset, NormalizedFinding, NormalizedFindingBuilder, Normalizer};
-use crate::{IngestConfig, IngestError, IngestResult, IngestStats, Vendor, VendorIngester};
+use crate::{IngestConfig, IngestResult, IngestStats, Vendor, VendorIngester};
 use chrono::{DateTime, Utc};
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::time::Instant;
 use tracing::{debug, info, warn};
@@ -167,12 +167,7 @@ impl Rapid7Ingester {
         let severity = Normalizer::normalize_severity(
             "rapid7",
             &asset_vuln.severity.to_lowercase(),
-            vuln_details.and_then(|v| {
-                v.cvss
-                    .as_ref()
-                    .map(|c| c.v3.as_ref().map(|s| s.score))
-                    .flatten()
-            }),
+            vuln_details.and_then(|v| v.cvss.as_ref().and_then(|c| c.v3.as_ref().map(|s| s.score))),
         );
 
         let mut builder =
@@ -347,7 +342,7 @@ impl VendorIngester for Rapid7Ingester {
 
     async fn sync_since(
         &self,
-        since: DateTime<Utc>,
+        _since: DateTime<Utc>,
         config: &IngestConfig,
     ) -> anyhow::Result<IngestResult> {
         self.sync(config).await
@@ -362,6 +357,7 @@ struct Rapid7PagedResponse<T> {
     page: Rapid7Page,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct Rapid7Page {
     number: u32,
@@ -372,6 +368,7 @@ struct Rapid7Page {
     total_resources: u32,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct Rapid7Asset {
     id: i64,
@@ -386,12 +383,14 @@ struct Rapid7Asset {
     os_fingerprint: Option<Rapid7OsFingerprint>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct Rapid7HostName {
     name: String,
     source: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct Rapid7OsFingerprint {
     description: Option<String>,
@@ -401,6 +400,7 @@ struct Rapid7OsFingerprint {
     version: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct Rapid7AssetVuln {
     id: String,
@@ -413,6 +413,7 @@ struct Rapid7AssetVuln {
     proof: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 struct Rapid7Vulnerability {
     id: String,
@@ -430,6 +431,7 @@ struct Rapid7Vulnerability {
     categories: Vec<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 struct Rapid7Description {
     text: String,
@@ -448,6 +450,7 @@ struct Rapid7CvssScore {
     vector: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 struct Rapid7Solution {
     #[serde(rename = "type")]
@@ -456,6 +459,7 @@ struct Rapid7Solution {
     steps: Vec<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 struct Rapid7Exploit {
     id: i64,
@@ -463,12 +467,14 @@ struct Rapid7Exploit {
     source: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 struct Rapid7Reference {
     url: String,
     source: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct Rapid7SystemInfo {
     version: String,

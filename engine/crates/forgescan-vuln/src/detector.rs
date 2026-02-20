@@ -2,13 +2,12 @@
 //!
 //! The main detection engine that takes scan results and produces vulnerability findings.
 
-use forgescan_core::{CveInfo, Finding, NvdDatabase, Severity};
+use forgescan_core::{CveInfo, Finding, NvdDatabase as _, Severity};
 use forgescan_nvd::{Cpe, NvdDb};
-use std::collections::HashMap;
 use tracing::{debug, info};
 
 use crate::frs::{FrsCalculator, FrsScore};
-use crate::matcher::{MatchResult, VersionMatcher};
+use crate::matcher::VersionMatcher;
 
 /// Vulnerability detector engine
 pub struct VulnDetector {
@@ -287,11 +286,11 @@ impl VulnDetector {
         .with_description(&vuln.cve.description)
         .with_cve(&vuln.cve.cve_id)
         .with_affected_asset(&vuln.asset)
-        .with_evidence(&format!(
+        .with_evidence(format!(
             "Detected {} version {} on {}",
             vuln.service, vuln.version, vuln.asset
         ))
-        .with_remediation(&format!(
+        .with_remediation(format!(
             "Update {} to a non-vulnerable version. See {} for details.",
             vuln.service,
             vuln.cve

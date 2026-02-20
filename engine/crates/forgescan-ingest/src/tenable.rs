@@ -1,15 +1,13 @@
 //! Tenable.io and Nessus data ingestion
 
-use crate::normalize::{
-    FindingState, NormalizedAsset, NormalizedFinding, NormalizedFindingBuilder, Normalizer,
-};
-use crate::{IngestConfig, IngestError, IngestResult, IngestStats, Vendor, VendorIngester};
+use crate::normalize::{NormalizedAsset, NormalizedFinding, NormalizedFindingBuilder, Normalizer};
+use crate::{IngestConfig, IngestResult, IngestStats, Vendor, VendorIngester};
 use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Instant;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// Tenable.io configuration
 #[derive(Debug, Clone)]
@@ -263,7 +261,7 @@ impl VendorIngester for TenableIngester {
 
         let mut findings = Vec::new();
         let mut assets: HashMap<String, NormalizedAsset> = HashMap::new();
-        let mut errors = Vec::new();
+        let errors = Vec::new();
         let mut stats = IngestStats::default();
 
         for vuln in &vulns {
@@ -303,7 +301,7 @@ impl VendorIngester for TenableIngester {
 
     async fn sync_since(
         &self,
-        since: DateTime<Utc>,
+        _since: DateTime<Utc>,
         config: &IngestConfig,
     ) -> anyhow::Result<IngestResult> {
         // For now, just do a full sync and filter
@@ -337,6 +335,7 @@ struct VulnExportStatusResponse {
     chunks_available: Vec<u32>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct TenableVuln {
     asset: TenableAsset,
@@ -349,6 +348,7 @@ struct TenableVuln {
     state: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct TenableAsset {
     uuid: Option<String>,
@@ -391,8 +391,6 @@ struct TenableXref {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_config_from_env() {
         // Would require env vars to be set

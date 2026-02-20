@@ -11,7 +11,6 @@
 //! - POST   /api/v1/scanner/tasks/:id/results - Submit task results
 //!
 
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -19,9 +18,9 @@ use std::time::Duration;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
-use forgescan_core::{Finding, Severity};
+use forgescan_core::Finding;
 
 // ── Configuration ────────────────────────────────────────────────────────────
 
@@ -144,13 +143,6 @@ struct HeartbeatBody {
     version: String,
     capabilities: Vec<String>,
     active_task_ids: Vec<String>,
-}
-
-/// Generic API error response
-#[derive(Debug, Deserialize)]
-struct ApiErrorResponse {
-    error: Option<String>,
-    message: Option<String>,
 }
 
 // ── Client Errors ────────────────────────────────────────────────────────────

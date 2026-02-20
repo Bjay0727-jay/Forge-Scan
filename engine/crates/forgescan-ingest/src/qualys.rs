@@ -1,10 +1,9 @@
 //! Qualys VMDR data ingestion
 
 use crate::normalize::{NormalizedAsset, NormalizedFinding, NormalizedFindingBuilder, Normalizer};
-use crate::{IngestConfig, IngestError, IngestResult, IngestStats, Vendor, VendorIngester};
+use crate::{IngestConfig, IngestResult, IngestStats, Vendor, VendorIngester};
 use chrono::{DateTime, Utc};
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Instant;
 use tracing::{debug, info, warn};
@@ -442,7 +441,7 @@ impl VendorIngester for QualysIngester {
 
     async fn sync_since(
         &self,
-        since: DateTime<Utc>,
+        _since: DateTime<Utc>,
         config: &IngestConfig,
     ) -> anyhow::Result<IngestResult> {
         self.sync(config).await
@@ -459,6 +458,7 @@ struct QualysHost {
     os: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 struct QualysDetection {
     host: QualysHost,

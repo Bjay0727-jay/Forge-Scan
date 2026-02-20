@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use crate::types::*;
 
@@ -69,6 +69,7 @@ pub trait ScanServiceHandler: Send + Sync {
 /// Scan service gRPC server
 pub struct ScanServiceServer {
     config: ServerConfig,
+    #[allow(dead_code)]
     handler: Arc<dyn ScanServiceHandler>,
     /// Connected scanners
     scanners: Arc<RwLock<HashMap<String, ScannerInfo>>>,
@@ -150,7 +151,7 @@ impl ScanServiceServer {
         }
     }
 
-    /// Process a heartbeat and update scanner info
+    #[allow(dead_code)]
     async fn process_heartbeat(&self, request: HeartbeatRequest) -> HeartbeatResponse {
         let mut scanners = self.scanners.write().await;
 
