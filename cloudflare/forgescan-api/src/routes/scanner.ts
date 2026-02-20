@@ -330,7 +330,11 @@ scanner.post('/tasks/:id/results', authenticateScanner, async (c) => {
     }
 
     const body = await c.req.json();
-    const { status, findings, assets, error_message, summary } = body;
+    const status = body.status;
+    const findings = body.findings;
+    const assets = body.assets || body.assets_discovered;
+    const error_message = body.error_message;
+    const summary = body.summary || body.result_summary;
 
     if (!status || !['completed', 'failed'].includes(status)) {
       return c.json({ error: "status must be 'completed' or 'failed'" }, 400);
@@ -361,12 +365,11 @@ scanner.post('/tasks/:id/results', authenticateScanner, async (c) => {
         }
 
         await db.prepare(`
-          INSERT INTO findings (id, asset_id, scan_id, vendor, vendor_id, title, description, severity, port, protocol, service, state, solution, evidence)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+          INSERT INTO findings (id, asset_id, vendor, vendor_id, title, description, severity, port, protocol, service, state, solution, evidence)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
         `).bind(
           findingId,
           assetId || null,
-          task.scan_id,
           finding.vendor || 'forgescan',
           finding.vendor_id || findingId,
           finding.title,
@@ -386,20 +389,22 @@ scanner.post('/tasks/:id/results', authenticateScanner, async (c) => {
     // Upsert assets if provided separately
     if (assets && Array.isArray(assets) && assets.length > 0) {
       for (const asset of assets) {
+        const ip = asset.ip_addresses || asset.ip || '';
+        const hostname = asset.hostname || '';
         const existing = await db.prepare(
           'SELECT id FROM assets WHERE hostname = ? OR ip_addresses LIKE ?'
-        ).bind(asset.hostname || '', `%${asset.ip || ''}%`).first();
+        ).bind(hostname, `%${ip}%`).first();
 
         if (existing) {
           await db.prepare(`
             UPDATE assets SET os = COALESCE(?, os), asset_type = COALESCE(?, asset_type), last_seen = datetime('now'), updated_at = datetime('now')
             WHERE id = ?
-          `).bind(asset.os || null, asset.type || null, existing.id as string).run();
+          `).bind(asset.os || null, asset.asset_type || asset.type || null, existing.id as string).run();
         } else {
           const assetId = crypto.randomUUID();
           await db.prepare(
             'INSERT INTO assets (id, hostname, ip_addresses, os, asset_type, last_seen) VALUES (?, ?, ?, ?, ?, datetime(\'now\'))'
-          ).bind(assetId, asset.hostname, asset.ip, asset.os, asset.type || 'host').run();
+          ).bind(assetId, hostname, ip, asset.os || null, asset.asset_type || asset.type || 'host').run();
           assetsDiscovered++;
         }
       }
