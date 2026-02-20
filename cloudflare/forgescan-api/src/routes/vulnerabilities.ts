@@ -302,8 +302,10 @@ vulnerabilities.get('/:cve', async (c) => {
 
   try {
     if (vulnerability.cwe_ids) cweIds = JSON.parse(vulnerability.cwe_ids);
-    if (vulnerability.affected_products) affectedProducts = JSON.parse(vulnerability.affected_products);
-    if (vulnerability.references) references = JSON.parse(vulnerability.references);
+    if ((vulnerability as any).affected_products) affectedProducts = JSON.parse((vulnerability as any).affected_products);
+    // Check both column names for references (schema migration)
+    const refsRaw = (vulnerability as any).references_list || (vulnerability as any).refs || vulnerability.references;
+    if (refsRaw) references = JSON.parse(refsRaw);
   } catch {
     // Keep as strings if parsing fails
   }
@@ -349,7 +351,7 @@ vulnerabilities.post('/', async (c) => {
         in_kev = COALESCE(?, in_kev),
         cwe_ids = COALESCE(?, cwe_ids),
         affected_products = COALESCE(?, affected_products),
-        references = COALESCE(?, references),
+        references_list = COALESCE(?, references_list),
         modified_at = COALESCE(?, modified_at),
         updated_at = datetime('now')
       WHERE cve_id = ?
@@ -372,15 +374,22 @@ vulnerabilities.post('/', async (c) => {
   // Create new
   const id = crypto.randomUUID();
 
+  // Derive severity from CVSS score
+  const severity = body.severity ||
+    (body.cvss_score >= 9.0 ? 'critical' : body.cvss_score >= 7.0 ? 'high' : body.cvss_score >= 4.0 ? 'medium' : body.cvss_score > 0 ? 'low' : 'info');
+  const title = body.title || `${cveId}: ${(body.description || '').substring(0, 120)}` || cveId;
+
   await c.env.DB.prepare(`
     INSERT INTO vulnerabilities (
-      id, cve_id, description, cvss_score, cvss_vector, epss_score,
-      in_kev, published_at, modified_at, cwe_ids, affected_products, references
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      id, cve_id, title, description, severity, cvss_score, cvss_vector, epss_score,
+      in_kev, published_at, modified_at, cwe_ids, affected_products, references_list
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id,
     cveId,
+    title,
     body.description || null,
+    severity,
     body.cvss_score || null,
     body.cvss_vector || null,
     body.epss_score || null,
@@ -472,10 +481,8 @@ vulnerabilities.post('/sync/process-next', requireRole('platform_admin', 'scan_a
   try {
     const hasMore = await processNextPage(c.env.DB, c.env.NVD_API_KEY);
 
-    // If no running sync, do periodic EPSS updates
-    if (!hasMore) {
-      await syncEPSS(c.env.DB);
-    }
+    // Skip EPSS fallback during sync to stay within Workers subrequest limits
+    // EPSS sync should be triggered independently via /sync/epss
 
     const status = await getSyncStatus(c.env.DB);
     return c.json({
@@ -549,14 +556,19 @@ vulnerabilities.post('/bulk', async (c) => {
         updated++;
       } else {
         const id = crypto.randomUUID();
+        const bulkSeverity = vuln.severity ||
+          (vuln.cvss_score >= 9.0 ? 'critical' : vuln.cvss_score >= 7.0 ? 'high' : vuln.cvss_score >= 4.0 ? 'medium' : vuln.cvss_score > 0 ? 'low' : 'info');
+        const bulkTitle = vuln.title || `${cveId}: ${(vuln.description || '').substring(0, 120)}` || cveId;
         await c.env.DB.prepare(`
           INSERT INTO vulnerabilities (
-            id, cve_id, description, cvss_score, cvss_vector, epss_score, in_kev, published_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            id, cve_id, title, description, severity, cvss_score, cvss_vector, epss_score, in_kev, published_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
           id,
           cveId,
+          bulkTitle,
           vuln.description || null,
+          bulkSeverity,
           vuln.cvss_score || null,
           vuln.cvss_vector || null,
           vuln.epss_score || null,

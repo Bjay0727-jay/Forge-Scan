@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Scan as ScanIcon, Search, Plus, Play, XCircle, Trash2, Eye } from 'lucide-react';
+import { Scan as ScanIcon, Search, Plus, Play, XCircle, Trash2, Eye, Globe, Shield, Server, Code, Cloud, FileCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -412,6 +412,79 @@ function CreateScanDialog({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
+const scanTypeIcons: Record<string, typeof Globe> = {
+  network: Globe,
+  container: Server,
+  cloud: Cloud,
+  web: Globe,
+  code: Code,
+  compliance: FileCheck,
+};
+
+const scanTypeLabels: Record<string, string> = {
+  network: 'Network Scan',
+  container: 'Container Scan',
+  cloud: 'Cloud Security Scan',
+  web: 'Web Application Scan',
+  code: 'Code Analysis',
+  compliance: 'Compliance Audit',
+};
+
+const configLabels: Record<string, string> = {
+  ports: 'Port Range',
+  intensity: 'Scan Intensity',
+  registry: 'Container Registry',
+  image: 'Image Name',
+  provider: 'Cloud Provider',
+  regions: 'Target Regions',
+  authenticated: 'Authenticated Scan',
+  maxDepth: 'Crawl Depth',
+  branch: 'Branch',
+  languages: 'Languages',
+  framework: 'Compliance Framework',
+  port_range: 'Port Range',
+  scan_type: 'Scan Type',
+  target: 'Target',
+  max_depth: 'Crawl Depth',
+};
+
+const frameworkLabels: Record<string, string> = {
+  cis: 'CIS Controls v8',
+  nist: 'NIST 800-53 Rev. 5',
+  'pci-dss': 'PCI DSS v4.0',
+  hipaa: 'HIPAA Security Rule',
+  soc2: 'SOC 2 Type II',
+};
+
+const intensityLabels: Record<string, { label: string; color: string }> = {
+  light: { label: 'Light', color: 'bg-green-100 text-green-700' },
+  normal: { label: 'Normal', color: 'bg-blue-100 text-blue-700' },
+  aggressive: { label: 'Aggressive', color: 'bg-red-100 text-red-700' },
+};
+
+function formatConfigValue(key: string, value: unknown): React.ReactNode {
+  if (key === 'intensity' && typeof value === 'string' && intensityLabels[value]) {
+    const { label, color } = intensityLabels[value];
+    return <Badge className={color}>{label}</Badge>;
+  }
+  if (key === 'framework' && typeof value === 'string' && frameworkLabels[value]) {
+    return <span className="font-medium">{frameworkLabels[value]}</span>;
+  }
+  if (key === 'provider' && typeof value === 'string') {
+    return <span className="font-medium uppercase">{value}</span>;
+  }
+  if (key === 'authenticated') {
+    return <Badge variant={value ? 'default' : 'secondary'}>{value ? 'Yes' : 'No'}</Badge>;
+  }
+  if (key === 'ports' || key === 'port_range') {
+    return <code className="rounded bg-muted px-2 py-0.5 text-xs font-mono">{String(value)}</code>;
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    return <span className="text-sm">{String(value)}</span>;
+  }
+  return <span className="text-sm text-muted-foreground">{JSON.stringify(value)}</span>;
+}
+
 function ScanDetailDialog({
   scan,
   open,
@@ -423,67 +496,112 @@ function ScanDetailDialog({
 }) {
   if (!scan) return null;
 
+  const ScanTypeIcon = scanTypeIcons[scan.type] || Shield;
+  const scanLabel = scanTypeLabels[scan.type] || capitalize(scan.type);
+  const config = scan.configuration || {};
+  const configEntries = Object.entries(config).filter(
+    ([, v]) => v !== undefined && v !== null && v !== ''
+  );
+
+  // Calculate scan duration
+  let duration = '';
+  if (scan.started_at && scan.completed_at) {
+    const start = new Date(scan.started_at).getTime();
+    const end = new Date(scan.completed_at).getTime();
+    const diffMs = end - start;
+    if (diffMs < 1000) duration = '<1s';
+    else if (diffMs < 60000) duration = `${Math.round(diffMs / 1000)}s`;
+    else if (diffMs < 3600000) duration = `${Math.round(diffMs / 60000)}m ${Math.round((diffMs % 60000) / 1000)}s`;
+    else duration = `${Math.floor(diffMs / 3600000)}h ${Math.round((diffMs % 3600000) / 60000)}m`;
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <div className="flex items-center gap-2">
-            <Badge className={getStatusColor(scan.status)}>
-              {capitalize(scan.status)}
-            </Badge>
-            <DialogTitle>{scan.name}</DialogTitle>
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-primary/10 p-2">
+              <ScanTypeIcon className="h-5 w-5 text-primary" />
+            </div>
+            <div className="flex-1">
+              <DialogTitle className="text-lg">{scan.name}</DialogTitle>
+              <DialogDescription className="flex items-center gap-2 mt-1">
+                <Badge className={getStatusColor(scan.status)}>
+                  {capitalize(scan.status)}
+                </Badge>
+                <span>{scanLabel}</span>
+              </DialogDescription>
+            </div>
           </div>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <h4 className="mb-1 text-sm font-medium">Type</h4>
-              <p className="text-sm">{capitalize(scan.type)}</p>
-            </div>
-            <div>
-              <h4 className="mb-1 text-sm font-medium">Target</h4>
-              <p className="font-mono text-sm">{scan.target}</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <h4 className="mb-1 text-sm font-medium">Created</h4>
-              <p className="text-sm text-muted-foreground">
-                {formatDateTime(scan.created_at)}
-              </p>
-            </div>
-            {scan.started_at && (
+        <div className="space-y-5">
+          {/* Target & Findings Summary */}
+          <div className="rounded-lg border bg-card p-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
-                <h4 className="mb-1 text-sm font-medium">Started</h4>
-                <p className="text-sm text-muted-foreground">
-                  {formatDateTime(scan.started_at)}
-                </p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Target</p>
+                <p className="mt-1 font-mono text-sm font-medium">{scan.target}</p>
               </div>
-            )}
-          </div>
-
-          {scan.completed_at && (
-            <div>
-              <h4 className="mb-1 text-sm font-medium">Completed</h4>
-              <p className="text-sm text-muted-foreground">
-                {formatDateTime(scan.completed_at)}
-              </p>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Findings</p>
+                <p className="mt-1 text-2xl font-bold text-primary">{scan.findings_count}</p>
+              </div>
+              {duration && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Duration</p>
+                  <p className="mt-1 text-sm font-medium">{duration}</p>
+                </div>
+              )}
             </div>
-          )}
-
-          <div>
-            <h4 className="mb-1 text-sm font-medium">Findings</h4>
-            <p className="text-2xl font-bold">{scan.findings_count}</p>
           </div>
 
-          {Object.keys(scan.configuration).length > 0 && (
+          {/* Timeline */}
+          <div>
+            <h4 className="mb-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Timeline</h4>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="flex items-start gap-2">
+                <div className="mt-0.5 h-2 w-2 rounded-full bg-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Created</p>
+                  <p className="text-sm">{formatDateTime(scan.created_at)}</p>
+                </div>
+              </div>
+              {scan.started_at && (
+                <div className="flex items-start gap-2">
+                  <div className="mt-0.5 h-2 w-2 rounded-full bg-blue-500" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Started</p>
+                    <p className="text-sm">{formatDateTime(scan.started_at)}</p>
+                  </div>
+                </div>
+              )}
+              {scan.completed_at && (
+                <div className="flex items-start gap-2">
+                  <div className={`mt-0.5 h-2 w-2 rounded-full ${scan.status === 'completed' ? 'bg-green-500' : 'bg-red-500'}`} />
+                  <div>
+                    <p className="text-xs text-muted-foreground">{scan.status === 'failed' ? 'Failed' : 'Completed'}</p>
+                    <p className="text-sm">{formatDateTime(scan.completed_at)}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Configuration */}
+          {configEntries.length > 0 && (
             <div>
-              <h4 className="mb-1 text-sm font-medium">Configuration</h4>
-              <pre className="rounded-lg bg-muted p-4 text-xs overflow-auto">
-                {JSON.stringify(scan.configuration, null, 2)}
-              </pre>
+              <h4 className="mb-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Scan Configuration</h4>
+              <div className="rounded-lg border divide-y">
+                {configEntries.map(([key, value]) => (
+                  <div key={key} className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-sm text-muted-foreground">
+                      {configLabels[key] || capitalize(key.replace(/_/g, ' '))}
+                    </span>
+                    <div>{formatConfigValue(key, value)}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

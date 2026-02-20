@@ -4,7 +4,7 @@
 
 import { NVDClient, transformNVDtoCVE, type VulnerabilityRecord } from '../lib/nvd-client';
 
-const PAGE_SIZE = 2000; // NVD max per page
+const PAGE_SIZE = 200; // Reduced from 2000 to stay within Workers subrequest limits (each CVE = 2 DB queries)
 
 interface SyncJob {
   id: string;
@@ -53,8 +53,8 @@ export async function startFullSync(
     VALUES (?, 'full', 'nvd', 'running', 0, ?, ?, datetime('now'))
   `).bind(jobId, totalResults, totalPages).run();
 
-  // Process first page immediately
-  await processNextPage(db, apiKey);
+  // Don't process first page inline — let frontend polling via /sync/process-next handle it
+  // This avoids hitting Cloudflare Workers subrequest/CPU limits
 
   return jobId;
 }
@@ -96,9 +96,7 @@ export async function startIncrementalSync(
     VALUES (?, 'incremental', 'nvd', ?, 'running', 0, ?, ?, datetime('now'))
   `).bind(jobId, config, totalResults, totalPages).run();
 
-  if (totalResults > 0) {
-    await processNextPage(db, apiKey);
-  } else {
+  if (totalResults === 0) {
     // Nothing to sync - mark complete
     await db.prepare(`
       UPDATE nvd_sync_jobs SET status = 'completed', completed_at = datetime('now') WHERE id = ?
@@ -236,13 +234,16 @@ export async function syncKEV(db: D1Database): Promise<{ updated: number; total:
     ).bind(entry.cveID).first();
 
     if (!exists) {
+      const kevTitle = `${entry.cveID}: ${entry.vulnerabilityName}`;
+      const kevDesc = `${entry.vulnerabilityName} - ${entry.requiredAction}`;
       await db.prepare(`
-        INSERT INTO vulnerabilities (id, cve_id, description, in_kev, kev_date_added, kev_due_date, severity)
-        VALUES (?, ?, ?, 1, ?, ?, 'high')
+        INSERT INTO vulnerabilities (id, cve_id, title, description, in_kev, kev_date_added, kev_due_date, severity)
+        VALUES (?, ?, ?, ?, 1, ?, ?, 'high')
       `).bind(
         crypto.randomUUID(),
         entry.cveID,
-        `${entry.vulnerabilityName} - ${entry.requiredAction}`,
+        kevTitle,
+        kevDesc,
         entry.dateAdded,
         entry.dueDate
       ).run();
@@ -389,12 +390,18 @@ async function upsertVulnerability(
     }
     return 'skipped';
   } else {
+    // Generate title from CVE ID + first 120 chars of description
+    const title = record.description
+      ? `${record.cve_id}: ${record.description.substring(0, 120)}${record.description.length > 120 ? '...' : ''}`
+      : record.cve_id;
+
     await db.prepare(`
-      INSERT INTO vulnerabilities (id, cve_id, description, cvss_score, cvss_vector, cvss_version, severity, cwe_ids, affected_products, references_list, published_at, modified_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO vulnerabilities (id, cve_id, title, description, cvss_score, cvss_vector, cvss_version, severity, cwe_ids, affected_products, references_list, published_at, modified_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       crypto.randomUUID(),
       record.cve_id,
+      title,
       record.description,
       record.cvss_score,
       record.cvss_vector,

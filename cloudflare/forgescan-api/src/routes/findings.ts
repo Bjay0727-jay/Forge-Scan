@@ -159,6 +159,68 @@ findings.post('/', async (c) => {
   return c.json({ id, message: 'Finding created' }, 201);
 });
 
+// Update finding (PUT) - supports state changes and other field updates
+findings.put('/:id', async (c) => {
+  const id = c.req.param('id');
+  const body = await c.req.json();
+
+  const existing = await c.env.DB.prepare(
+    'SELECT id FROM findings WHERE id = ?'
+  ).bind(id).first();
+
+  if (!existing) {
+    return c.json({ error: 'Finding not found' }, 404);
+  }
+
+  const updates: string[] = [];
+  const params: (string | number | null)[] = [];
+
+  if (body.state !== undefined) {
+    const validStates = ['open', 'acknowledged', 'resolved', 'false_positive', 'reopened', 'fixed', 'accepted'];
+    if (!validStates.includes(body.state)) {
+      return c.json({ error: 'Invalid state' }, 400);
+    }
+    updates.push('state = ?');
+    params.push(body.state);
+    if (body.state === 'fixed' || body.state === 'resolved') {
+      updates.push("fixed_at = datetime('now')");
+    }
+  }
+
+  if (body.severity !== undefined) {
+    updates.push('severity = ?');
+    params.push(body.severity);
+  }
+
+  if (body.description !== undefined) {
+    updates.push('description = ?');
+    params.push(body.description);
+  }
+
+  if (body.solution !== undefined) {
+    updates.push('solution = ?');
+    params.push(body.solution);
+  }
+
+  if (updates.length === 0) {
+    return c.json({ error: 'No fields to update' }, 400);
+  }
+
+  updates.push("updated_at = datetime('now')");
+  params.push(id);
+
+  await c.env.DB.prepare(
+    `UPDATE findings SET ${updates.join(', ')} WHERE id = ?`
+  ).bind(...params).run();
+
+  // Return updated finding
+  const updated = await c.env.DB.prepare(
+    'SELECT f.*, a.hostname, a.ip_addresses FROM findings f LEFT JOIN assets a ON f.asset_id = a.id WHERE f.id = ?'
+  ).bind(id).first();
+
+  return c.json(updated);
+});
+
 // Update finding state
 findings.patch('/:id/state', async (c) => {
   const id = c.req.param('id');

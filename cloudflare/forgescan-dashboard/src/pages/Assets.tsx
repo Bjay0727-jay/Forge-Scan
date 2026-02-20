@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { Server, Search, Plus, Trash2, Edit } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { Server, Search, Plus, Trash2, Eye, Shield } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -182,6 +182,140 @@ function CreateAssetDialog({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
+function AssetDetailDialog({
+  asset,
+  open,
+  onOpenChange,
+}: {
+  asset: Asset | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [detail, setDetail] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (open && asset) {
+      setLoading(true);
+      assetsApi.get(asset.id)
+        .then((data) => setDetail(data as unknown as Record<string, unknown>))
+        .catch((err) => console.error('Failed to load asset detail:', err))
+        .finally(() => setLoading(false));
+    }
+  }, [open, asset]);
+
+  if (!asset) return null;
+
+  const findings = (detail as any)?.findings as Array<Record<string, unknown>> || [];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <AssetTypeIcon type={asset.type} />
+            <DialogTitle>{asset.name}</DialogTitle>
+          </div>
+          <DialogDescription>
+            {asset.identifier} &middot; {capitalize(asset.type)}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <h4 className="mb-1 text-sm font-medium">IP Addresses</h4>
+              <p className="text-sm font-mono text-muted-foreground">
+                {(asset.metadata?.ip_addresses as string[])?.join(', ') || 'N/A'}
+              </p>
+            </div>
+            <div>
+              <h4 className="mb-1 text-sm font-medium">Operating System</h4>
+              <p className="text-sm text-muted-foreground">
+                {(asset.metadata as any)?.os || 'Unknown'}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <h4 className="mb-1 text-sm font-medium">Risk Score</h4>
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-20 rounded-full bg-muted">
+                  <div
+                    className="h-2 rounded-full bg-primary"
+                    style={{ width: `${asset.risk_score * 10}%` }}
+                  />
+                </div>
+                <span className="text-sm font-medium">{asset.risk_score}/10</span>
+              </div>
+            </div>
+            <div>
+              <h4 className="mb-1 text-sm font-medium">Last Seen</h4>
+              <p className="text-sm text-muted-foreground">
+                {formatDateTime(asset.updated_at)}
+              </p>
+            </div>
+          </div>
+
+          {asset.tags.length > 0 && (
+            <div>
+              <h4 className="mb-1 text-sm font-medium">Tags</h4>
+              <div className="flex flex-wrap gap-1">
+                {asset.tags.map((tag) => (
+                  <Badge key={tag} variant="secondary">{tag}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Findings for this asset */}
+          <div>
+            <h4 className="mb-2 text-sm font-medium flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              Findings ({loading ? '...' : findings.length})
+            </h4>
+            {loading ? (
+              <Skeleton className="h-16 w-full" />
+            ) : findings.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No findings for this asset</p>
+            ) : (
+              <div className="space-y-2">
+                {findings.map((f: Record<string, unknown>) => (
+                  <div key={String(f.id)} className="rounded border p-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={String(f.severity) as any}>
+                          {capitalize(String(f.severity))}
+                        </Badge>
+                        <span className="font-medium">{String(f.title)}</span>
+                      </div>
+                      <Badge variant={f.state === 'open' ? 'destructive' : 'secondary'}>
+                        {capitalize(String(f.state))}
+                      </Badge>
+                    </div>
+                    {f.port != null && (
+                      <p className="mt-1 text-xs text-muted-foreground font-mono">
+                        Port {String(f.port)}/{String(f.protocol)}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function LoadingSkeleton() {
   return (
     <div className="space-y-4">
@@ -195,6 +329,13 @@ function LoadingSkeleton() {
 export function Assets() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<AssetType | 'all'>('all');
+  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const handleViewAsset = (asset: Asset) => {
+    setSelectedAsset(asset);
+    setDetailOpen(true);
+  };
 
   const fetchAssets = useCallback(
     (page: number, pageSize: number) => {
@@ -321,10 +462,13 @@ export function Assets() {
                   {assets.map((asset) => (
                     <TableRow key={asset.id}>
                       <TableCell>
-                        <div className="flex items-center gap-3">
+                        <button
+                          className="flex items-center gap-3 hover:underline text-left cursor-pointer"
+                          onClick={() => handleViewAsset(asset)}
+                        >
                           <AssetTypeIcon type={asset.type} />
-                          <span className="font-medium">{asset.name}</span>
-                        </div>
+                          <span className="font-medium text-primary">{asset.name}</span>
+                        </button>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">{capitalize(asset.type)}</Badge>
@@ -362,8 +506,8 @@ export function Assets() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
-                          <Button variant="ghost" size="icon">
-                            <Edit className="h-4 w-4" />
+                          <Button variant="ghost" size="icon" onClick={() => handleViewAsset(asset)}>
+                            <Eye className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -392,6 +536,12 @@ export function Assets() {
           )}
         </>
       )}
+
+      <AssetDetailDialog
+        asset={selectedAsset}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+      />
     </div>
   );
 }

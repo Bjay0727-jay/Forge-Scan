@@ -45,23 +45,40 @@ assets.get('/', async (c) => {
   const total = countResult?.total || 0;
   const totalPages = Math.ceil(total / pageSizeNum);
 
+  // Helper to safely parse JSON or wrap plain strings in an array
+  function safeParseArray(value: unknown): string[] {
+    if (!value) return [];
+    const str = String(value);
+    try {
+      const parsed = JSON.parse(str);
+      return Array.isArray(parsed) ? parsed : [str];
+    } catch {
+      return str ? [str] : [];
+    }
+  }
+
   // Transform to match frontend expected format
-  const items = (result.results || []).map((asset: Record<string, unknown>) => ({
-    id: asset.id,
-    name: asset.hostname || asset.fqdn || 'Unknown',
-    type: asset.asset_type || 'host',
-    identifier: asset.fqdn || asset.hostname || String(asset.id),
-    metadata: {
-      ip_addresses: asset.ip_addresses ? JSON.parse(String(asset.ip_addresses)) : [],
-      os: asset.os,
-      os_version: asset.os_version,
-      network_zone: asset.network_zone,
-    },
-    tags: asset.tags ? JSON.parse(String(asset.tags)) : [],
-    risk_score: asset.risk_score || 0,
-    created_at: asset.first_seen || asset.created_at,
-    updated_at: asset.last_seen || asset.updated_at,
-  }));
+  const items = (result.results || []).map((asset: Record<string, unknown>) => {
+    const ipAddresses = safeParseArray(asset.ip_addresses);
+    const displayName = asset.hostname || asset.fqdn || (ipAddresses.length > 0 ? ipAddresses[0] : 'Unknown');
+
+    return {
+      id: asset.id,
+      name: displayName,
+      type: asset.asset_type || 'host',
+      identifier: asset.fqdn || asset.hostname || (ipAddresses.length > 0 ? ipAddresses[0] : String(asset.id)),
+      metadata: {
+        ip_addresses: ipAddresses,
+        os: asset.os,
+        os_version: asset.os_version,
+        network_zone: asset.network_zone,
+      },
+      tags: safeParseArray(asset.tags),
+      risk_score: asset.risk_score || 0,
+      created_at: asset.first_seen || asset.created_at,
+      updated_at: asset.last_seen || asset.updated_at,
+    };
+  });
 
   return c.json({
     items,
