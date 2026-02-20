@@ -23,6 +23,9 @@ const PUBLIC_PATHS = [
   '/api/v1/auth/register',
 ];
 
+// Scanner endpoints use their own X-Scanner-Key auth (authenticateScanner middleware)
+const SCANNER_PREFIX = '/api/v1/scanner/';
+
 export const authMiddleware: MiddlewareHandler<AuthEnv> = async (c, next) => {
   const path = c.req.path;
 
@@ -38,6 +41,11 @@ export const authMiddleware: MiddlewareHandler<AuthEnv> = async (c, next) => {
 
   // Skip auth for OPTIONS (CORS preflight)
   if (c.req.method === 'OPTIONS') {
+    return next();
+  }
+
+  // Skip global auth for scanner endpoints — they use X-Scanner-Key via authenticateScanner
+  if (path.startsWith(SCANNER_PREFIX)) {
     return next();
   }
 
