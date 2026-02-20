@@ -259,13 +259,15 @@ scanner.get('/tasks/next', authenticateScanner, async (c) => {
     `).bind(scannerInfo.scanner_id, task.id as string).run();
 
     return c.json({
-      id: task.id,
-      scan_id: task.scan_id,
-      task_type: task.task_type,
-      payload: task.task_payload ? JSON.parse(task.task_payload as string) : {},
-      priority: task.priority,
-      retry_count: task.retry_count,
-      max_retries: task.max_retries,
+      task: {
+        id: task.id,
+        scan_id: task.scan_id,
+        task_type: task.task_type,
+        task_payload: task.task_payload ? JSON.parse(task.task_payload as string) : {},
+        priority: task.priority,
+        retry_count: task.retry_count,
+        max_retries: task.max_retries,
+      },
     });
   } catch (error: unknown) {
     console.error('Get next task error:', error);
