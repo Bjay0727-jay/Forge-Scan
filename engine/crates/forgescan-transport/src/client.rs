@@ -210,8 +210,8 @@ pub enum ClientError {
 fn gethostname() -> std::ffi::OsString {
     #[cfg(unix)]
     {
-        use std::ffi::CStr;
-        let mut buf = [0i8; 256];
+        use std::ffi::{c_char, CStr};
+        let mut buf = [0 as c_char; 256];
         unsafe {
             libc::gethostname(buf.as_mut_ptr(), buf.len());
             CStr::from_ptr(buf.as_ptr())
