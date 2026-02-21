@@ -13,11 +13,18 @@ findings.get('/', async (c) => {
     vendor,
     asset_id,
     search,
+    sort_by = 'severity',
+    sort_order = 'desc',
   } = c.req.query();
 
   const pageNum = parseInt(page);
   const pageSizeNum = parseInt(page_size);
   const offset = (pageNum - 1) * pageSizeNum;
+
+  // Validated sort
+  const validSortFields = ['severity', 'title', 'frs_score', 'last_seen', 'created_at'];
+  const sortField = validSortFields.includes(sort_by) ? sort_by : 'severity';
+  const sortDir = sort_order.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
 
   let query = 'SELECT f.*, a.hostname, a.ip_addresses FROM findings f LEFT JOIN assets a ON f.asset_id = a.id WHERE 1=1';
   let countQuery = 'SELECT COUNT(*) as total FROM findings f WHERE 1=1';
@@ -60,18 +67,12 @@ findings.get('/', async (c) => {
     countParams.push(searchPattern, searchPattern, searchPattern);
   }
 
-  // Order by severity (Critical > High > Medium > Low > Info), then by FRS score
-  query += ` ORDER BY
-    CASE f.severity
-      WHEN 'critical' THEN 1
-      WHEN 'high' THEN 2
-      WHEN 'medium' THEN 3
-      WHEN 'low' THEN 4
-      ELSE 5
-    END,
-    f.frs_score DESC NULLS LAST,
-    f.last_seen DESC
-    LIMIT ? OFFSET ?`;
+  // Dynamic sort
+  if (sortField === 'severity') {
+    query += ` ORDER BY CASE f.severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END ${sortDir}, f.frs_score DESC NULLS LAST, f.last_seen DESC LIMIT ? OFFSET ?`;
+  } else {
+    query += ` ORDER BY f.${sortField} ${sortDir} NULLS LAST LIMIT ? OFFSET ?`;
+  }
 
   const result = await c.env.DB.prepare(query).bind(...params, pageSizeNum, offset).all();
   const countResult = await c.env.DB.prepare(countQuery).bind(...countParams).first<{ total: number }>();

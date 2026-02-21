@@ -214,8 +214,8 @@ export function Notifications() {
       <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
         {[
           { label: 'Total Rules', value: stats.total_rules, color: '' },
-          { label: 'Active', value: stats.active_rules, color: 'text-green-600' },
-          { label: 'Sent (all time)', value: stats.total_sent, color: 'text-blue-600' },
+          { label: 'Active', value: stats.active_rules, color: 'text-green-400' },
+          { label: 'Sent (all time)', value: stats.total_sent, color: 'text-blue-400' },
           { label: 'Failed', value: stats.total_failed, color: 'text-red-500' },
           { label: 'Last 24h', value: stats.recent_24h, color: 'text-orange-500' },
         ].map(s => (
@@ -273,7 +273,7 @@ export function Notifications() {
                   <TableCell>
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" onClick={() => testRule(r.id)} disabled={testing === r.id}>
-                        {testing === r.id ? <RefreshCw className="h-4 w-4 animate-spin" /> : <TestTube2 className="h-4 w-4 text-blue-600" />}
+                        {testing === r.id ? <RefreshCw className="h-4 w-4 animate-spin" /> : <TestTube2 className="h-4 w-4 text-blue-400" />}
                       </Button>
                       {isAdmin && (
                         <Button variant="ghost" size="icon" onClick={() => deleteRule(r.id)}>

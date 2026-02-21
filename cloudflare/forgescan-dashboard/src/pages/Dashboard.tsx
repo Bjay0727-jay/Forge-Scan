@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Server,
@@ -6,6 +6,7 @@ import {
   Scan,
   TrendingUp,
   ExternalLink,
+  Activity,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +17,8 @@ import { RiskTrendChart } from '@/components/charts/RiskTrendChart';
 import { StateBarChart } from '@/components/charts/StateBarChart';
 import { ErrorState } from '@/components/ErrorState';
 import { useApi } from '@/hooks/useApi';
-import { dashboardApi } from '@/lib/api';
+import { usePollingApi } from '@/hooks/usePollingApi';
+import { dashboardApi, scansApi } from '@/lib/api';
 import { formatRelativeTime, capitalize } from '@/lib/utils';
 import type { DashboardStats, Severity } from '@/types';
 
@@ -33,10 +35,12 @@ function StatCard({
 }) {
   return (
     <Link to={href}>
-      <Card className="transition-colors hover:bg-accent">
+      <Card className="forge-card-hover transition-all hover:bg-accent/50">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">{title}</CardTitle>
-          <Icon className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+          <div className="rounded-lg p-2" style={{ background: 'rgba(13,148,136,0.1)' }}>
+            <Icon className="h-4 w-4" style={{ color: '#0D9488' }} />
+          </div>
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{value.toLocaleString()}</div>
@@ -86,6 +90,25 @@ function LoadingSkeleton() {
 export function Dashboard() {
   const fetchStats = useCallback(() => dashboardApi.getStats(), []);
   const { data: stats, loading, error, refetch } = useApi<DashboardStats>(fetchStats);
+
+  // Poll for active scans
+  const [pollEnabled, setPollEnabled] = useState(true);
+  const fetchActiveScans = useCallback(() => scansApi.getActive(), []);
+  const { data: activeScansData } = usePollingApi(fetchActiveScans, {
+    interval: 5000,
+    enabled: pollEnabled,
+    immediate: true,
+    onDataChange: () => refetch(), // Refresh dashboard stats when scan data changes
+  });
+
+  // Auto-disable polling when no active scans (after initial check)
+  useEffect(() => {
+    if (activeScansData && !activeScansData.has_active) {
+      setPollEnabled(false);
+    } else if (activeScansData?.has_active) {
+      setPollEnabled(true);
+    }
+  }, [activeScansData]);
 
   if (loading) {
     return (
@@ -227,6 +250,62 @@ export function Dashboard() {
         </Card>
       </div>
 
+      {/* Active Scans Banner */}
+      {activeScansData?.has_active && activeScansData.items.length > 0 && (
+        <Card className="mb-6 border-blue-500/30 bg-blue-500/5">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500" />
+                </span>
+                {activeScansData.items.length} Active Scan{activeScansData.items.length !== 1 ? 's' : ''}
+              </CardTitle>
+              <Link to="/scans?status=running">
+                <Button variant="ghost" size="sm">
+                  View all
+                  <ExternalLink className="ml-2 h-3 w-3" />
+                </Button>
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-3">
+              {activeScansData.items.map((scan) => (
+                <div key={scan.id} className="flex items-center gap-4 rounded-lg border bg-card/50 p-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium text-sm truncate">{scan.name}</span>
+                      <Badge variant="outline" className="text-[10px] shrink-0">{capitalize(scan.type)}</Badge>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{scan.progress.completed_tasks + scan.progress.failed_tasks}/{scan.progress.total_tasks} tasks</span>
+                      <span>·</span>
+                      <span className="flex items-center gap-1">
+                        <Activity className="h-3 w-3 text-blue-500" />
+                        {scan.findings_count} findings
+                      </span>
+                    </div>
+                  </div>
+                  <div className="w-32 shrink-0">
+                    <div className="flex justify-end text-xs text-muted-foreground mb-1">
+                      {scan.progress.percentage}%
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-blue-500 transition-all duration-500 ease-out"
+                        style={{ width: `${scan.progress.percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Charts */}
       <div className="mb-6 grid gap-6 lg:grid-cols-2">
         <Card>
@@ -272,9 +351,10 @@ export function Dashboard() {
           <CardContent>
             <div className="space-y-4">
               {dashboardData.recent_findings.slice(0, 5).map((finding) => (
-                <div
+                <Link
                   key={finding.id}
-                  className="flex items-center justify-between rounded-lg border p-3"
+                  to={`/findings?search=${encodeURIComponent(finding.title)}`}
+                  className="flex items-center justify-between rounded-lg border p-3 cursor-pointer hover:bg-accent/50 transition-colors"
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
@@ -289,7 +369,8 @@ export function Dashboard() {
                       {finding.affected_component} - {formatRelativeTime(finding.created_at)}
                     </p>
                   </div>
-                </div>
+                  <ExternalLink className="h-4 w-4 text-muted-foreground ml-2 flex-shrink-0" />
+                </Link>
               ))}
               {dashboardData.recent_findings.length === 0 && (
                 <p className="text-center text-sm text-muted-foreground">
@@ -307,9 +388,10 @@ export function Dashboard() {
           <CardContent>
             <div className="space-y-4">
               {dashboardData.top_vulnerabilities.slice(0, 5).map((vuln) => (
-                <div
+                <Link
                   key={vuln.cve_id}
-                  className="flex items-center justify-between rounded-lg border p-3"
+                  to={`/vulnerabilities?search=${encodeURIComponent(vuln.cve_id)}`}
+                  className="flex items-center justify-between rounded-lg border p-3 cursor-pointer hover:bg-accent/50 transition-colors"
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
@@ -323,7 +405,8 @@ export function Dashboard() {
                       CVSS: {vuln.cvss_score} - Affects {vuln.affected_assets} assets
                     </p>
                   </div>
-                </div>
+                  <ExternalLink className="h-4 w-4 text-muted-foreground ml-2 flex-shrink-0" />
+                </Link>
               ))}
               {dashboardData.top_vulnerabilities.length === 0 && (
                 <p className="text-center text-sm text-muted-foreground">

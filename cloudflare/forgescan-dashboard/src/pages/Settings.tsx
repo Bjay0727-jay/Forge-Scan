@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useAuth } from '@/lib/auth';
 import { Key, Lock, Trash2, Plus, Copy } from 'lucide-react';
+import { ConfirmBanner } from '@/components/ConfirmBanner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,6 +47,7 @@ export function Settings() {
   const [showNewKey, setShowNewKey] = useState<string | null>(null);
   const [keyDialogOpen, setKeyDialogOpen] = useState(false);
   const [keyLoading, setKeyLoading] = useState(false);
+  const [deleteKeyConfirm, setDeleteKeyConfirm] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     loadApiKeys();
@@ -127,6 +129,7 @@ export function Settings() {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
+      setDeleteKeyConfirm(null);
       loadApiKeys();
     } catch { /* ignore */ }
   }
@@ -193,7 +196,7 @@ export function Settings() {
               <Input id="confirmPw" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required minLength={8} />
             </div>
             {passwordError && <p className="text-sm text-destructive">{passwordError}</p>}
-            {passwordSuccess && <p className="text-sm text-green-600">{passwordSuccess}</p>}
+            {passwordSuccess && <p className="text-sm text-green-400">{passwordSuccess}</p>}
             <Button type="submit" disabled={passwordLoading}>
               {passwordLoading ? 'Changing...' : 'Change Password'}
             </Button>
@@ -217,7 +220,7 @@ export function Settings() {
         <CardContent>
           {showNewKey && (
             <div className="mb-4 rounded-md border border-green-500/20 bg-green-500/10 p-4">
-              <p className="mb-2 text-sm font-medium text-green-600">New API Key (save it now - it won't be shown again):</p>
+              <p className="mb-2 text-sm font-medium text-green-400">New API Key (save it now - it won't be shown again):</p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 rounded bg-muted px-3 py-2 text-sm font-mono">{showNewKey}</code>
                 <Button variant="outline" size="sm" onClick={() => navigator.clipboard.writeText(showNewKey)}>
@@ -226,6 +229,17 @@ export function Settings() {
               </div>
               <Button variant="ghost" size="sm" className="mt-2" onClick={() => setShowNewKey(null)}>Dismiss</Button>
             </div>
+          )}
+
+          {deleteKeyConfirm && (
+            <ConfirmBanner
+              title="Delete API Key"
+              description={`Are you sure you want to delete "${deleteKeyConfirm.name}"? Any systems using this key will lose access.`}
+              confirmLabel="Delete"
+              onConfirm={() => handleDeleteKey(deleteKeyConfirm.id)}
+              onCancel={() => setDeleteKeyConfirm(null)}
+              variant="destructive"
+            />
           )}
 
           {apiKeys.length === 0 ? (
@@ -241,7 +255,7 @@ export function Settings() {
                       {key.last_used_at && ` | Last used ${new Date(key.last_used_at).toLocaleDateString()}`}
                     </p>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => handleDeleteKey(key.id)}>
+                  <Button variant="ghost" size="sm" onClick={() => setDeleteKeyConfirm({ id: key.id, name: key.name })}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>

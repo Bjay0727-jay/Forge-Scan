@@ -60,13 +60,13 @@ const assetFormats: { value: string; label: string; description: string }[] = [
 
 function ImportResultCard({ result }: { result: ImportResult }) {
   return (
-    <Card className={result.success ? 'border-green-200' : 'border-red-200'}>
+    <Card className={result.success ? 'border-green-500/30' : 'border-red-500/30'}>
       <CardContent className="pt-6">
         <div className="flex items-start gap-4">
           {result.success ? (
-            <CheckCircle className="h-8 w-8 text-green-600" />
+            <CheckCircle className="h-8 w-8 text-green-400" />
           ) : (
-            <AlertCircle className="h-8 w-8 text-red-600" />
+            <AlertCircle className="h-8 w-8 text-red-400" />
           )}
           <div className="flex-1">
             <h3 className="text-lg font-semibold">
@@ -75,23 +75,23 @@ function ImportResultCard({ result }: { result: ImportResult }) {
             <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Imported:</span>
-                <span className="ml-2 font-medium text-green-600">
+                <span className="ml-2 font-medium text-green-400">
                   {result.imported_count}
                 </span>
               </div>
               <div>
                 <span className="text-muted-foreground">Failed:</span>
-                <span className="ml-2 font-medium text-red-600">
+                <span className="ml-2 font-medium text-red-400">
                   {result.failed_count}
                 </span>
               </div>
             </div>
             {result.errors.length > 0 && (
               <div className="mt-4">
-                <h4 className="mb-2 text-sm font-medium text-red-600">Errors:</h4>
+                <h4 className="mb-2 text-sm font-medium text-red-400">Errors:</h4>
                 <ul className="max-h-40 overflow-auto rounded-lg bg-muted p-3 text-xs">
                   {result.errors.map((error, i) => (
-                    <li key={i} className="text-red-600">
+                    <li key={i} className="text-red-400">
                       {error}
                     </li>
                   ))}
@@ -362,7 +362,7 @@ export function Import() {
               </Tabs>
 
               {error && (
-                <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+                <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400">
                   {error}
                 </div>
               )}

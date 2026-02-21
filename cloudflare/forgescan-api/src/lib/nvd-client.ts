@@ -122,48 +122,36 @@ export interface VulnerabilityRecord {
 
 export class NVDClient {
   private apiKey?: string;
-  private requestCount = 0;
-  private windowStart = Date.now();
 
   constructor(apiKey?: string) {
     this.apiKey = apiKey;
   }
 
-  private async rateLimitedFetch(url: string): Promise<Response> {
-    // NVD rate limits: 50 req/30s with key, 5 req/30s without
-    const maxRequests = this.apiKey ? 50 : 5;
-    const windowMs = 30000;
-
-    const now = Date.now();
-    if (now - this.windowStart > windowMs) {
-      this.requestCount = 0;
-      this.windowStart = now;
-    }
-
-    if (this.requestCount >= maxRequests) {
-      const waitTime = windowMs - (now - this.windowStart) + 1000;
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-      this.requestCount = 0;
-      this.windowStart = Date.now();
-    }
-
-    this.requestCount++;
-
+  private async fetchWithRetry(url: string, maxRetries = 3): Promise<Response> {
     const headers: Record<string, string> = {
       'User-Agent': 'ForgeScan/1.0',
     };
-
-    const response = await fetch(url, { headers });
-
-    if (response.status === 403 || response.status === 429) {
-      // Rate limited - wait and retry once
-      await new Promise(resolve => setTimeout(resolve, 6000));
-      this.requestCount = 0;
-      this.windowStart = Date.now();
-      return fetch(url, { headers });
+    // NVD recommends sending the API key via header, not query param
+    if (this.apiKey) {
+      headers['apiKey'] = this.apiKey;
     }
 
-    return response;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const response = await fetch(url, { headers });
+
+      if (response.status === 429 || response.status === 403) {
+        // Rate limited — exponential backoff: 8s, 16s, 32s
+        const backoffMs = Math.min(8000 * Math.pow(2, attempt), 32000);
+        console.log(`NVD rate limited (${response.status}), backing off ${backoffMs}ms (attempt ${attempt + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, backoffMs));
+        continue;
+      }
+
+      return response;
+    }
+
+    // Final attempt after all retries exhausted
+    return fetch(url, { headers });
   }
 
   async fetchCVEs(params: NVDFetchParams = {}): Promise<NVDResponse> {
@@ -177,10 +165,9 @@ export class NVDClient {
     if (params.resultsPerPage !== undefined) searchParams.set('resultsPerPage', String(params.resultsPerPage));
     if (params.keywordSearch) searchParams.set('keywordSearch', params.keywordSearch);
     if (params.cveId) searchParams.set('cveId', params.cveId);
-    if (this.apiKey) searchParams.set('apiKey', this.apiKey);
 
     const url = `${NVD_API_BASE}?${searchParams.toString()}`;
-    const response = await this.rateLimitedFetch(url);
+    const response = await this.fetchWithRetry(url);
 
     if (!response.ok) {
       throw new Error(`NVD API error: ${response.status} ${response.statusText}`);

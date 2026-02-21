@@ -1,11 +1,22 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Shield } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+
+// Forge Cyber Defense logo for login page
+function ForgeLoginLogo() {
+  return (
+    <img
+      src="/forge-logo-800.png"
+      alt="Forge Cyber Defense"
+      className="mx-auto mb-2 w-80 h-auto"
+      draggable={false}
+    />
+  );
+}
 
 export function Login() {
   const [email, setEmail] = useState('');
@@ -29,7 +40,6 @@ export function Login() {
 
     try {
       if (mode === 'register') {
-        // Register first, then login
         const regResponse = await fetch(`${API_BASE_URL}/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -52,18 +62,21 @@ export function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+    <div className="flex min-h-screen items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #060f1a 0%, #091e36 50%, #0F2A4A 100%)' }}>
+      <Card className="w-full max-w-md border-navy-700/50" style={{ background: 'rgba(9,30,54,0.9)', backdropFilter: 'blur(20px)' }}>
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-            <Shield className="h-8 w-8 text-primary" />
-          </div>
-          <CardTitle className="text-2xl">ForgeScan 360</CardTitle>
-          <CardDescription>
+          <ForgeLoginLogo />
+          <CardTitle className="text-2xl text-white" style={{ fontFamily: 'Sora, Inter, system-ui, sans-serif' }}>
+            ForgeScan 360
+          </CardTitle>
+          <CardDescription className="text-navy-300">
             {mode === 'login'
               ? 'Sign in to your account'
               : 'Create your first admin account'}
           </CardDescription>
+          <p className="text-[10px] tracking-widest uppercase mt-1" style={{ color: '#4b77a9' }}>
+            Forge Cyber Defense
+          </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -129,7 +142,7 @@ export function Login() {
             <div className="text-center">
               <button
                 type="button"
-                className="text-sm text-muted-foreground hover:text-foreground"
+                className="text-sm text-muted-foreground hover:text-teal-400 transition-colors"
                 onClick={() => {
                   setMode(mode === 'login' ? 'register' : 'login');
                   setError('');

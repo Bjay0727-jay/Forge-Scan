@@ -7,8 +7,8 @@ compatibility_flags = ["nodejs_compat"]
 [build]
 command = "npm install && npm run build"
 
-# Account configuration
-account_id = "a819beba814a038e048a4b39dad86c63"
+# Account ID is read from CLOUDFLARE_ACCOUNT_ID env var (set in CI secrets or .env)
+# account_id = "..." — do not hardcode; use `wrangler whoami` or env var
 
 # D1 Database binding
 [[d1_databases]]

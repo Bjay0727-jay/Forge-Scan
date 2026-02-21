@@ -11,6 +11,7 @@ import {
   XCircle,
   Eye,
 } from 'lucide-react';
+import { ConfirmBanner } from '@/components/ConfirmBanner';
 import { useAuth, hasRole } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -114,6 +115,9 @@ export function Integrations() {
     secret: '',
   });
 
+  // Confirm actions
+  const [confirmAction, setConfirmAction] = useState<{ type: 'delete' | 'disable'; id: string; name: string } | null>(null);
+
   // Logs dialog
   const [logsOpen, setLogsOpen] = useState(false);
   const [logsIntegration, setLogsIntegration] = useState<Integration | null>(null);
@@ -191,6 +195,7 @@ export function Integrations() {
         headers: getAuthHeaders(),
         body: JSON.stringify({ is_active: !currentActive }),
       });
+      setConfirmAction(null);
       loadData();
     } catch { /* ignore */ }
   }
@@ -201,6 +206,7 @@ export function Integrations() {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
+      setConfirmAction(null);
       loadData();
     } catch { /* ignore */ }
   }
@@ -307,6 +313,25 @@ export function Integrations() {
         </div>
       </div>
 
+      {/* Confirm Action Banner */}
+      {confirmAction && (
+        <ConfirmBanner
+          title={confirmAction.type === 'delete' ? 'Delete Integration' : 'Disable Integration'}
+          description={
+            confirmAction.type === 'delete'
+              ? `Are you sure you want to delete "${confirmAction.name}"? This cannot be undone.`
+              : `Are you sure you want to disable "${confirmAction.name}"? It will stop sending notifications.`
+          }
+          confirmLabel={confirmAction.type === 'delete' ? 'Delete' : 'Disable'}
+          onConfirm={() => {
+            if (confirmAction.type === 'delete') deleteIntegration(confirmAction.id);
+            else toggleIntegration(confirmAction.id, 1);
+          }}
+          onCancel={() => setConfirmAction(null)}
+          variant={confirmAction.type === 'delete' ? 'destructive' : 'warning'}
+        />
+      )}
+
       {/* Integrations List */}
       <Card>
         <CardHeader>
@@ -348,7 +373,14 @@ export function Integrations() {
                       <Badge
                         variant={i.is_active ? 'default' : 'secondary'}
                         className="cursor-pointer"
-                        onClick={() => isAdmin && toggleIntegration(i.id, i.is_active)}
+                        onClick={() => {
+                          if (!isAdmin) return;
+                          if (i.is_active) {
+                            setConfirmAction({ type: 'disable', id: i.id, name: i.name });
+                          } else {
+                            toggleIntegration(i.id, i.is_active);
+                          }
+                        }}
                       >
                         {i.is_active ? 'Active' : 'Disabled'}
                       </Badge>
@@ -360,19 +392,19 @@ export function Integrations() {
                         <Button variant="ghost" size="icon" onClick={() => testIntegration(i.id)} disabled={testing === i.id}>
                           {testing === i.id
                             ? <RefreshCw className="h-4 w-4 animate-spin" />
-                            : <TestTube2 className="h-4 w-4 text-blue-600" />}
+                            : <TestTube2 className="h-4 w-4 text-blue-400" />}
                         </Button>
                         <Button variant="ghost" size="icon" onClick={() => viewLogs(i)}>
                           <Eye className="h-4 w-4" />
                         </Button>
                         {isAdmin && (
-                          <Button variant="ghost" size="icon" onClick={() => deleteIntegration(i.id)}>
+                          <Button variant="ghost" size="icon" onClick={() => setConfirmAction({ type: 'delete', id: i.id, name: i.name })}>
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         )}
                       </div>
                       {testResult?.id === i.id && (
-                        <div className={`mt-1 flex items-center gap-1 text-xs ${testResult.success ? 'text-green-600' : 'text-red-500'}`}>
+                        <div className={`mt-1 flex items-center gap-1 text-xs ${testResult.success ? 'text-green-400' : 'text-red-500'}`}>
                           {testResult.success ? <CheckCircle className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
                           {testResult.message}
                         </div>

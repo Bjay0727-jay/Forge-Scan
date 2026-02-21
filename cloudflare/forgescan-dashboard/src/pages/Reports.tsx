@@ -72,7 +72,7 @@ const reportTypes = [
     description: 'High-level security posture overview with risk score, severity breakdown, and recommendations.',
     icon: BarChart3,
     formats: ['pdf', 'json'],
-    color: 'text-blue-600',
+    color: 'text-blue-400',
   },
   {
     type: 'findings',
@@ -80,7 +80,7 @@ const reportTypes = [
     description: 'Detailed vulnerability findings with severity, affected assets, CVE data, and remediation guidance.',
     icon: AlertTriangle,
     formats: ['pdf', 'csv', 'json'],
-    color: 'text-orange-600',
+    color: 'text-orange-400',
   },
   {
     type: 'compliance',
@@ -88,7 +88,7 @@ const reportTypes = [
     description: 'Framework compliance status across NIST 800-53, CIS v8, PCI DSS, and HIPAA with gap analysis.',
     icon: Shield,
     formats: ['pdf', 'csv', 'json'],
-    color: 'text-green-600',
+    color: 'text-green-400',
   },
   {
     type: 'assets',
@@ -113,7 +113,7 @@ const formatLabel = (fmt: string) => fmt.toUpperCase();
 
 const statusBadge = (status: string) => {
   switch (status) {
-    case 'completed': return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Completed</Badge>;
+    case 'completed': return <Badge className="bg-green-500/15 text-green-400 hover:bg-green-500/20">Completed</Badge>;
     case 'failed': return <Badge variant="destructive">Failed</Badge>;
     case 'pending': return <Badge variant="secondary">Pending</Badge>;
     default: return <Badge variant="secondary">{status}</Badge>;

@@ -15,9 +15,9 @@ interface StateBarChartProps {
 
 export function StateBarChart({ data }: StateBarChartProps) {
   const chartData = [
-    { name: 'Open', value: data.open || 0, fill: '#dc2626' },
-    { name: 'Acknowledged', value: data.acknowledged || 0, fill: '#ca8a04' },
-    { name: 'Resolved', value: data.resolved || 0, fill: '#16a34a' },
+    { name: 'Open', value: data.open || 0, fill: '#ef4444' },
+    { name: 'Acknowledged', value: data.acknowledged || 0, fill: '#eab308' },
+    { name: 'Resolved', value: data.resolved || 0, fill: '#22c55e' },
     { name: 'False Positive', value: data.false_positive || 0, fill: '#6b7280' },
   ];
 

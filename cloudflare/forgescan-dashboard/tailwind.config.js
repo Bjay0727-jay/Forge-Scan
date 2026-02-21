@@ -48,6 +48,25 @@ export default {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        // Forge Cyber Defense Brand Colors
+        navy: {
+          50: '#e6edf5',
+          100: '#c0d0e3',
+          200: '#96b0ce',
+          300: '#6b8fb9',
+          400: '#4b77a9',
+          500: '#2b5f9a',
+          600: '#1a3a5c',
+          700: '#0F2A4A',
+          800: '#091e36',
+          900: '#060f1a',
+        },
+        teal: {
+          400: '#14b8a6',
+          500: '#0D9488',
+          600: '#0f766e',
+          700: '#0d6560',
+        },
         severity: {
           critical: '#dc2626',
           high: '#ea580c',
@@ -55,6 +74,10 @@ export default {
           low: '#16a34a',
           info: '#2563eb',
         },
+      },
+      fontFamily: {
+        heading: ['Sora', 'Inter', 'system-ui', 'sans-serif'],
+        body: ['Inter', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         lg: 'var(--radius)',

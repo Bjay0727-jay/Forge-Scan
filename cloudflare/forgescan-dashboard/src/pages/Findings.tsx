@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { AlertTriangle, Search, CheckCircle, Eye } from 'lucide-react';
+import { AlertTriangle, Search, CheckCircle, Eye, ArrowUpDown, ArrowUp, ArrowDown, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -193,8 +193,36 @@ export function Findings() {
   const [search, setSearch] = useState('');
   const [severityFilter, setSeverityFilter] = useState<Severity | 'all'>('all');
   const [stateFilter, setStateFilter] = useState<FindingState | 'all'>('all');
+  const [vendorFilter, setVendorFilter] = useState('all');
   const [selectedFinding, setSelectedFinding] = useState<Finding | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [sortBy, setSortBy] = useState('severity');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (column: string) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('desc');
+    }
+  };
+
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortBy !== column) return <ArrowUpDown className="ml-1 h-3 w-3 opacity-50" />;
+    return sortOrder === 'asc'
+      ? <ArrowUp className="ml-1 h-3 w-3 text-primary" />
+      : <ArrowDown className="ml-1 h-3 w-3 text-primary" />;
+  };
+
+  const hasActiveFilters = severityFilter !== 'all' || stateFilter !== 'all' || vendorFilter !== 'all' || search !== '';
+
+  const clearFilters = () => {
+    setSearch('');
+    setSeverityFilter('all');
+    setStateFilter('all');
+    setVendorFilter('all');
+  };
 
   const fetchFindings = useCallback(
     (page: number, pageSize: number) => {
@@ -204,10 +232,13 @@ export function Findings() {
         search: search || undefined,
         severity: severityFilter === 'all' ? undefined : severityFilter,
         state: stateFilter === 'all' ? undefined : stateFilter,
+        vendor: vendorFilter === 'all' ? undefined : vendorFilter,
+        sort_by: sortBy,
+        sort_order: sortOrder,
       };
       return findingsApi.list(params);
     },
-    [search, severityFilter, stateFilter]
+    [search, severityFilter, stateFilter, vendorFilter, sortBy, sortOrder]
   );
 
   const {
@@ -293,6 +324,27 @@ export function Findings() {
                 ))}
               </SelectContent>
             </Select>
+            <Select
+              value={vendorFilter}
+              onValueChange={setVendorFilter}
+            >
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Vendor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Vendors</SelectItem>
+                <SelectItem value="nessus">Nessus</SelectItem>
+                <SelectItem value="qualys">Qualys</SelectItem>
+                <SelectItem value="rapid7">Rapid7</SelectItem>
+                <SelectItem value="crowdstrike">CrowdStrike</SelectItem>
+                <SelectItem value="forgescan">ForgeScan</SelectItem>
+              </SelectContent>
+            </Select>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1.5 text-muted-foreground hover:text-foreground">
+                <XCircle className="h-4 w-4" /> Clear Filters
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -328,12 +380,18 @@ export function Findings() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Severity</TableHead>
-                    <TableHead>Title</TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort('severity')}>
+                      <span className="flex items-center">Severity <SortIcon column="severity" /></span>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort('title')}>
+                      <span className="flex items-center">Title <SortIcon column="title" /></span>
+                    </TableHead>
                     <TableHead>CVE</TableHead>
                     <TableHead>Component</TableHead>
                     <TableHead>State</TableHead>
-                    <TableHead>Last Seen</TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort('last_seen')}>
+                      <span className="flex items-center">Last Seen <SortIcon column="last_seen" /></span>
+                    </TableHead>
                     <TableHead className="w-[120px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -398,7 +456,7 @@ export function Findings() {
                               size="icon"
                               onClick={() => handleQuickResolve(finding)}
                             >
-                              <CheckCircle className="h-4 w-4 text-green-600" />
+                              <CheckCircle className="h-4 w-4 text-green-400" />
                             </Button>
                           )}
                         </div>

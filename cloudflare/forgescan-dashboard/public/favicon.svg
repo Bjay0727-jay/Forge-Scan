@@ -1,10 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <defs>
-    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#1d4ed8;stop-opacity:1" />
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#0F2A4A"/>
+      <stop offset="48%" style="stop-color:#0F2A4A"/>
+      <stop offset="52%" style="stop-color:#0D9488"/>
+      <stop offset="100%" style="stop-color:#0D9488"/>
     </linearGradient>
   </defs>
-  <circle cx="50" cy="50" r="45" fill="url(#grad)" />
-  <path d="M30 50 L45 65 L70 35" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <path d="M50,8 L85,22 L85,55 C85,75 70,88 50,95 C30,88 15,75 15,55 L15,22 Z" fill="url(#shieldGrad)"/>
+  <path d="M50,16 L78,28 L78,54 C78,70 66,82 50,88 C34,82 22,70 22,54 L22,28 Z" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <path d="M38,52 L46,60 L64,38" fill="none" stroke="#14b8a6" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

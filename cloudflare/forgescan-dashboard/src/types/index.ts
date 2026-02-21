@@ -81,6 +81,75 @@ export interface Scan {
   updated_at: string;
 }
 
+// Scan task status
+export type TaskStatus = 'queued' | 'assigned' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+// Scan task (from scan_tasks table)
+export interface ScanTask {
+  id: string;
+  scan_id: string;
+  scanner_id: string | null;
+  task_type: string;
+  status: TaskStatus;
+  priority: number;
+  findings_count: number;
+  assets_discovered: number;
+  result_summary: string | null;
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+// Progress summary for a scan's tasks
+export interface ScanProgress {
+  total_tasks: number;
+  completed_tasks: number;
+  running_tasks: number;
+  failed_tasks: number;
+  queued_tasks: number;
+  assigned_tasks: number;
+  percentage: number;
+}
+
+// Active scan with progress info (from /scans/active)
+export interface ActiveScan {
+  id: string;
+  name: string;
+  type: ScanType;
+  status: ScanStatus;
+  target: string;
+  findings_count: number;
+  assets_count: number;
+  started_at: string | null;
+  created_at: string;
+  progress: ScanProgress;
+}
+
+// Task summary for /scans/:id/tasks
+export interface TaskSummary {
+  total: number;
+  completed: number;
+  running: number;
+  failed: number;
+  queued: number;
+  assigned: number;
+  total_findings: number;
+  total_assets: number;
+}
+
+// Scan tasks API response
+export interface ScanTasksResponse {
+  tasks: ScanTask[];
+  summary: TaskSummary;
+}
+
+// Active scans API response
+export interface ActiveScansResponse {
+  items: ActiveScan[];
+  has_active: boolean;
+}
+
 // Dashboard statistics
 export interface DashboardStats {
   total_assets: number;
@@ -146,6 +215,7 @@ export interface FindingListParams extends ListParams {
   asset_id?: string;
   scan_id?: string;
   cve_id?: string;
+  vendor?: string;
 }
 
 export interface ScanListParams extends ListParams {

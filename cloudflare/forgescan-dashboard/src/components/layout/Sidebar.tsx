@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   Scan,
   Upload,
-  Shield,
   ShieldAlert,
   Cpu,
   Plug,
@@ -20,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { useAuth, hasRole } from '@/lib/auth';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+
 
 const mainNavigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -52,23 +52,31 @@ export function Sidebar() {
     navigate('/login');
   };
 
-  const roleBadgeVariant = (role: string) => {
+  const roleBadgeColor = (role: string) => {
     switch (role) {
-      case 'platform_admin': return 'destructive' as const;
-      case 'scan_admin': return 'default' as const;
-      default: return 'secondary' as const;
+      case 'platform_admin': return 'bg-teal-500/20 text-teal-400 border-teal-500/30';
+      case 'scan_admin': return 'bg-navy-500/20 text-navy-300 border-navy-400/30';
+      default: return 'bg-navy-600/20 text-navy-300 border-navy-400/20';
     }
   };
 
   return (
-    <div className="flex h-full w-64 flex-col border-r bg-card">
-      <div className="flex h-16 items-center gap-2 border-b px-6">
-        <Shield className="h-8 w-8 text-primary" />
-        <span className="text-xl font-bold">ForgeScan</span>
+    <div className="flex h-full w-64 flex-col" style={{ background: '#060f1a' }}>
+      {/* Brand Header */}
+      <div className="flex flex-col items-center justify-center px-2 pt-4 pb-3" style={{ borderBottom: '1px solid rgba(75,119,169,0.2)' }}>
+        <img
+          src="/forge-logo-400.png"
+          alt="Forge Cyber Defense"
+          className="w-60 h-auto"
+          draggable={false}
+        />
+        <span className="text-[13px] font-semibold tracking-[0.35em] uppercase -mt-1" style={{ color: '#14b8a6', fontFamily: 'Sora, Inter, system-ui, sans-serif' }}>
+          ForgeScan 360
+        </span>
       </div>
 
       {/* Main Navigation */}
-      <nav className="flex-1 space-y-1 p-4">
+      <nav className="flex-1 space-y-0.5 px-3 py-4 overflow-y-auto">
         {mainNavigation.map((item) => (
           <NavLink
             key={item.name}
@@ -76,14 +84,19 @@ export function Sidebar() {
             end={item.href === '/'}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150',
                 isActive
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                  ? 'text-white'
+                  : 'hover:text-white'
               )
             }
+            style={({ isActive }) => ({
+              background: isActive ? 'rgba(13,148,136,0.15)' : 'transparent',
+              color: isActive ? '#14b8a6' : '#6b8fb9',
+              border: isActive ? '1px solid rgba(13,148,136,0.2)' : '1px solid transparent',
+            })}
           >
-            <item.icon className="h-5 w-5" />
+            <item.icon className="h-[18px] w-[18px] flex-shrink-0" />
             {item.name}
           </NavLink>
         ))}
@@ -91,22 +104,29 @@ export function Sidebar() {
         {/* Admin Section */}
         {hasRole(user, 'platform_admin') && (
           <>
-            <div className="my-3 border-t" />
-            <p className="px-3 text-xs font-semibold uppercase text-muted-foreground">Admin</p>
+            <div className="my-3 mx-3" style={{ borderTop: '1px solid rgba(75,119,169,0.2)' }} />
+            <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#4b77a9' }}>
+              Admin
+            </p>
             {adminNavigation.map((item) => (
               <NavLink
                 key={item.name}
                 to={item.href}
                 className={({ isActive }) =>
                   cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150',
                     isActive
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                      ? 'text-white'
+                      : 'hover:text-white'
                   )
                 }
+                style={({ isActive }) => ({
+                  background: isActive ? 'rgba(13,148,136,0.15)' : 'transparent',
+                  color: isActive ? '#14b8a6' : '#6b8fb9',
+                  border: isActive ? '1px solid rgba(13,148,136,0.2)' : '1px solid transparent',
+                })}
               >
-                <item.icon className="h-5 w-5" />
+                <item.icon className="h-[18px] w-[18px] flex-shrink-0" />
                 {item.name}
               </NavLink>
             ))}
@@ -115,42 +135,59 @@ export function Sidebar() {
       </nav>
 
       {/* Bottom Section */}
-      <div className="border-t p-4 space-y-2">
+      <div className="p-3 space-y-2" style={{ borderTop: '1px solid rgba(75,119,169,0.2)' }}>
         {bottomNavigation.map((item) => (
           <NavLink
             key={item.name}
             to={item.href}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150',
                 isActive
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                  ? 'text-white'
+                  : 'hover:text-white'
               )
             }
+            style={({ isActive }) => ({
+              background: isActive ? 'rgba(13,148,136,0.15)' : 'transparent',
+              color: isActive ? '#14b8a6' : '#6b8fb9',
+              border: isActive ? '1px solid rgba(13,148,136,0.2)' : '1px solid transparent',
+            })}
           >
-            <item.icon className="h-5 w-5" />
+            <item.icon className="h-[18px] w-[18px] flex-shrink-0" />
             {item.name}
           </NavLink>
         ))}
 
         {/* User Profile */}
         {user && (
-          <div className="rounded-lg bg-muted p-3">
+          <div className="rounded-lg p-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(75,119,169,0.2)' }}>
             <div className="flex items-center justify-between">
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{user.display_name}</p>
-                <p className="truncate text-xs text-muted-foreground">{user.email}</p>
-                <Badge variant={roleBadgeVariant(user.role)} className="mt-1 text-[10px]">
+                <p className="truncate text-sm font-medium text-white">{user.display_name}</p>
+                <p className="truncate text-xs" style={{ color: '#4b77a9' }}>{user.email}</p>
+                <Badge className={cn('mt-1 text-[10px] border', roleBadgeColor(user.role))}>
                   {user.role.replace('_', ' ')}
                 </Badge>
               </div>
-              <Button variant="ghost" size="sm" onClick={handleLogout} title="Sign out">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLogout}
+                title="Sign out"
+                className="hover:bg-white/[0.06]"
+                style={{ color: '#4b77a9' }}
+              >
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>
           </div>
         )}
+
+        {/* Forge Cyber Defense footer text */}
+        <p className="text-center text-[9px] tracking-wider pt-1" style={{ color: '#1a3a5c' }}>
+          FORGE CYBER DEFENSE
+        </p>
       </div>
     </div>
   );

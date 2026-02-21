@@ -57,7 +57,7 @@ export function RiskTrendChart({ data }: RiskTrendChartProps) {
         <Line
           type="monotone"
           dataKey="risk_score"
-          stroke="hsl(var(--primary))"
+          stroke="#14b8a6"
           strokeWidth={2}
           dot={false}
           name="Risk Score"
@@ -65,7 +65,7 @@ export function RiskTrendChart({ data }: RiskTrendChartProps) {
         <Line
           type="monotone"
           dataKey="critical"
-          stroke="#dc2626"
+          stroke="#ef4444"
           strokeWidth={2}
           dot={false}
           name="Critical"
@@ -73,7 +73,7 @@ export function RiskTrendChart({ data }: RiskTrendChartProps) {
         <Line
           type="monotone"
           dataKey="high"
-          stroke="#ea580c"
+          stroke="#f97316"
           strokeWidth={2}
           dot={false}
           name="High"
@@ -81,7 +81,7 @@ export function RiskTrendChart({ data }: RiskTrendChartProps) {
         <Line
           type="monotone"
           dataKey="medium"
-          stroke="#ca8a04"
+          stroke="#eab308"
           strokeWidth={2}
           dot={false}
           name="Medium"

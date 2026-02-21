@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Server, Search, Plus, Trash2, Eye, Shield } from 'lucide-react';
+import { Server, Search, Plus, Trash2, Eye, Shield, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,6 +32,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ErrorState';
 import { EmptyState } from '@/components/EmptyState';
+import { ConfirmBanner } from '@/components/ConfirmBanner';
 import { Pagination } from '@/components/Pagination';
 import { usePaginatedApi } from '@/hooks/useApi';
 import { assetsApi } from '@/lib/api';
@@ -48,11 +49,11 @@ const assetTypes: AssetType[] = [
 
 function AssetTypeIcon({ type }: { type: AssetType }) {
   const colors: Record<AssetType, string> = {
-    host: 'bg-blue-100 text-blue-600',
-    container: 'bg-purple-100 text-purple-600',
-    cloud_resource: 'bg-cyan-100 text-cyan-600',
-    repository: 'bg-green-100 text-green-600',
-    application: 'bg-orange-100 text-orange-600',
+    host: 'bg-blue-500/15 text-blue-400',
+    container: 'bg-purple-500/15 text-purple-400',
+    cloud_resource: 'bg-cyan-500/15 text-cyan-400',
+    repository: 'bg-green-500/15 text-green-400',
+    application: 'bg-orange-500/15 text-orange-400',
   };
 
   return (
@@ -206,7 +207,7 @@ function AssetDetailDialog({
 
   if (!asset) return null;
 
-  const findings = (detail as any)?.findings as Array<Record<string, unknown>> || [];
+  const findings = (detail as Record<string, unknown>)?.findings as Array<Record<string, unknown>> || [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -232,7 +233,7 @@ function AssetDetailDialog({
             <div>
               <h4 className="mb-1 text-sm font-medium">Operating System</h4>
               <p className="text-sm text-muted-foreground">
-                {(asset.metadata as any)?.os || 'Unknown'}
+                {(asset.metadata as Record<string, unknown>)?.os as string || 'Unknown'}
               </p>
             </div>
           </div>
@@ -285,7 +286,7 @@ function AssetDetailDialog({
                   <div key={String(f.id)} className="rounded border p-3 text-sm">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Badge variant={String(f.severity) as any}>
+                        <Badge variant={String(f.severity) as "default" | "secondary" | "destructive" | "outline"}>
                           {capitalize(String(f.severity))}
                         </Badge>
                         <span className="font-medium">{String(f.title)}</span>
@@ -331,6 +332,18 @@ export function Assets() {
   const [typeFilter, setTypeFilter] = useState<AssetType | 'all'>('all');
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<string>('last_seen');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+
+  function handleSort(column: string) {
+    if (sortBy === column) {
+      setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc');
+    } else {
+      setSortBy(column);
+      setSortOrder('desc');
+    }
+  }
 
   const handleViewAsset = (asset: Asset) => {
     setSelectedAsset(asset);
@@ -344,10 +357,12 @@ export function Assets() {
         page_size: pageSize,
         search: search || undefined,
         type: typeFilter === 'all' ? undefined : typeFilter,
+        sort_by: sortBy,
+        sort_order: sortOrder,
       };
       return assetsApi.list(params);
     },
-    [search, typeFilter]
+    [search, typeFilter, sortBy, sortOrder]
   );
 
   const {
@@ -362,7 +377,7 @@ export function Assets() {
   } = usePaginatedApi<Asset>(fetchAssets);
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this asset?')) return;
+    setDeleteConfirm(null);
     try {
       await assetsApi.delete(id);
       refetch();
@@ -446,15 +461,61 @@ export function Assets() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {deleteConfirm && (
+                <ConfirmBanner
+                  title="Delete this asset?"
+                  description={`This will permanently delete "${deleteConfirm.name}" and all its associated findings.`}
+                  variant="destructive"
+                  confirmLabel="Delete"
+                  onConfirm={() => handleDelete(deleteConfirm.id)}
+                  onCancel={() => setDeleteConfirm(null)}
+                />
+              )}
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Asset</TableHead>
-                    <TableHead>Type</TableHead>
+                    <TableHead
+                      className="cursor-pointer select-none hover:text-primary transition-colors"
+                      style={{ color: sortBy === 'hostname' ? '#14b8a6' : undefined }}
+                      onClick={() => handleSort('hostname')}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        Asset
+                        {sortBy === 'hostname' ? (sortOrder === 'desc' ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />) : <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />}
+                      </span>
+                    </TableHead>
+                    <TableHead
+                      className="cursor-pointer select-none hover:text-primary transition-colors"
+                      style={{ color: sortBy === 'asset_type' ? '#14b8a6' : undefined }}
+                      onClick={() => handleSort('asset_type')}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        Type
+                        {sortBy === 'asset_type' ? (sortOrder === 'desc' ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />) : <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />}
+                      </span>
+                    </TableHead>
                     <TableHead>Identifier</TableHead>
-                    <TableHead>Risk Score</TableHead>
+                    <TableHead
+                      className="cursor-pointer select-none hover:text-primary transition-colors"
+                      style={{ color: sortBy === 'risk_score' ? '#14b8a6' : undefined }}
+                      onClick={() => handleSort('risk_score')}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        Risk Score
+                        {sortBy === 'risk_score' ? (sortOrder === 'desc' ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />) : <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />}
+                      </span>
+                    </TableHead>
                     <TableHead>Tags</TableHead>
-                    <TableHead>Updated</TableHead>
+                    <TableHead
+                      className="cursor-pointer select-none hover:text-primary transition-colors"
+                      style={{ color: sortBy === 'last_seen' ? '#14b8a6' : undefined }}
+                      onClick={() => handleSort('last_seen')}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        Updated
+                        {sortBy === 'last_seen' ? (sortOrder === 'desc' ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />) : <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />}
+                      </span>
+                    </TableHead>
                     <TableHead className="w-[100px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -512,7 +573,7 @@ export function Assets() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDelete(asset.id)}
+                            onClick={() => setDeleteConfirm({ id: asset.id, name: asset.name })}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>

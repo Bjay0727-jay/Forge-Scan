@@ -1,0 +1,194 @@
+name: Cloudflare CI/CD
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "cloudflare/**"
+      - ".github/workflows/cloudflare.yml"
+  push:
+    branches: [main]
+    paths:
+      - "cloudflare/**"
+      - ".github/workflows/cloudflare.yml"
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  # ──────────────────────────────────────────────
+  # Detect which packages changed
+  # ──────────────────────────────────────────────
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      dashboard: ${{ steps.filter.outputs.dashboard }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - "cloudflare/forgescan-api/**"
+            dashboard:
+              - "cloudflare/forgescan-dashboard/**"
+
+  # ──────────────────────────────────────────────
+  # API: Test → Build → Deploy
+  # ──────────────────────────────────────────────
+  api-test:
+    name: "API: Test"
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cloudflare/forgescan-api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: cloudflare/forgescan-api/package-lock.json
+
+      - run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-dist
+          path: cloudflare/forgescan-api/dist/
+          retention-days: 1
+
+  api-deploy:
+    name: "API: Deploy"
+    needs: api-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cloudflare/forgescan-api
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: cloudflare/forgescan-api/package-lock.json
+
+      - run: npm ci
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: api-dist
+          path: cloudflare/forgescan-api/dist/
+
+      - name: Apply D1 migrations
+        run: npx wrangler d1 migrations apply forgescan-db --remote
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy Worker
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  # ──────────────────────────────────────────────
+  # Dashboard: Lint → Test → Build → Deploy
+  # ──────────────────────────────────────────────
+  dashboard-test:
+    name: "Dashboard: Test"
+    needs: changes
+    if: needs.changes.outputs.dashboard == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cloudflare/forgescan-dashboard
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: cloudflare/forgescan-dashboard/package-lock.json
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
+
+      - name: Type check & build
+        run: npm run build
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://forgescan-api.stanley-riley.workers.dev/api/v1' }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-dist
+          path: cloudflare/forgescan-dashboard/dist/
+          retention-days: 1
+
+  dashboard-deploy:
+    name: "Dashboard: Deploy"
+    needs: dashboard-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cloudflare/forgescan-dashboard
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: cloudflare/forgescan-dashboard/package-lock.json
+
+      - run: npm ci
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dashboard-dist
+          path: cloudflare/forgescan-dashboard/dist/
+
+      - name: Deploy to Cloudflare Pages
+        run: npx wrangler pages deploy dist --project-name=forgescan-dashboard
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

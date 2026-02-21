@@ -10,6 +10,7 @@ import {
   WifiOff,
   Activity,
 } from 'lucide-react';
+import { ConfirmBanner } from '@/components/ConfirmBanner';
 import { useAuth, hasRole } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -128,6 +129,7 @@ export function Scanners() {
   const [taskFilter, setTaskFilter] = useState('all');
   const [newKey, setNewKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [deactivateConfirm, setDeactivateConfirm] = useState<{ id: string; scannerId: string } | null>(null);
 
   // Register dialog state
   const [registerOpen, setRegisterOpen] = useState(false);
@@ -193,6 +195,7 @@ export function Scanners() {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
+      setDeactivateConfirm(null);
       loadData();
     } catch { /* ignore */ }
   }
@@ -297,11 +300,11 @@ export function Scanners() {
 
       {/* New Key Display */}
       {newKey && (
-        <Card className="border-green-500/20 bg-green-500/5">
+        <Card className="border-green-500/20 bg-green-500/10">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium text-green-600">Scanner API Key (save this - shown only once)</p>
+                <p className="font-medium text-green-400">Scanner API Key (save this - shown only once)</p>
                 <code className="mt-1 block rounded bg-muted px-3 py-2 font-mono text-sm">{newKey}</code>
               </div>
               <Button variant="outline" size="sm" onClick={copyKey}>
@@ -313,6 +316,18 @@ export function Scanners() {
             </Button>
           </CardContent>
         </Card>
+      )}
+
+      {/* Deactivate Confirm */}
+      {deactivateConfirm && (
+        <ConfirmBanner
+          title="Deactivate Scanner"
+          description={`Are you sure you want to deactivate scanner "${deactivateConfirm.scannerId}"? It will stop processing tasks.`}
+          confirmLabel="Deactivate"
+          onConfirm={() => deactivateScanner(deactivateConfirm.id)}
+          onCancel={() => setDeactivateConfirm(null)}
+          variant="destructive"
+        />
       )}
 
       {/* Scanners Table */}
@@ -366,14 +381,14 @@ export function Scanners() {
                       <TableCell className="text-sm text-muted-foreground">{timeAgo(s.last_heartbeat_at)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2 text-sm">
-                          <span className="text-green-600">{s.tasks_completed} done</span>
+                          <span className="text-green-400">{s.tasks_completed} done</span>
                           {s.running_tasks > 0 && <Badge variant="default" className="text-xs">{s.running_tasks} running</Badge>}
                           {s.tasks_failed > 0 && <span className="text-red-500">{s.tasks_failed} failed</span>}
                         </div>
                       </TableCell>
                       <TableCell>
                         {isAdmin && s.status !== 'disabled' && (
-                          <Button variant="ghost" size="icon" onClick={() => deactivateScanner(s.id)}>
+                          <Button variant="ghost" size="icon" onClick={() => setDeactivateConfirm({ id: s.id, scannerId: s.scanner_id })}>
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         )}

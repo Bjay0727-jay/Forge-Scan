@@ -347,72 +347,50 @@ export async function getSyncStatus(db: D1Database): Promise<{
   };
 }
 
-// --- Helper: Upsert vulnerability ---
+// --- Helper: Upsert vulnerability (atomic INSERT ON CONFLICT to avoid UNIQUE constraint errors) ---
 async function upsertVulnerability(
   db: D1Database,
   record: VulnerabilityRecord
 ): Promise<'added' | 'updated' | 'skipped'> {
-  const existing = await db.prepare(
-    'SELECT id, modified_at FROM vulnerabilities WHERE cve_id = ?'
-  ).bind(record.cve_id).first<{ id: string; modified_at: string }>();
+  // Generate title from CVE ID + first 120 chars of description
+  const title = record.description
+    ? `${record.cve_id}: ${record.description.substring(0, 120)}${record.description.length > 120 ? '...' : ''}`
+    : record.cve_id;
 
-  if (existing) {
-    // Update if modified date is newer
-    if (record.modified_at > (existing.modified_at || '')) {
-      await db.prepare(`
-        UPDATE vulnerabilities SET
-          description = ?,
-          cvss_score = ?,
-          cvss_vector = ?,
-          cvss_version = ?,
-          severity = ?,
-          cwe_ids = ?,
-          affected_products = ?,
-          references_list = ?,
-          published_at = ?,
-          modified_at = ?,
-          updated_at = datetime('now')
-        WHERE id = ?
-      `).bind(
-        record.description,
-        record.cvss_score,
-        record.cvss_vector,
-        record.cvss_version,
-        record.severity,
-        JSON.stringify(record.cwe_ids),
-        JSON.stringify(record.affected_products),
-        JSON.stringify(record.references_list),
-        record.published_at,
-        record.modified_at,
-        existing.id
-      ).run();
-      return 'updated';
-    }
-    return 'skipped';
-  } else {
-    // Generate title from CVE ID + first 120 chars of description
-    const title = record.description
-      ? `${record.cve_id}: ${record.description.substring(0, 120)}${record.description.length > 120 ? '...' : ''}`
-      : record.cve_id;
+  // Atomic upsert: INSERT with ON CONFLICT UPDATE (prevents UNIQUE constraint race conditions)
+  const result = await db.prepare(`
+    INSERT INTO vulnerabilities (id, cve_id, title, description, cvss_score, cvss_vector, cvss_version, severity, cwe_ids, affected_products, references_list, published_at, modified_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(cve_id) DO UPDATE SET
+      title = excluded.title,
+      description = excluded.description,
+      cvss_score = excluded.cvss_score,
+      cvss_vector = excluded.cvss_vector,
+      cvss_version = excluded.cvss_version,
+      severity = excluded.severity,
+      cwe_ids = excluded.cwe_ids,
+      affected_products = excluded.affected_products,
+      references_list = excluded.references_list,
+      published_at = excluded.published_at,
+      modified_at = excluded.modified_at,
+      updated_at = datetime('now')
+    WHERE excluded.modified_at > COALESCE(vulnerabilities.modified_at, '')
+  `).bind(
+    crypto.randomUUID(),
+    record.cve_id,
+    title,
+    record.description,
+    record.cvss_score,
+    record.cvss_vector,
+    record.cvss_version,
+    record.severity,
+    JSON.stringify(record.cwe_ids),
+    JSON.stringify(record.affected_products),
+    JSON.stringify(record.references_list),
+    record.published_at,
+    record.modified_at
+  ).run();
 
-    await db.prepare(`
-      INSERT INTO vulnerabilities (id, cve_id, title, description, cvss_score, cvss_vector, cvss_version, severity, cwe_ids, affected_products, references_list, published_at, modified_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-      crypto.randomUUID(),
-      record.cve_id,
-      title,
-      record.description,
-      record.cvss_score,
-      record.cvss_vector,
-      record.cvss_version,
-      record.severity,
-      JSON.stringify(record.cwe_ids),
-      JSON.stringify(record.affected_products),
-      JSON.stringify(record.references_list),
-      record.published_at,
-      record.modified_at
-    ).run();
-    return 'added';
-  }
+  // changes > 0 = inserted or updated; 0 = skipped (already up-to-date)
+  return result.meta.changes > 0 ? 'added' : 'skipped';
 }

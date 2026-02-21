@@ -6,10 +6,15 @@ export const scans = new Hono<{ Bindings: Env }>();
 
 // List scans
 scans.get('/', async (c) => {
-  const { page = '1', page_size = '20', status, type } = c.req.query();
+  const { page = '1', page_size = '20', status, type, sort_by = 'created_at', sort_order = 'desc' } = c.req.query();
   const pageNum = parseInt(page);
   const pageSizeNum = parseInt(page_size);
   const offset = (pageNum - 1) * pageSizeNum;
+
+  // Validated sort
+  const validSortFields = ['name', 'status', 'scan_type', 'created_at', 'findings_count'];
+  const sortField = validSortFields.includes(sort_by) ? sort_by : 'created_at';
+  const order = sort_order.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
 
   let query = 'SELECT * FROM scans WHERE 1=1';
   let countQuery = 'SELECT COUNT(*) as total FROM scans WHERE 1=1';
@@ -30,7 +35,7 @@ scans.get('/', async (c) => {
     countParams.push(type);
   }
 
-  query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+  query += ` ORDER BY ${sortField} ${order} NULLS LAST LIMIT ? OFFSET ?`;
 
   const result = await c.env.DB.prepare(query).bind(...params, pageSizeNum, offset).all();
   const countResult = await c.env.DB.prepare(countQuery).bind(...countParams).first<{ total: number }>();
@@ -60,6 +65,59 @@ scans.get('/', async (c) => {
     page_size: pageSizeNum,
     total_pages: totalPages,
   });
+});
+
+// Get active scans with task progress (for dashboard polling)
+scans.get('/active', async (c) => {
+  try {
+    const result = await c.env.DB.prepare(`
+      SELECT s.id, s.name, s.scan_type, s.status, s.targets, s.findings_count,
+             s.assets_count, s.started_at, s.created_at, s.updated_at,
+             (SELECT COUNT(*) FROM scan_tasks t WHERE t.scan_id = s.id) as total_tasks,
+             (SELECT COUNT(*) FROM scan_tasks t WHERE t.scan_id = s.id AND t.status = 'completed') as completed_tasks,
+             (SELECT COUNT(*) FROM scan_tasks t WHERE t.scan_id = s.id AND t.status = 'running') as running_tasks,
+             (SELECT COUNT(*) FROM scan_tasks t WHERE t.scan_id = s.id AND t.status = 'failed') as failed_tasks,
+             (SELECT COUNT(*) FROM scan_tasks t WHERE t.scan_id = s.id AND t.status = 'queued') as queued_tasks,
+             (SELECT COUNT(*) FROM scan_tasks t WHERE t.scan_id = s.id AND t.status = 'assigned') as assigned_tasks
+      FROM scans s
+      WHERE s.status IN ('running', 'pending', 'queued')
+      ORDER BY s.started_at DESC NULLS LAST, s.created_at DESC
+    `).all();
+
+    const items = (result.results || []).map((s: Record<string, unknown>) => {
+      const totalTasks = (s.total_tasks as number) || 0;
+      const completedTasks = (s.completed_tasks as number) || 0;
+      const failedTasks = (s.failed_tasks as number) || 0;
+
+      return {
+        id: s.id,
+        name: s.name,
+        type: s.scan_type,
+        status: s.status,
+        target: s.targets ? JSON.parse(String(s.targets)).join(', ') : '',
+        findings_count: s.findings_count || 0,
+        assets_count: s.assets_count || 0,
+        started_at: s.started_at,
+        created_at: s.created_at,
+        progress: {
+          total_tasks: totalTasks,
+          completed_tasks: completedTasks,
+          running_tasks: (s.running_tasks as number) || 0,
+          failed_tasks: failedTasks,
+          queued_tasks: (s.queued_tasks as number) || 0,
+          assigned_tasks: (s.assigned_tasks as number) || 0,
+          percentage: totalTasks > 0
+            ? Math.round((completedTasks + failedTasks) / totalTasks * 100)
+            : 0,
+        },
+      };
+    });
+
+    return c.json({ items, has_active: items.length > 0 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: 'Failed to fetch active scans', message }, 500);
+  }
 });
 
 // Get scan by ID
@@ -211,11 +269,23 @@ scans.post('/:id/start', async (c) => {
   }
 });
 
-// Get scan tasks - returns tasks for a specific scan
+// Get scan tasks with summary - returns tasks for a specific scan
 scans.get('/:id/tasks', async (c) => {
   const id = c.req.param('id');
   const tasks = await getTasksForScan(c.env.DB, id);
-  return c.json({ tasks });
+
+  const summary = {
+    total: tasks.length,
+    completed: tasks.filter((t: Record<string, unknown>) => t.status === 'completed').length,
+    running: tasks.filter((t: Record<string, unknown>) => t.status === 'running').length,
+    failed: tasks.filter((t: Record<string, unknown>) => t.status === 'failed').length,
+    queued: tasks.filter((t: Record<string, unknown>) => t.status === 'queued').length,
+    assigned: tasks.filter((t: Record<string, unknown>) => t.status === 'assigned').length,
+    total_findings: tasks.reduce((sum: number, t: Record<string, unknown>) => sum + ((t.findings_count as number) || 0), 0),
+    total_assets: tasks.reduce((sum: number, t: Record<string, unknown>) => sum + ((t.assets_discovered as number) || 0), 0),
+  };
+
+  return c.json({ tasks, summary });
 });
 
 // Cancel scan - also cancels associated scanner tasks

@@ -83,17 +83,17 @@ const statusIcon = (status: string | null) => {
 
 const statusBadge = (status: string | null) => {
   switch (status) {
-    case 'compliant': return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Compliant</Badge>;
+    case 'compliant': return <Badge className="bg-green-500/15 text-green-400 hover:bg-green-500/20">Compliant</Badge>;
     case 'non_compliant': return <Badge variant="destructive">Non-Compliant</Badge>;
-    case 'partial': return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Partial</Badge>;
+    case 'partial': return <Badge className="bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/20">Partial</Badge>;
     default: return <Badge variant="secondary">Not Assessed</Badge>;
   }
 };
 
 const complianceColor = (pct: number) => {
-  if (pct >= 80) return 'text-green-600';
-  if (pct >= 50) return 'text-yellow-600';
-  return 'text-red-600';
+  if (pct >= 80) return 'text-green-400';
+  if (pct >= 50) return 'text-yellow-400';
+  return 'text-red-400';
 };
 
 export function Compliance() {
@@ -219,7 +219,7 @@ export function Compliance() {
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-2xl font-bold text-red-600">
+            <p className="text-2xl font-bold text-red-400">
               {frameworks.filter(f => (f.compliance_percentage || 0) < 50).length}
             </p>
             <p className="text-sm text-muted-foreground">At Risk</p>
@@ -315,7 +315,7 @@ export function Compliance() {
                   <CardContent>
                     {gaps.non_compliant.length > 0 && (
                       <div className="mb-4">
-                        <h4 className="text-sm font-semibold text-red-600 mb-2">Non-Compliant ({gaps.non_compliant.length})</h4>
+                        <h4 className="text-sm font-semibold text-red-400 mb-2">Non-Compliant ({gaps.non_compliant.length})</h4>
                         <div className="space-y-1">
                           {gaps.non_compliant.map(g => (
                             <div key={g.id} className="flex items-center gap-2 text-sm">
@@ -329,7 +329,7 @@ export function Compliance() {
                     )}
                     {gaps.partial.length > 0 && (
                       <div className="mb-4">
-                        <h4 className="text-sm font-semibold text-yellow-600 mb-2">Partial ({gaps.partial.length})</h4>
+                        <h4 className="text-sm font-semibold text-yellow-400 mb-2">Partial ({gaps.partial.length})</h4>
                         <div className="space-y-1">
                           {gaps.partial.map(g => (
                             <div key={g.id} className="flex items-center gap-2 text-sm">

@@ -5,10 +5,15 @@ export const assets = new Hono<{ Bindings: Env }>();
 
 // List all assets
 assets.get('/', async (c) => {
-  const { page = '1', page_size = '20', search, type } = c.req.query();
+  const { page = '1', page_size = '20', search, type, sort_by = 'last_seen', sort_order = 'desc' } = c.req.query();
   const pageNum = parseInt(page);
   const pageSizeNum = parseInt(page_size);
   const offset = (pageNum - 1) * pageSizeNum;
+
+  // Validated sort
+  const validSortFields = ['hostname', 'risk_score', 'asset_type', 'last_seen', 'created_at'];
+  const sortField = validSortFields.includes(sort_by) ? sort_by : 'last_seen';
+  const order = sort_order.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
 
   let query = 'SELECT * FROM assets';
   let countQuery = 'SELECT COUNT(*) as total FROM assets';
@@ -32,7 +37,7 @@ assets.get('/', async (c) => {
     countQuery += whereClause;
   }
 
-  query += ' ORDER BY last_seen DESC LIMIT ? OFFSET ?';
+  query += ` ORDER BY ${sortField} ${order} NULLS LAST LIMIT ? OFFSET ?`;
 
   const result = await c.env.DB.prepare(query)
     .bind(...params, pageSizeNum, offset)

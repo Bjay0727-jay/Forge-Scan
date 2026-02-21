@@ -14,6 +14,8 @@ import type {
   ImportResult,
   ImportFormat,
   Severity,
+  ActiveScansResponse,
+  ScanTasksResponse,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
@@ -254,6 +256,14 @@ export const scansApi = {
   ): Promise<PaginatedResponse<Finding>> => {
     const query = buildQueryString(params as Record<string, string | number | boolean | undefined>);
     return request<PaginatedResponse<Finding>>(`/scans/${id}/findings${query}`);
+  },
+
+  getActive: async (): Promise<ActiveScansResponse> => {
+    return request<ActiveScansResponse>('/scans/active');
+  },
+
+  getTasks: async (id: string): Promise<ScanTasksResponse> => {
+    return request<ScanTasksResponse>(`/scans/${id}/tasks`);
   },
 };
 

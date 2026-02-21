@@ -1,5 +1,6 @@
-import { useState, useCallback } from 'react';
-import { Scan as ScanIcon, Search, Plus, Play, XCircle, Trash2, Eye, Globe, Shield, Server, Code, Cloud, FileCheck } from 'lucide-react';
+import { useState, useCallback, useMemo } from 'react';
+import { Scan as ScanIcon, Search, Plus, Play, XCircle, Trash2, Eye, Globe, Shield, Server, Code, Cloud, FileCheck, ArrowUpDown, ArrowUp, ArrowDown, Activity } from 'lucide-react';
+import { ConfirmBanner } from '@/components/ConfirmBanner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,9 +35,10 @@ import { ErrorState } from '@/components/ErrorState';
 import { EmptyState } from '@/components/EmptyState';
 import { Pagination } from '@/components/Pagination';
 import { usePaginatedApi } from '@/hooks/useApi';
+import { usePollingApi } from '@/hooks/usePollingApi';
 import { scansApi } from '@/lib/api';
 import { formatDateTime, capitalize, getStatusColor } from '@/lib/utils';
-import type { Scan, ScanType, ScanStatus, ScanListParams } from '@/types';
+import type { Scan, ScanType, ScanStatus, ScanListParams, ActiveScan, ScanProgress, ScanTask } from '@/types';
 
 const scanTypes: ScanType[] = [
   'network',
@@ -457,9 +459,9 @@ const frameworkLabels: Record<string, string> = {
 };
 
 const intensityLabels: Record<string, { label: string; color: string }> = {
-  light: { label: 'Light', color: 'bg-green-100 text-green-700' },
-  normal: { label: 'Normal', color: 'bg-blue-100 text-blue-700' },
-  aggressive: { label: 'Aggressive', color: 'bg-red-100 text-red-700' },
+  light: { label: 'Light', color: 'bg-green-500/15 text-green-400' },
+  normal: { label: 'Normal', color: 'bg-blue-500/15 text-blue-400' },
+  aggressive: { label: 'Aggressive', color: 'bg-red-500/15 text-red-400' },
 };
 
 function formatConfigValue(key: string, value: unknown): React.ReactNode {
@@ -485,14 +487,109 @@ function formatConfigValue(key: string, value: unknown): React.ReactNode {
   return <span className="text-sm text-muted-foreground">{JSON.stringify(value)}</span>;
 }
 
+function ScanProgressBar({ progress }: { progress: ScanProgress }) {
+  return (
+    <div className="mt-1.5 space-y-1">
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+        <span>{progress.completed_tasks + progress.failed_tasks}/{progress.total_tasks} tasks</span>
+        <span>{progress.percentage}%</span>
+      </div>
+      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+        <div
+          className="h-full rounded-full bg-blue-500 transition-all duration-500 ease-out"
+          style={{ width: `${progress.percentage}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function TaskStatusDot({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    completed: 'bg-green-500',
+    running: 'bg-blue-500 animate-pulse',
+    failed: 'bg-red-500',
+    queued: 'bg-gray-400',
+    assigned: 'bg-yellow-500',
+    cancelled: 'bg-gray-500',
+  };
+  return <span className={`inline-block h-2 w-2 rounded-full ${colors[status] || 'bg-gray-400'}`} />;
+}
+
+function TaskProgressSection({ scanId, isRunning }: { scanId: string; isRunning: boolean }) {
+  const fetchTasks = useCallback(() => scansApi.getTasks(scanId), [scanId]);
+  const { data: tasksData } = usePollingApi(fetchTasks, {
+    interval: 3000,
+    enabled: isRunning,
+    immediate: true,
+  });
+
+  if (!tasksData) return null;
+
+  const { tasks, summary } = tasksData;
+
+  return (
+    <div>
+      <h4 className="mb-3 text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+        Task Progress
+        {isRunning && <Activity className="h-3 w-3 text-blue-500 animate-pulse" />}
+      </h4>
+      {/* Overall progress */}
+      <div className="rounded-lg border bg-card p-3 mb-3">
+        <div className="flex items-center justify-between text-sm mb-2">
+          <span className="font-medium">{summary.completed + summary.failed} of {summary.total} tasks complete</span>
+          <span className="text-muted-foreground">
+            {summary.total > 0 ? Math.round((summary.completed + summary.failed) / summary.total * 100) : 0}%
+          </span>
+        </div>
+        <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+          <div
+            className="h-full rounded-full bg-blue-500 transition-all duration-500 ease-out"
+            style={{ width: `${summary.total > 0 ? Math.round((summary.completed + summary.failed) / summary.total * 100) : 0}%` }}
+          />
+        </div>
+        <div className="mt-2 flex gap-4 text-xs text-muted-foreground">
+          {summary.running > 0 && <span className="flex items-center gap-1"><TaskStatusDot status="running" /> {summary.running} running</span>}
+          {summary.queued > 0 && <span className="flex items-center gap-1"><TaskStatusDot status="queued" /> {summary.queued} queued</span>}
+          {summary.failed > 0 && <span className="flex items-center gap-1"><TaskStatusDot status="failed" /> {summary.failed} failed</span>}
+          {summary.completed > 0 && <span className="flex items-center gap-1"><TaskStatusDot status="completed" /> {summary.completed} done</span>}
+        </div>
+      </div>
+      {/* Individual tasks */}
+      {tasks.length > 0 && (
+        <div className="rounded-lg border divide-y max-h-48 overflow-y-auto">
+          {tasks.map((task: ScanTask) => (
+            <div key={task.id} className="flex items-center justify-between px-3 py-2 text-sm">
+              <div className="flex items-center gap-2">
+                <TaskStatusDot status={task.status} />
+                <span className="font-mono text-xs">{task.task_type}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                {task.findings_count > 0 && (
+                  <span className="text-xs text-muted-foreground">{task.findings_count} findings</span>
+                )}
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                  {capitalize(task.status)}
+                </Badge>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ScanDetailDialog({
   scan,
   open,
   onOpenChange,
+  activeScan,
 }: {
   scan: Scan | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  activeScan?: ActiveScan | null;
 }) {
   if (!scan) return null;
 
@@ -588,6 +685,22 @@ function ScanDetailDialog({
             </div>
           </div>
 
+          {/* Task Progress - shown for running/pending scans */}
+          {(scan.status === 'running' || scan.status === 'pending') && (
+            <TaskProgressSection scanId={scan.id} isRunning={scan.status === 'running'} />
+          )}
+
+          {/* Live findings from active scan data */}
+          {activeScan && scan.status === 'running' && activeScan.findings_count > scan.findings_count && (
+            <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3">
+              <div className="flex items-center gap-2 text-sm">
+                <Activity className="h-4 w-4 text-blue-500 animate-pulse" />
+                <span className="text-muted-foreground">Live findings count:</span>
+                <span className="font-bold text-blue-400">{activeScan.findings_count}</span>
+              </div>
+            </div>
+          )}
+
           {/* Configuration */}
           {configEntries.length > 0 && (
             <div>
@@ -632,6 +745,26 @@ export function Scans() {
   const [statusFilter, setStatusFilter] = useState<ScanStatus | 'all'>('all');
   const [selectedScan, setSelectedScan] = useState<Scan | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [cancelConfirm, setCancelConfirm] = useState<{ id: string; name: string } | null>(null);
+
+  const handleSort = (column: string) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('desc');
+    }
+  };
+
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortBy !== column) return <ArrowUpDown className="ml-1 h-3 w-3 opacity-50" />;
+    return sortOrder === 'asc'
+      ? <ArrowUp className="ml-1 h-3 w-3 text-primary" />
+      : <ArrowDown className="ml-1 h-3 w-3 text-primary" />;
+  };
 
   const fetchScans = useCallback(
     (page: number, pageSize: number) => {
@@ -641,10 +774,12 @@ export function Scans() {
         search: search || undefined,
         type: typeFilter === 'all' ? undefined : typeFilter,
         status: statusFilter === 'all' ? undefined : statusFilter,
+        sort_by: sortBy,
+        sort_order: sortOrder,
       };
       return scansApi.list(params);
     },
-    [search, typeFilter, statusFilter]
+    [search, typeFilter, statusFilter, sortBy, sortOrder]
   );
 
   const {
@@ -658,6 +793,28 @@ export function Scans() {
     refetch,
   } = usePaginatedApi<Scan>(fetchScans);
 
+  // Check if any visible scans are running/pending
+  const hasRunningScans = useMemo(
+    () => scans.some((s) => s.status === 'running' || s.status === 'pending'),
+    [scans]
+  );
+
+  // Poll active scans for progress data
+  const fetchActiveScans = useCallback(() => scansApi.getActive(), []);
+  const { data: activeScansData } = usePollingApi(fetchActiveScans, {
+    interval: 5000,
+    enabled: hasRunningScans,
+    immediate: hasRunningScans,
+    onDataChange: () => refetch(),
+  });
+
+  // Map active scan data by ID for quick lookup
+  const activeScanMap = useMemo(() => {
+    const map = new Map<string, ActiveScan>();
+    activeScansData?.items?.forEach((s) => map.set(s.id, s));
+    return map;
+  }, [activeScansData]);
+
   const handleStartScan = async (id: string) => {
     try {
       await scansApi.start(id);
@@ -670,6 +827,7 @@ export function Scans() {
   const handleCancelScan = async (id: string) => {
     try {
       await scansApi.cancel(id);
+      setCancelConfirm(null);
       refetch();
     } catch (error) {
       console.error('Failed to cancel scan:', error);
@@ -677,9 +835,9 @@ export function Scans() {
   };
 
   const handleDeleteScan = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this scan?')) return;
     try {
       await scansApi.delete(id);
+      setDeleteConfirm(null);
       refetch();
     } catch (error) {
       console.error('Failed to delete scan:', error);
@@ -777,6 +935,28 @@ export function Scans() {
         />
       ) : (
         <>
+          {deleteConfirm && (
+            <ConfirmBanner
+              title="Delete Scan"
+              description={`Are you sure you want to delete "${deleteConfirm.name}"? This cannot be undone.`}
+              confirmLabel="Delete"
+              onConfirm={() => handleDeleteScan(deleteConfirm.id)}
+              onCancel={() => setDeleteConfirm(null)}
+              variant="destructive"
+            />
+          )}
+
+          {cancelConfirm && (
+            <ConfirmBanner
+              title="Cancel Scan"
+              description={`Are you sure you want to cancel "${cancelConfirm.name}"?`}
+              confirmLabel="Cancel Scan"
+              onConfirm={() => handleCancelScan(cancelConfirm.id)}
+              onCancel={() => setCancelConfirm(null)}
+              variant="warning"
+            />
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle className="text-sm font-medium">
@@ -787,17 +967,29 @@ export function Scans() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Type</TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort('name')}>
+                      <span className="flex items-center">Name <SortIcon column="name" /></span>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort('scan_type')}>
+                      <span className="flex items-center">Type <SortIcon column="scan_type" /></span>
+                    </TableHead>
                     <TableHead>Target</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Findings</TableHead>
-                    <TableHead>Created</TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort('status')}>
+                      <span className="flex items-center">Status <SortIcon column="status" /></span>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort('findings_count')}>
+                      <span className="flex items-center">Findings <SortIcon column="findings_count" /></span>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort('created_at')}>
+                      <span className="flex items-center">Created <SortIcon column="created_at" /></span>
+                    </TableHead>
                     <TableHead className="w-[150px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {scans.map((scan) => (
+                  {scans.map((scan) => {
+                    const activeScan = activeScanMap.get(scan.id);
+                    return (
                     <TableRow key={scan.id}>
                       <TableCell className="font-medium">{scan.name}</TableCell>
                       <TableCell>
@@ -807,11 +999,33 @@ export function Scans() {
                         {scan.target}
                       </TableCell>
                       <TableCell>
-                        <Badge className={getStatusColor(scan.status)}>
-                          {capitalize(scan.status)}
-                        </Badge>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            {scan.status === 'running' && (
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+                              </span>
+                            )}
+                            <Badge className={getStatusColor(scan.status)}>
+                              {capitalize(scan.status)}
+                            </Badge>
+                          </div>
+                          {activeScan?.progress && scan.status === 'running' && (
+                            <ScanProgressBar progress={activeScan.progress} />
+                          )}
+                        </div>
                       </TableCell>
-                      <TableCell>{scan.findings_count}</TableCell>
+                      <TableCell>
+                        {activeScan && scan.status === 'running' ? (
+                          <span className="flex items-center gap-1">
+                            <span className="font-medium text-blue-400">{activeScan.findings_count}</span>
+                            <Activity className="h-3 w-3 text-blue-500 animate-pulse" />
+                          </span>
+                        ) : (
+                          scan.findings_count
+                        )}
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {formatDateTime(scan.created_at)}
                       </TableCell>
@@ -830,16 +1044,16 @@ export function Scans() {
                               size="icon"
                               onClick={() => handleStartScan(scan.id)}
                             >
-                              <Play className="h-4 w-4 text-green-600" />
+                              <Play className="h-4 w-4 text-green-400" />
                             </Button>
                           )}
                           {scan.status === 'running' && (
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleCancelScan(scan.id)}
+                              onClick={() => setCancelConfirm({ id: scan.id, name: scan.name })}
                             >
-                              <XCircle className="h-4 w-4 text-orange-600" />
+                              <XCircle className="h-4 w-4 text-orange-400" />
                             </Button>
                           )}
                           {(scan.status === 'completed' ||
@@ -848,7 +1062,7 @@ export function Scans() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleDeleteScan(scan.id)}
+                              onClick={() => setDeleteConfirm({ id: scan.id, name: scan.name })}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
@@ -856,7 +1070,8 @@ export function Scans() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </CardContent>
@@ -878,6 +1093,7 @@ export function Scans() {
         scan={selectedScan}
         open={detailOpen}
         onOpenChange={setDetailOpen}
+        activeScan={selectedScan ? activeScanMap.get(selectedScan.id) : null}
       />
     </div>
   );

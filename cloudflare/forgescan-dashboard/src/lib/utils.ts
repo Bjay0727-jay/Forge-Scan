@@ -41,43 +41,43 @@ export function formatRelativeTime(date: string | Date): string {
 
 export function getSeverityColor(severity: string): string {
   const colors: Record<string, string> = {
-    critical: 'text-red-600 bg-red-100 border-red-200',
-    high: 'text-orange-600 bg-orange-100 border-orange-200',
-    medium: 'text-yellow-600 bg-yellow-100 border-yellow-200',
-    low: 'text-green-600 bg-green-100 border-green-200',
-    info: 'text-blue-600 bg-blue-100 border-blue-200',
+    critical: 'text-red-400 bg-red-500/15 border-red-500/30',
+    high: 'text-orange-400 bg-orange-500/15 border-orange-500/30',
+    medium: 'text-yellow-400 bg-yellow-500/15 border-yellow-500/30',
+    low: 'text-green-400 bg-green-500/15 border-green-500/30',
+    info: 'text-blue-400 bg-blue-500/15 border-blue-500/30',
   };
   return colors[severity] || colors.info;
 }
 
 export function getSeverityBgColor(severity: string): string {
   const colors: Record<string, string> = {
-    critical: '#dc2626',
-    high: '#ea580c',
-    medium: '#ca8a04',
-    low: '#16a34a',
-    info: '#2563eb',
+    critical: '#ef4444',
+    high: '#f97316',
+    medium: '#eab308',
+    low: '#22c55e',
+    info: '#3b82f6',
   };
   return colors[severity] || colors.info;
 }
 
 export function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
-    pending: 'text-gray-600 bg-gray-100 border-gray-200',
-    running: 'text-blue-600 bg-blue-100 border-blue-200',
-    completed: 'text-green-600 bg-green-100 border-green-200',
-    failed: 'text-red-600 bg-red-100 border-red-200',
-    cancelled: 'text-gray-600 bg-gray-100 border-gray-200',
+    pending: 'text-gray-400 bg-gray-500/15 border-gray-500/30',
+    running: 'text-blue-400 bg-blue-500/15 border-blue-500/30',
+    completed: 'text-green-400 bg-green-500/15 border-green-500/30',
+    failed: 'text-red-400 bg-red-500/15 border-red-500/30',
+    cancelled: 'text-gray-400 bg-gray-500/15 border-gray-500/30',
   };
   return colors[status] || colors.pending;
 }
 
 export function getStateColor(state: string): string {
   const colors: Record<string, string> = {
-    open: 'text-red-600 bg-red-100 border-red-200',
-    acknowledged: 'text-yellow-600 bg-yellow-100 border-yellow-200',
-    resolved: 'text-green-600 bg-green-100 border-green-200',
-    false_positive: 'text-gray-600 bg-gray-100 border-gray-200',
+    open: 'text-red-400 bg-red-500/15 border-red-500/30',
+    acknowledged: 'text-yellow-400 bg-yellow-500/15 border-yellow-500/30',
+    resolved: 'text-green-400 bg-green-500/15 border-green-500/30',
+    false_positive: 'text-gray-400 bg-gray-500/15 border-gray-500/30',
   };
   return colors[state] || colors.open;
 }
