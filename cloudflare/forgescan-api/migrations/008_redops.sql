@@ -54,8 +54,8 @@ CREATE TABLE IF NOT EXISTS redops_campaigns (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX idx_redops_campaigns_status ON redops_campaigns(status);
-CREATE INDEX idx_redops_campaigns_created_at ON redops_campaigns(created_at);
+CREATE INDEX IF NOT EXISTS idx_redops_campaigns_status ON redops_campaigns(status);
+CREATE INDEX IF NOT EXISTS idx_redops_campaigns_created_at ON redops_campaigns(created_at);
 
 -- AI agent instances (individual pen test agents within a campaign)
 CREATE TABLE IF NOT EXISTS redops_agents (
@@ -102,9 +102,9 @@ CREATE TABLE IF NOT EXISTS redops_agents (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX idx_redops_agents_campaign ON redops_agents(campaign_id);
-CREATE INDEX idx_redops_agents_status ON redops_agents(status);
-CREATE INDEX idx_redops_agents_type ON redops_agents(agent_type);
+CREATE INDEX IF NOT EXISTS idx_redops_agents_campaign ON redops_agents(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_redops_agents_status ON redops_agents(status);
+CREATE INDEX IF NOT EXISTS idx_redops_agents_type ON redops_agents(agent_type);
 
 -- Pen test findings (vulnerabilities discovered by AI agents)
 CREATE TABLE IF NOT EXISTS redops_findings (
@@ -162,11 +162,11 @@ CREATE TABLE IF NOT EXISTS redops_findings (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX idx_redops_findings_campaign ON redops_findings(campaign_id);
-CREATE INDEX idx_redops_findings_agent ON redops_findings(agent_id);
-CREATE INDEX idx_redops_findings_severity ON redops_findings(severity);
-CREATE INDEX idx_redops_findings_status ON redops_findings(status);
-CREATE INDEX idx_redops_findings_exploitable ON redops_findings(exploitable);
+CREATE INDEX IF NOT EXISTS idx_redops_findings_campaign ON redops_findings(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_redops_findings_agent ON redops_findings(agent_id);
+CREATE INDEX IF NOT EXISTS idx_redops_findings_severity ON redops_findings(severity);
+CREATE INDEX IF NOT EXISTS idx_redops_findings_status ON redops_findings(status);
+CREATE INDEX IF NOT EXISTS idx_redops_findings_exploitable ON redops_findings(exploitable);
 
 -- Agent type definitions (metadata about each agent type)
 CREATE TABLE IF NOT EXISTS redops_agent_types (
