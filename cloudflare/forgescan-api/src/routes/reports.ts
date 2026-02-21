@@ -385,7 +385,14 @@ reports.post('/generate', requireRole('platform_admin', 'scan_admin', 'vuln_mana
       case 'findings': {
         const data = await buildFindingsData(c.env.DB, body.filters);
         if (format === 'pdf') {
-          content = await generateFindingsPDF(data);
+          // Flatten array filters to comma-separated strings for PDF generator
+          const pdfFilters: Record<string, string | undefined> = {};
+          if (data.filters) {
+            for (const [key, value] of Object.entries(data.filters)) {
+              pdfFilters[key] = Array.isArray(value) ? value.join(', ') : value;
+            }
+          }
+          content = await generateFindingsPDF({ ...data, filters: pdfFilters });
           contentType = 'application/pdf';
           extension = 'pdf';
         } else if (format === 'csv') {

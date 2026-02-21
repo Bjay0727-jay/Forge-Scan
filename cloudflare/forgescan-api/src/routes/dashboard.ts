@@ -145,7 +145,7 @@ dashboard.get('/stats', async (c) => {
     const findings_by_severity: Record<string, number> = {
       critical: 0, high: 0, medium: 0, low: 0, info: 0
     };
-    severityResults.results?.forEach((row: { severity: string; count: number }) => {
+    (severityResults.results as { severity: string; count: number }[])?.forEach((row) => {
       findings_by_severity[row.severity] = row.count;
     });
 
@@ -159,7 +159,7 @@ dashboard.get('/stats', async (c) => {
     const findings_by_state: Record<string, number> = {
       open: 0, acknowledged: 0, resolved: 0, false_positive: 0
     };
-    stateResults.results?.forEach((row: { state: string; count: number }) => {
+    (stateResults.results as { state: string; count: number }[])?.forEach((row) => {
       findings_by_state[row.state] = row.count;
     });
 

@@ -276,13 +276,13 @@ scans.get('/:id/tasks', async (c) => {
 
   const summary = {
     total: tasks.length,
-    completed: tasks.filter((t: Record<string, unknown>) => t.status === 'completed').length,
-    running: tasks.filter((t: Record<string, unknown>) => t.status === 'running').length,
-    failed: tasks.filter((t: Record<string, unknown>) => t.status === 'failed').length,
-    queued: tasks.filter((t: Record<string, unknown>) => t.status === 'queued').length,
-    assigned: tasks.filter((t: Record<string, unknown>) => t.status === 'assigned').length,
-    total_findings: tasks.reduce((sum: number, t: Record<string, unknown>) => sum + ((t.findings_count as number) || 0), 0),
-    total_assets: tasks.reduce((sum: number, t: Record<string, unknown>) => sum + ((t.assets_discovered as number) || 0), 0),
+    completed: tasks.filter((t) => t.status === 'completed').length,
+    running: tasks.filter((t) => t.status === 'running').length,
+    failed: tasks.filter((t) => t.status === 'failed').length,
+    queued: tasks.filter((t) => t.status === 'queued').length,
+    assigned: tasks.filter((t) => t.status === 'assigned').length,
+    total_findings: tasks.reduce((sum, t) => sum + (t.findings_count || 0), 0),
+    total_assets: tasks.reduce((sum, t) => sum + (t.assets_discovered || 0), 0),
   };
 
   return c.json({ tasks, summary });

@@ -153,7 +153,7 @@ importRoutes.post('/', async (c) => {
 importRoutes.post('/upload', async (c) => {
   try {
     const formData = await c.req.formData();
-    const file = formData.get('file') as File;
+    const file = formData.get('file') as unknown as File;
     const format = formData.get('format') as string;
 
     if (!file) {
@@ -169,7 +169,7 @@ importRoutes.post('/upload', async (c) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ format, data: content }),
       }),
-      c.env
+      c.env as unknown as RequestInit
     );
 
     return response;
@@ -279,7 +279,7 @@ importRoutes.post('/assets', async (c) => {
 importRoutes.post('/assets/upload', async (c) => {
   try {
     const formData = await c.req.formData();
-    const file = formData.get('file') as File;
+    const file = formData.get('file') as unknown as File;
     const format = formData.get('format') as string;
 
     if (!file) {
