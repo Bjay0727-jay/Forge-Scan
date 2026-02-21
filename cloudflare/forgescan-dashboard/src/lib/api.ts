@@ -21,6 +21,12 @@ import type {
   IngestVendorInfo,
   IngestVendor,
   IngestDataType,
+  RedOpsCampaign,
+  RedOpsAgent,
+  RedOpsFinding,
+  RedOpsAgentType,
+  RedOpsOverview,
+  CreateCampaignInput,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
@@ -393,6 +399,114 @@ export const ingestApi = {
 
   getVendors: async (): Promise<IngestVendorInfo> => {
     return request<IngestVendorInfo>('/ingest/vendors');
+  },
+};
+
+// ForgeRedOPS API
+export const redopsApi = {
+  // Overview stats
+  getOverview: async (): Promise<RedOpsOverview> => {
+    return request<RedOpsOverview>('/redops/overview');
+  },
+
+  // Campaigns
+  listCampaigns: async (params: {
+    page?: number;
+    page_size?: number;
+    status?: string;
+    type?: string;
+    sort?: string;
+  } = {}): Promise<PaginatedResponse<RedOpsCampaign>> => {
+    const query = buildQueryString(params as Record<string, string | number | boolean | undefined>);
+    return request<PaginatedResponse<RedOpsCampaign>>(`/redops/campaigns${query}`);
+  },
+
+  getCampaign: async (id: string): Promise<RedOpsCampaign> => {
+    return request<RedOpsCampaign>(`/redops/campaigns/${id}`);
+  },
+
+  createCampaign: async (data: CreateCampaignInput): Promise<RedOpsCampaign> => {
+    return request<RedOpsCampaign>('/redops/campaigns', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateCampaign: async (id: string, data: Partial<CreateCampaignInput>): Promise<RedOpsCampaign> => {
+    return request<RedOpsCampaign>(`/redops/campaigns/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  launchCampaign: async (id: string): Promise<{ campaign: RedOpsCampaign; agents_created: number; message: string }> => {
+    return request<{ campaign: RedOpsCampaign; agents_created: number; message: string }>(`/redops/campaigns/${id}/launch`, {
+      method: 'POST',
+    });
+  },
+
+  cancelCampaign: async (id: string): Promise<{ message: string }> => {
+    return request<{ message: string }>(`/redops/campaigns/${id}/cancel`, {
+      method: 'POST',
+    });
+  },
+
+  deleteCampaign: async (id: string): Promise<void> => {
+    return request<void>(`/redops/campaigns/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Agents
+  getCampaignAgents: async (campaignId: string, params: {
+    status?: string;
+    category?: string;
+  } = {}): Promise<RedOpsAgent[]> => {
+    const query = buildQueryString(params as Record<string, string | number | boolean | undefined>);
+    return request<RedOpsAgent[]>(`/redops/campaigns/${campaignId}/agents${query}`);
+  },
+
+  getAgent: async (id: string): Promise<RedOpsAgent> => {
+    return request<RedOpsAgent>(`/redops/agents/${id}`);
+  },
+
+  getAgentTypes: async (category?: string): Promise<RedOpsAgentType[]> => {
+    const query = category ? `?category=${category}` : '';
+    return request<RedOpsAgentType[]>(`/redops/agent-types${query}`);
+  },
+
+  // Findings
+  getCampaignFindings: async (campaignId: string, params: {
+    page?: number;
+    page_size?: number;
+    severity?: string;
+    exploitable?: string;
+    status?: string;
+  } = {}): Promise<PaginatedResponse<RedOpsFinding>> => {
+    const query = buildQueryString(params as Record<string, string | number | boolean | undefined>);
+    return request<PaginatedResponse<RedOpsFinding>>(`/redops/campaigns/${campaignId}/findings${query}`);
+  },
+
+  listFindings: async (params: {
+    page?: number;
+    page_size?: number;
+    severity?: string;
+    exploitable?: string;
+    status?: string;
+  } = {}): Promise<PaginatedResponse<RedOpsFinding>> => {
+    const query = buildQueryString(params as Record<string, string | number | boolean | undefined>);
+    return request<PaginatedResponse<RedOpsFinding>>(`/redops/findings${query}`);
+  },
+
+  updateFinding: async (id: string, data: {
+    status?: string;
+    remediation?: string;
+    remediation_effort?: string;
+  }): Promise<RedOpsFinding> => {
+    return request<RedOpsFinding>(`/redops/findings/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
   },
 };
 

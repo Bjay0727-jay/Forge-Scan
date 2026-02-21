@@ -287,3 +287,148 @@ export interface IngestVendorInfo {
   vendors: string[];
   note: string;
 }
+
+// ─── ForgeRedOPS Types ───────────────────────────────────────────────────────
+
+export type CampaignStatus = 'created' | 'queued' | 'reconnaissance' | 'scanning' | 'exploitation' | 'reporting' | 'completed' | 'failed' | 'cancelled';
+export type CampaignType = 'full' | 'targeted' | 'continuous' | 'validation';
+export type ExploitationLevel = 'passive' | 'safe' | 'moderate' | 'aggressive';
+
+export type AgentCategory = 'web' | 'api' | 'cloud' | 'network' | 'identity';
+export type AgentStatus = 'queued' | 'initializing' | 'reconnaissance' | 'testing' | 'exploiting' | 'reporting' | 'completed' | 'failed' | 'stopped';
+
+export type RedOpsFindingStatus = 'open' | 'confirmed' | 'remediated' | 'accepted_risk' | 'false_positive';
+export type RemediationEffort = 'quick_fix' | 'moderate' | 'significant' | 'architectural';
+
+export interface RedOpsCampaign {
+  id: string;
+  name: string;
+  description: string | null;
+  status: CampaignStatus;
+  campaign_type: CampaignType;
+  target_scope: string;
+  exclusions: string | null;
+  agent_categories: string;
+  max_concurrent_agents: number;
+  exploitation_level: ExploitationLevel;
+  risk_threshold: string;
+  auto_poam: number;
+  compliance_mapping: number;
+  scheduled_at: string | null;
+  total_agents: number;
+  active_agents: number;
+  completed_agents: number;
+  failed_agents: number;
+  findings_count: number;
+  critical_count: number;
+  high_count: number;
+  medium_count: number;
+  low_count: number;
+  info_count: number;
+  exploitable_count: number;
+  created_by: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  duration_seconds: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RedOpsAgent {
+  id: string;
+  campaign_id: string;
+  agent_type: string;
+  agent_category: AgentCategory;
+  status: AgentStatus;
+  target: string | null;
+  tests_planned: number;
+  tests_completed: number;
+  tests_passed: number;
+  tests_failed: number;
+  findings_count: number;
+  exploitable_count: number;
+  last_activity: string | null;
+  error_message: string | null;
+  execution_log: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  duration_seconds: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RedOpsFinding {
+  id: string;
+  campaign_id: string;
+  agent_id: string;
+  asset_id: string | null;
+  title: string;
+  description: string | null;
+  severity: Severity;
+  attack_vector: string | null;
+  attack_category: string | null;
+  cwe_id: string | null;
+  cve_id: string | null;
+  cvss_score: number | null;
+  exploitable: number;
+  exploitation_proof: string | null;
+  exploitation_steps: string | null;
+  mitre_tactic: string | null;
+  mitre_technique: string | null;
+  remediation: string | null;
+  remediation_effort: RemediationEffort | null;
+  nist_controls: string | null;
+  status: RedOpsFindingStatus;
+  campaign_name?: string;
+  discovered_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RedOpsAgentType {
+  id: string;
+  category: AgentCategory;
+  display_name: string;
+  description: string | null;
+  test_count: number;
+  mitre_techniques: string | null;
+  owasp_categories: string | null;
+  enabled: number;
+  created_at: string;
+}
+
+export interface RedOpsOverview {
+  campaigns: {
+    total: number;
+    active: number;
+    completed: number;
+  };
+  findings: {
+    total: number;
+    exploitable: number;
+    severity_breakdown: Record<string, { count: number; exploitable: number }>;
+  };
+  agents_by_category: Array<{
+    agent_category: string;
+    total: number;
+    completed: number;
+    findings: number;
+  }>;
+  recent_campaigns: RedOpsCampaign[];
+  generated_at: string;
+}
+
+export interface CreateCampaignInput {
+  name: string;
+  description?: string;
+  campaign_type?: CampaignType;
+  target_scope: Record<string, string[]> | string;
+  exclusions?: Record<string, string[]> | string;
+  agent_categories?: AgentCategory[];
+  max_concurrent_agents?: number;
+  exploitation_level?: ExploitationLevel;
+  risk_threshold?: string;
+  auto_poam?: boolean;
+  compliance_mapping?: boolean;
+  scheduled_at?: string;
+}

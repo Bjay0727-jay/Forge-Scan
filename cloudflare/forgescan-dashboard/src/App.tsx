@@ -16,6 +16,7 @@ import { Integrations } from '@/pages/Integrations';
 import { Notifications } from '@/pages/Notifications';
 import { Compliance } from '@/pages/Compliance';
 import { Reports } from '@/pages/Reports';
+import { RedOps } from '@/pages/RedOps';
 
 function App() {
   return (
@@ -44,6 +45,7 @@ function App() {
             <Route path="compliance" element={<Compliance />} />
             <Route path="reports" element={<Reports />} />
             <Route path="notifications" element={<Notifications />} />
+            <Route path="redops" element={<RedOps />} />
             <Route path="settings" element={<Settings />} />
             <Route
               path="admin/scanners"

@@ -1,0 +1,65 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "forgescan-api",
+  "main": "dist/worker.js",
+  "compatibility_date": "2024-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Build command for CI/CD
+  "build": {
+    "command": "npm install && npm run build"
+  },
+
+  // D1 Database binding
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "forgescan-db",
+      "database_id": "33c4ed36-32ac-4fff-b363-982a777108eb"
+    }
+  ],
+
+  // R2 Storage binding
+  "r2_buckets": [
+    {
+      "binding": "STORAGE",
+      "bucket_name": "forgescan-storage"
+    }
+  ],
+
+  // KV Cache binding
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "e8e1da19230448f0a5bb32245ac799db"
+    }
+  ],
+
+  // Environment variables
+  "vars": {
+    "ENVIRONMENT": "production",
+    "API_VERSION": "v1",
+    "CORS_ORIGIN": "*"
+  },
+
+  // Named environments
+  "env": {
+    "production": {
+      "name": "forgescan-api",
+      "routes": [
+        {
+          "pattern": "api.forgescan.forgecyberdefense.com/*",
+          "zone_name": "forgecyberdefense.com"
+        }
+      ]
+    },
+    "dev": {
+      "name": "forgescan-api-dev",
+      "vars": {
+        "ENVIRONMENT": "development",
+        "API_VERSION": "v1",
+        "CORS_ORIGIN": "*"
+      }
+    }
+  }
+}

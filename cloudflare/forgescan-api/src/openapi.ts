@@ -375,6 +375,7 @@ export const openApiSpec = {
     { name: 'Integrations', description: 'Email and webhook integration management' },
     { name: 'Notifications', description: 'Notification rules and event dispatching' },
     { name: 'Compliance', description: 'Compliance framework mapping and assessment' },
+    { name: 'RedOPS', description: 'AI-powered penetration testing — campaigns, agents, and findings' },
   ],
 
   // ─── Paths ──────────────────────────────────────────────────────────
@@ -740,5 +741,28 @@ export const openApiSpec = {
     '/api/v1/compliance/{id}/gaps': { get: { tags: ['Compliance'], summary: 'Identify compliance gaps', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { 200: { description: 'Gaps list' } } } },
     '/api/v1/compliance/seed': { post: { tags: ['Compliance'], summary: 'Seed compliance frameworks (admin)', responses: { 200: { description: 'Seeded' } } } },
     '/api/v1/compliance/assess': { post: { tags: ['Compliance'], summary: 'Assess control compliance', responses: { 201: { description: 'Assessment recorded' } } } },
+
+    // ── ForgeRedOPS ────────────────────────────────────────────────────
+    '/api/v1/redops/overview': { get: { tags: ['RedOPS'], summary: 'RedOPS dashboard overview stats', responses: { 200: { description: 'Campaign, finding, and agent statistics' } } } },
+
+    '/api/v1/redops/campaigns': {
+      get: { tags: ['RedOPS'], summary: 'List pen test campaigns', parameters: [{ name: 'status', in: 'query', schema: { type: 'string' } }, { name: 'type', in: 'query', schema: { type: 'string' } }], responses: { 200: { description: 'Paginated campaign list' } } },
+      post: { tags: ['RedOPS'], summary: 'Create a new pen test campaign', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['name', 'target_scope'], properties: { name: { type: 'string' }, description: { type: 'string' }, campaign_type: { type: 'string', enum: ['full', 'targeted', 'continuous', 'validation'] }, target_scope: { type: 'object' }, exploitation_level: { type: 'string', enum: ['passive', 'safe', 'moderate', 'aggressive'] }, agent_categories: { type: 'array', items: { type: 'string' } } } } } } }, responses: { 201: { description: 'Campaign created' } } },
+    },
+    '/api/v1/redops/campaigns/{id}': {
+      get: { tags: ['RedOPS'], summary: 'Get campaign by ID', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { 200: { description: 'Campaign detail' } } },
+      put: { tags: ['RedOPS'], summary: 'Update campaign', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { 200: { description: 'Updated campaign' } } },
+      delete: { tags: ['RedOPS'], summary: 'Delete campaign', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { 200: { description: 'Campaign deleted' } } },
+    },
+    '/api/v1/redops/campaigns/{id}/launch': { post: { tags: ['RedOPS'], summary: 'Launch campaign — creates agents and starts pen test', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { 200: { description: 'Campaign launched with agents' } } } },
+    '/api/v1/redops/campaigns/{id}/cancel': { post: { tags: ['RedOPS'], summary: 'Cancel running campaign', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { 200: { description: 'Campaign cancelled' } } } },
+    '/api/v1/redops/campaigns/{id}/agents': { get: { tags: ['RedOPS'], summary: 'List agents for a campaign', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }, { name: 'status', in: 'query', schema: { type: 'string' } }, { name: 'category', in: 'query', schema: { type: 'string' } }], responses: { 200: { description: 'Agent list' } } } },
+    '/api/v1/redops/campaigns/{id}/findings': { get: { tags: ['RedOPS'], summary: 'List findings for a campaign', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }, { name: 'severity', in: 'query', schema: { type: 'string' } }, { name: 'exploitable', in: 'query', schema: { type: 'string' } }], responses: { 200: { description: 'Paginated findings' } } } },
+
+    '/api/v1/redops/agents/{id}': { get: { tags: ['RedOPS'], summary: 'Get agent details', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { 200: { description: 'Agent detail' } } } },
+    '/api/v1/redops/agent-types': { get: { tags: ['RedOPS'], summary: 'List all 24 agent type definitions', parameters: [{ name: 'category', in: 'query', schema: { type: 'string', enum: ['web', 'api', 'cloud', 'network', 'identity'] } }], responses: { 200: { description: 'Agent type definitions with MITRE/OWASP coverage' } } } },
+
+    '/api/v1/redops/findings': { get: { tags: ['RedOPS'], summary: 'List all pen test findings (global)', parameters: [{ name: 'severity', in: 'query', schema: { type: 'string' } }, { name: 'exploitable', in: 'query', schema: { type: 'string' } }, { name: 'status', in: 'query', schema: { type: 'string' } }], responses: { 200: { description: 'Paginated findings across all campaigns' } } } },
+    '/api/v1/redops/findings/{id}': { put: { tags: ['RedOPS'], summary: 'Update finding status', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { status: { type: 'string', enum: ['open', 'confirmed', 'remediated', 'accepted_risk', 'false_positive'] }, remediation: { type: 'string' } } } } } }, responses: { 200: { description: 'Updated finding' } } } },
   },
 } as const;

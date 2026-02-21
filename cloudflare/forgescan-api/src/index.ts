@@ -17,6 +17,7 @@ import { scanner } from './routes/scanner';
 import { integrations } from './routes/integrations';
 import { notifications } from './routes/notifications';
 import { compliance } from './routes/compliance';
+import { redops } from './routes/redops';
 import { docs } from './routes/docs';
 
 export interface Env {
@@ -78,6 +79,7 @@ app.route('/api/v1/scanner', scanner);
 app.route('/api/v1/integrations', integrations);
 app.route('/api/v1/notifications', notifications);
 app.route('/api/v1/compliance', compliance);
+app.route('/api/v1/redops', redops);
 
 // 404 handler
 app.notFound((c) => {
