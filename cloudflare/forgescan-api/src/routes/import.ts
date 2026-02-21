@@ -1,76 +1,33 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
+import { badRequest, databaseError } from '../lib/errors';
+import {
+  parseCSV,
+  parseFindingsCSV,
+  parseAssetsCSV,
+  normalizeSeverity,
+} from '../lib/csv-parser';
 
 export const importRoutes = new Hono<{ Bindings: Env }>();
 
-// Helper function to parse CSV
-function parseCSV(csvText: string): Record<string, string>[] {
-  const lines = csvText.trim().split('\n');
-  if (lines.length < 2) return [];
+// ─── Import findings (JSON, CSV, SARIF, CycloneDX) ─────────────────────────
 
-  // Parse header row
-  const headers = parseCSVLine(lines[0]);
-  const results: Record<string, string>[] = [];
-
-  // Parse data rows
-  for (let i = 1; i < lines.length; i++) {
-    const values = parseCSVLine(lines[i]);
-    const row: Record<string, string> = {};
-
-    headers.forEach((header, index) => {
-      row[header.trim().toLowerCase().replace(/\s+/g, '_')] = values[index] || '';
-    });
-
-    results.push(row);
-  }
-
-  return results;
-}
-
-// Parse a single CSV line (handles quoted values)
-function parseCSVLine(line: string): string[] {
-  const values: string[] = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-
-    if (char === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (char === ',' && !inQuotes) {
-      values.push(current.trim());
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-
-  values.push(current.trim());
-  return values;
-}
-
-// Import findings (supports JSON, CSV, SARIF)
 importRoutes.post('/', async (c) => {
   try {
     const body = await c.req.json();
     const { format, data } = body;
 
     if (!format || !data) {
-      return c.json({ error: 'Missing format or data' }, 400);
+      throw badRequest('Missing format or data');
     }
 
     let findings: any[] = [];
     const errors: string[] = [];
 
     if (format === 'csv') {
-      const parsed = parseCSV(typeof data === 'string' ? data : '');
-      findings = parsed;
+      const result = parseFindingsCSV(typeof data === 'string' ? data : '');
+      findings = result.rows;
+      errors.push(...result.errors);
     } else if (format === 'json') {
       findings = Array.isArray(data) ? data : [data];
     } else if (format === 'sarif') {
@@ -101,7 +58,7 @@ importRoutes.post('/', async (c) => {
         });
       }
     } else {
-      return c.json({ error: `Unsupported format: ${format}` }, 400);
+      throw badRequest(`Unsupported format: ${format}`);
     }
 
     let imported = 0;
@@ -113,8 +70,10 @@ importRoutes.post('/', async (c) => {
         await c.env.DB.prepare(`
           INSERT INTO findings (
             id, title, description, severity, state, cve_id, cvss_score,
-            affected_component, remediation, vendor, first_seen, last_seen
-          ) VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?, 'import', datetime('now'), datetime('now'))
+            affected_component, remediation, vendor, first_seen, last_seen,
+            created_at, updated_at
+          ) VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?, 'import', datetime('now'), datetime('now'),
+            datetime('now'), datetime('now'))
         `).bind(
           id,
           finding.title || 'Unknown Finding',
@@ -140,6 +99,7 @@ importRoutes.post('/', async (c) => {
     });
 
   } catch (err: any) {
+    if (err instanceof Error && err.name === 'ApiError') throw err;
     return c.json({
       success: false,
       imported_count: 0,
@@ -149,25 +109,38 @@ importRoutes.post('/', async (c) => {
   }
 });
 
-// Import findings via file upload
+// ─── Import findings via file upload ────────────────────────────────────────
+
 importRoutes.post('/upload', async (c) => {
   try {
     const formData = await c.req.formData();
     const file = formData.get('file') as unknown as File;
-    const format = formData.get('format') as string;
+    const format = (formData.get('format') as string) || '';
 
     if (!file) {
-      return c.json({ error: 'No file provided' }, 400);
+      throw badRequest('No file provided');
     }
 
     const content = await file.text();
 
-    // Reuse the main import logic
+    // Detect format from file extension if not specified
+    let detectedFormat = format;
+    if (!detectedFormat) {
+      if (file.name?.endsWith('.csv')) detectedFormat = 'csv';
+      else if (file.name?.endsWith('.json')) detectedFormat = 'json';
+      else if (file.name?.endsWith('.sarif')) detectedFormat = 'sarif';
+    }
+
+    if (!detectedFormat) {
+      throw badRequest('Could not detect file format. Please specify the format parameter.');
+    }
+
+    // Reuse the main import logic by constructing an internal request
     const response = await importRoutes.request(
       new Request('http://localhost/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ format, data: content }),
+        body: JSON.stringify({ format: detectedFormat, data: content }),
       }),
       c.env as unknown as RequestInit
     );
@@ -175,6 +148,7 @@ importRoutes.post('/upload', async (c) => {
     return response;
 
   } catch (err: any) {
+    if (err instanceof Error && err.name === 'ApiError') throw err;
     return c.json({
       success: false,
       imported_count: 0,
@@ -184,26 +158,28 @@ importRoutes.post('/upload', async (c) => {
   }
 });
 
-// Import assets (CSV, JSON, XLSX)
+// ─── Import assets (CSV, JSON) ──────────────────────────────────────────────
+
 importRoutes.post('/assets', async (c) => {
   try {
     const body = await c.req.json();
     const { format, data } = body;
 
     if (!format || !data) {
-      return c.json({ error: 'Missing format or data' }, 400);
+      throw badRequest('Missing format or data');
     }
 
     let assets: any[] = [];
     const errors: string[] = [];
 
     if (format === 'csv') {
-      const parsed = parseCSV(typeof data === 'string' ? data : '');
-      assets = parsed;
+      const result = parseAssetsCSV(typeof data === 'string' ? data : '');
+      assets = result.rows;
+      errors.push(...result.errors);
     } else if (format === 'json') {
       assets = Array.isArray(data) ? data : [data];
     } else {
-      return c.json({ error: `Unsupported format: ${format}` }, 400);
+      throw badRequest(`Unsupported format: ${format}`);
     }
 
     let imported = 0;
@@ -211,46 +187,40 @@ importRoutes.post('/assets', async (c) => {
 
     for (const asset of assets) {
       try {
-        // Handle various column name formats
-        const hostname = asset.hostname || asset.host_name || asset.name || asset.server_name;
-        const ipAddress = asset.ip_address || asset.ip || asset.ip_addresses;
-
-        if (!hostname && !ipAddress) {
-          failed++;
-          errors.push(`Row ${imported + failed}: Missing hostname or ip_address`);
-          continue;
-        }
-
         const id = crypto.randomUUID();
-        const ipAddresses = Array.isArray(ipAddress) ? ipAddress : (ipAddress ? [ipAddress] : []);
-        const tags = asset.tags ? (Array.isArray(asset.tags) ? asset.tags : asset.tags.split(',').map((t: string) => t.trim())) : [];
+        const ipAddresses = asset.ip_address
+          ? (Array.isArray(asset.ip_address) ? asset.ip_address : [asset.ip_address])
+          : [];
+        const tags = asset.tags || [];
 
         await c.env.DB.prepare(`
           INSERT INTO assets (
             id, hostname, fqdn, ip_addresses, os, os_version,
-            asset_type, network_zone, tags, attributes, first_seen, last_seen
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            asset_type, network_zone, tags, attributes,
+            first_seen, last_seen, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'),
+            datetime('now'), datetime('now'))
         `).bind(
           id,
-          hostname || null,
-          asset.fqdn || asset.fully_qualified_domain_name || null,
+          asset.hostname || null,
+          asset.fqdn || null,
           JSON.stringify(ipAddresses),
-          asset.os || asset.operating_system || null,
+          asset.os || null,
           asset.os_version || null,
-          asset.asset_type || asset.type || 'host',
-          asset.network_zone || asset.environment || null,
+          asset.asset_type || 'host',
+          asset.network_zone || null,
           JSON.stringify(tags),
           JSON.stringify({
-            owner: asset.owner,
-            department: asset.department,
-            location: asset.location,
-            mac_addresses: asset.mac_address || asset.mac_addresses,
+            owner: asset.owner || null,
+            department: asset.department || null,
+            location: asset.location || null,
+            mac_addresses: asset.mac_address || null,
           })
         ).run();
         imported++;
       } catch (err: any) {
         failed++;
-        if (err.message.includes('UNIQUE constraint')) {
+        if (err.message?.includes('UNIQUE constraint')) {
           errors.push(`Row ${imported + failed}: Duplicate asset (hostname or IP already exists)`);
         } else {
           errors.push(`Row ${imported + failed}: ${err.message}`);
@@ -266,6 +236,7 @@ importRoutes.post('/assets', async (c) => {
     });
 
   } catch (err: any) {
+    if (err instanceof Error && err.name === 'ApiError') throw err;
     return c.json({
       success: false,
       imported_count: 0,
@@ -275,7 +246,8 @@ importRoutes.post('/assets', async (c) => {
   }
 });
 
-// Import assets via file upload
+// ─── Import assets via file upload ──────────────────────────────────────────
+
 importRoutes.post('/assets/upload', async (c) => {
   try {
     const formData = await c.req.formData();
@@ -283,17 +255,12 @@ importRoutes.post('/assets/upload', async (c) => {
     const format = formData.get('format') as string;
 
     if (!file) {
-      return c.json({ error: 'No file provided' }, 400);
+      throw badRequest('No file provided');
     }
 
-    // For XLSX files, we'd need a library - return error for now
-    if (format === 'xlsx' || file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-      return c.json({
-        success: false,
-        imported_count: 0,
-        failed_count: 0,
-        errors: ['Excel file support requires conversion to CSV first. Please export your Excel file as CSV and try again.'],
-      }, 400);
+    // Excel files not supported in edge runtime
+    if (format === 'xlsx' || file.name?.endsWith('.xlsx') || file.name?.endsWith('.xls')) {
+      throw badRequest('Excel file support requires conversion to CSV first. Please export your Excel file as CSV and try again.');
     }
 
     const content = await file.text();
@@ -301,24 +268,26 @@ importRoutes.post('/assets/upload', async (c) => {
     // Determine format from file extension if not specified
     let detectedFormat = format;
     if (!detectedFormat) {
-      if (file.name.endsWith('.csv')) {
-        detectedFormat = 'csv';
-      } else if (file.name.endsWith('.json')) {
-        detectedFormat = 'json';
-      }
+      if (file.name?.endsWith('.csv')) detectedFormat = 'csv';
+      else if (file.name?.endsWith('.json')) detectedFormat = 'json';
     }
 
-    // Parse and import
+    if (!detectedFormat) {
+      throw badRequest('Could not detect file format. Please specify the format parameter.');
+    }
+
     let assets: any[] = [];
     const errors: string[] = [];
 
     if (detectedFormat === 'csv') {
-      assets = parseCSV(content);
+      const result = parseAssetsCSV(content);
+      assets = result.rows;
+      errors.push(...result.errors);
     } else if (detectedFormat === 'json') {
       const parsed = JSON.parse(content);
       assets = Array.isArray(parsed) ? parsed : [parsed];
     } else {
-      return c.json({ error: `Unsupported format: ${detectedFormat}` }, 400);
+      throw badRequest(`Unsupported format: ${detectedFormat}`);
     }
 
     let imported = 0;
@@ -326,45 +295,40 @@ importRoutes.post('/assets/upload', async (c) => {
 
     for (const asset of assets) {
       try {
-        const hostname = asset.hostname || asset.host_name || asset.name || asset.server_name;
-        const ipAddress = asset.ip_address || asset.ip || asset.ip_addresses;
-
-        if (!hostname && !ipAddress) {
-          failed++;
-          errors.push(`Row ${imported + failed}: Missing hostname or ip_address`);
-          continue;
-        }
-
         const id = crypto.randomUUID();
-        const ipAddresses = Array.isArray(ipAddress) ? ipAddress : (ipAddress ? [ipAddress] : []);
-        const tags = asset.tags ? (Array.isArray(asset.tags) ? asset.tags : asset.tags.split(',').map((t: string) => t.trim())) : [];
+        const ipAddresses = asset.ip_address
+          ? (Array.isArray(asset.ip_address) ? asset.ip_address : [asset.ip_address])
+          : [];
+        const tags = asset.tags || [];
 
         await c.env.DB.prepare(`
           INSERT INTO assets (
             id, hostname, fqdn, ip_addresses, os, os_version,
-            asset_type, network_zone, tags, attributes, first_seen, last_seen
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            asset_type, network_zone, tags, attributes,
+            first_seen, last_seen, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'),
+            datetime('now'), datetime('now'))
         `).bind(
           id,
-          hostname || null,
-          asset.fqdn || asset.fully_qualified_domain_name || null,
+          asset.hostname || null,
+          asset.fqdn || null,
           JSON.stringify(ipAddresses),
-          asset.os || asset.operating_system || null,
+          asset.os || null,
           asset.os_version || null,
-          asset.asset_type || asset.type || 'host',
-          asset.network_zone || asset.environment || null,
+          asset.asset_type || 'host',
+          asset.network_zone || null,
           JSON.stringify(tags),
           JSON.stringify({
-            owner: asset.owner,
-            department: asset.department,
-            location: asset.location,
-            mac_addresses: asset.mac_address || asset.mac_addresses,
+            owner: asset.owner || null,
+            department: asset.department || null,
+            location: asset.location || null,
+            mac_addresses: asset.mac_address || null,
           })
         ).run();
         imported++;
       } catch (err: any) {
         failed++;
-        if (err.message.includes('UNIQUE constraint')) {
+        if (err.message?.includes('UNIQUE constraint')) {
           errors.push(`Row ${imported + failed}: Duplicate asset`);
         } else {
           errors.push(`Row ${imported + failed}: ${err.message}`);
@@ -380,6 +344,7 @@ importRoutes.post('/assets/upload', async (c) => {
     });
 
   } catch (err: any) {
+    if (err instanceof Error && err.name === 'ApiError') throw err;
     return c.json({
       success: false,
       imported_count: 0,
@@ -389,23 +354,7 @@ importRoutes.post('/assets/upload', async (c) => {
   }
 });
 
-// Helper functions
-function normalizeSeverity(severity: string | number | undefined): string {
-  if (typeof severity === 'number') {
-    if (severity >= 9.0) return 'critical';
-    if (severity >= 7.0) return 'high';
-    if (severity >= 4.0) return 'medium';
-    if (severity >= 0.1) return 'low';
-    return 'info';
-  }
-
-  const sevLower = (severity || '').toLowerCase();
-  if (['critical', 'urgent', 'crit'].includes(sevLower)) return 'critical';
-  if (['high', 'serious', 'important'].includes(sevLower)) return 'high';
-  if (['medium', 'moderate', 'med'].includes(sevLower)) return 'medium';
-  if (['low', 'minimal'].includes(sevLower)) return 'low';
-  return 'info';
-}
+// ─── Helper functions ───────────────────────────────────────────────────────
 
 function mapSarifLevel(level: string | undefined): string {
   switch (level) {
