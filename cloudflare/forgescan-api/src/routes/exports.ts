@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
+import { notFound, databaseError } from '../lib/errors';
+import { requireEnum } from '../lib/validate';
 
 export const exports = new Hono<{ Bindings: Env }>();
 
@@ -130,17 +132,21 @@ exports.get('/findings/csv', async (c) => {
   query += ` ORDER BY ${include_asset === 'true' ? 'f.' : ''}created_at DESC LIMIT ?`;
   params.push(parseInt(limit));
 
-  const result = await c.env.DB.prepare(query).bind(...params).all();
+  try {
+    const result = await c.env.DB.prepare(query).bind(...params).all();
 
-  const csv = toCSV(result.results as any[]);
-  const filename = `findings_export_${new Date().toISOString().split('T')[0]}.csv`;
+    const csv = toCSV(result.results as any[]);
+    const filename = `findings_export_${new Date().toISOString().split('T')[0]}.csv`;
 
-  return new Response(csv, {
-    headers: {
-      'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-    },
-  });
+    return new Response(csv, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      },
+    });
+  } catch (err) {
+    throw databaseError(err);
+  }
 });
 
 // GET /api/v1/exports/findings/json - Export findings as JSON
@@ -190,27 +196,31 @@ exports.get('/findings/json', async (c) => {
   query += ' ORDER BY f.created_at DESC LIMIT ?';
   params.push(parseInt(limit));
 
-  const result = await c.env.DB.prepare(query).bind(...params).all();
+  try {
+    const result = await c.env.DB.prepare(query).bind(...params).all();
 
-  const exportData = {
-    exported_at: new Date().toISOString(),
-    filters: { severity, vendor, state },
-    total_count: result.results?.length || 0,
-    findings: result.results,
-  };
+    const exportData = {
+      exported_at: new Date().toISOString(),
+      filters: { severity, vendor, state },
+      total_count: result.results?.length || 0,
+      findings: result.results,
+    };
 
-  const jsonStr = pretty === 'true'
-    ? JSON.stringify(exportData, null, 2)
-    : JSON.stringify(exportData);
+    const jsonStr = pretty === 'true'
+      ? JSON.stringify(exportData, null, 2)
+      : JSON.stringify(exportData);
 
-  const filename = `findings_export_${new Date().toISOString().split('T')[0]}.json`;
+    const filename = `findings_export_${new Date().toISOString().split('T')[0]}.json`;
 
-  return new Response(jsonStr, {
-    headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-    },
-  });
+    return new Response(jsonStr, {
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      },
+    });
+  } catch (err) {
+    throw databaseError(err);
+  }
 });
 
 // GET /api/v1/exports/assets/csv - Export assets as CSV
@@ -284,17 +294,21 @@ exports.get('/assets/csv', async (c) => {
   query += ` ORDER BY ${include_findings_count === 'true' ? 'a.' : ''}last_seen DESC LIMIT ?`;
   params.push(parseInt(limit));
 
-  const result = await c.env.DB.prepare(query).bind(...params).all();
+  try {
+    const result = await c.env.DB.prepare(query).bind(...params).all();
 
-  const csv = toCSV(result.results as any[]);
-  const filename = `assets_export_${new Date().toISOString().split('T')[0]}.csv`;
+    const csv = toCSV(result.results as any[]);
+    const filename = `assets_export_${new Date().toISOString().split('T')[0]}.csv`;
 
-  return new Response(csv, {
-    headers: {
-      'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-    },
-  });
+    return new Response(csv, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      },
+    });
+  } catch (err) {
+    throw databaseError(err);
+  }
 });
 
 // GET /api/v1/exports/assets/json - Export assets as JSON
@@ -323,44 +337,48 @@ exports.get('/assets/json', async (c) => {
   query += ' ORDER BY last_seen DESC LIMIT ?';
   params.push(parseInt(limit));
 
-  const result = await c.env.DB.prepare(query).bind(...params).all();
+  try {
+    const result = await c.env.DB.prepare(query).bind(...params).all();
 
-  let assets = result.results as any[];
+    let assets = result.results as any[];
 
-  // Optionally include findings for each asset
-  if (include_findings === 'true') {
-    for (const asset of assets) {
-      const findingsResult = await c.env.DB.prepare(`
-        SELECT id, title, severity, state, vendor, first_seen
-        FROM findings
-        WHERE asset_id = ? AND state = 'open'
-        ORDER BY severity, created_at DESC
-      `).bind(asset.id).all();
+    // Optionally include findings for each asset
+    if (include_findings === 'true') {
+      for (const asset of assets) {
+        const findingsResult = await c.env.DB.prepare(`
+          SELECT id, title, severity, state, vendor, first_seen
+          FROM findings
+          WHERE asset_id = ? AND state = 'open'
+          ORDER BY severity, created_at DESC
+        `).bind(asset.id).all();
 
-      asset.findings = findingsResult.results;
-      asset.findings_count = findingsResult.results?.length || 0;
+        asset.findings = findingsResult.results;
+        asset.findings_count = findingsResult.results?.length || 0;
+      }
     }
+
+    const exportData = {
+      exported_at: new Date().toISOString(),
+      filters: { asset_type, network_zone },
+      total_count: assets.length,
+      assets,
+    };
+
+    const jsonStr = pretty === 'true'
+      ? JSON.stringify(exportData, null, 2)
+      : JSON.stringify(exportData);
+
+    const filename = `assets_export_${new Date().toISOString().split('T')[0]}.json`;
+
+    return new Response(jsonStr, {
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      },
+    });
+  } catch (err) {
+    throw databaseError(err);
   }
-
-  const exportData = {
-    exported_at: new Date().toISOString(),
-    filters: { asset_type, network_zone },
-    total_count: assets.length,
-    assets,
-  };
-
-  const jsonStr = pretty === 'true'
-    ? JSON.stringify(exportData, null, 2)
-    : JSON.stringify(exportData);
-
-  const filename = `assets_export_${new Date().toISOString().split('T')[0]}.json`;
-
-  return new Response(jsonStr, {
-    headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-    },
-  });
 });
 
 // POST /api/v1/exports/schedule - Schedule recurring export
@@ -369,20 +387,9 @@ exports.post('/schedule', async (c) => {
   const scheduleId = crypto.randomUUID();
 
   // Validate request
-  const validExportTypes = ['findings', 'assets'];
-  if (!validExportTypes.includes(body.export_type)) {
-    return c.json({ error: 'Invalid export type. Must be "findings" or "assets"' }, 400);
-  }
-
-  const validFormats = ['csv', 'json'];
-  if (!validFormats.includes(body.format)) {
-    return c.json({ error: 'Invalid format. Must be "csv" or "json"' }, 400);
-  }
-
-  const validSchedules = ['daily', 'weekly', 'monthly'];
-  if (!validSchedules.includes(body.schedule)) {
-    return c.json({ error: 'Invalid schedule. Must be "daily", "weekly", or "monthly"' }, 400);
-  }
+  requireEnum(body.export_type, 'export_type', ['findings', 'assets'] as const);
+  requireEnum(body.format, 'format', ['csv', 'json'] as const);
+  requireEnum(body.schedule, 'schedule', ['daily', 'weekly', 'monthly'] as const);
 
   // Calculate next run time
   const now = new Date();
@@ -524,11 +531,8 @@ exports.patch('/schedules/:id', async (c) => {
     }
 
     return c.json({ message: 'Export schedule updated' });
-  } catch (error) {
-    return c.json({
-      error: 'Failed to update schedule',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    }, 500);
+  } catch (err) {
+    throw databaseError(err);
   }
 });
 
@@ -550,83 +554,88 @@ exports.post('/run/:id', async (c) => {
   }
 
   if (!schedule) {
-    return c.json({ error: 'Schedule not found' }, 404);
+    throw notFound('Schedule', id);
   }
 
-  // Generate export
-  const exportId = crypto.randomUUID();
-  const filters = typeof schedule.filters === 'string'
-    ? JSON.parse(schedule.filters)
-    : schedule.filters;
+  try {
+    // Generate export
+    const exportId = crypto.randomUUID();
+    const filters = typeof schedule.filters === 'string'
+      ? JSON.parse(schedule.filters)
+      : schedule.filters;
 
-  let query: string;
-  let data: any[];
+    let query: string;
+    let data: any[];
 
-  if (schedule.export_type === 'findings') {
-    query = 'SELECT * FROM findings WHERE 1=1';
-    const params: any[] = [];
+    if (schedule.export_type === 'findings') {
+      query = 'SELECT * FROM findings WHERE 1=1';
+      const params: any[] = [];
 
-    if (filters.severity?.length) {
-      query += ` AND severity IN (${filters.severity.map(() => '?').join(',')})`;
-      params.push(...filters.severity);
+      if (filters.severity?.length) {
+        query += ` AND severity IN (${filters.severity.map(() => '?').join(',')})`;
+        params.push(...filters.severity);
+      }
+      if (filters.state) {
+        query += ' AND state = ?';
+        params.push(filters.state);
+      }
+
+      const result = await c.env.DB.prepare(query).bind(...params).all();
+      data = result.results as any[];
+    } else {
+      query = 'SELECT * FROM assets WHERE 1=1';
+      const params: any[] = [];
+
+      if (filters.asset_types?.length) {
+        query += ` AND asset_type IN (${filters.asset_types.map(() => '?').join(',')})`;
+        params.push(...filters.asset_types);
+      }
+
+      const result = await c.env.DB.prepare(query).bind(...params).all();
+      data = result.results as any[];
     }
-    if (filters.state) {
-      query += ' AND state = ?';
-      params.push(filters.state);
+
+    // Format data
+    let content: string;
+    let contentType: string;
+    let extension: string;
+
+    if (schedule.format === 'csv') {
+      content = toCSV(data);
+      contentType = 'text/csv';
+      extension = 'csv';
+    } else {
+      content = JSON.stringify({
+        exported_at: new Date().toISOString(),
+        schedule_id: id,
+        total_count: data.length,
+        data,
+      }, null, 2);
+      contentType = 'application/json';
+      extension = 'json';
     }
 
-    const result = await c.env.DB.prepare(query).bind(...params).all();
-    data = result.results as any[];
-  } else {
-    query = 'SELECT * FROM assets WHERE 1=1';
-    const params: any[] = [];
+    // Store in R2
+    const filename = `exports/scheduled/${id}/${exportId}.${extension}`;
+    await c.env.STORAGE.put(filename, content, {
+      customMetadata: {
+        schedule_id: id,
+        export_type: schedule.export_type,
+        format: schedule.format,
+        created_at: new Date().toISOString(),
+      },
+    });
 
-    if (filters.asset_types?.length) {
-      query += ` AND asset_type IN (${filters.asset_types.map(() => '?').join(',')})`;
-      params.push(...filters.asset_types);
-    }
-
-    const result = await c.env.DB.prepare(query).bind(...params).all();
-    data = result.results as any[];
-  }
-
-  // Format data
-  let content: string;
-  let contentType: string;
-  let extension: string;
-
-  if (schedule.format === 'csv') {
-    content = toCSV(data);
-    contentType = 'text/csv';
-    extension = 'csv';
-  } else {
-    content = JSON.stringify({
-      exported_at: new Date().toISOString(),
+    return c.json({
+      id: exportId,
       schedule_id: id,
-      total_count: data.length,
-      data,
-    }, null, 2);
-    contentType = 'application/json';
-    extension = 'json';
-  }
-
-  // Store in R2
-  const filename = `exports/scheduled/${id}/${exportId}.${extension}`;
-  await c.env.STORAGE.put(filename, content, {
-    customMetadata: {
-      schedule_id: id,
-      export_type: schedule.export_type,
+      storage_key: filename,
+      record_count: data.length,
       format: schedule.format,
       created_at: new Date().toISOString(),
-    },
-  });
-
-  return c.json({
-    id: exportId,
-    schedule_id: id,
-    storage_key: filename,
-    record_count: data.length,
-    format: schedule.format,
-    created_at: new Date().toISOString(),
-  });
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'ApiError') throw err;
+    throw databaseError(err);
+  }
 });

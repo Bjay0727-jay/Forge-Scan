@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { authMiddleware } from './middleware/auth';
+import { errorHandler } from './middleware/error-handler';
 import { auth } from './routes/auth';
 import { assets } from './routes/assets';
 import { findings } from './routes/findings';
@@ -76,13 +77,12 @@ app.route('/api/v1/compliance', compliance);
 
 // 404 handler
 app.notFound((c) => {
-  return c.json({ error: 'Not Found', path: c.req.path }, 404);
+  return c.json({
+    error: { code: 'NOT_FOUND', message: `Route not found: ${c.req.method} ${c.req.path}` },
+  }, 404);
 });
 
-// Error handler
-app.onError((err, c) => {
-  console.error('Error:', err);
-  return c.json({ error: 'Internal Server Error', message: err.message }, 500);
-});
+// Global error handler – catches ApiError + unexpected errors
+app.onError(errorHandler);
 
 export default app;

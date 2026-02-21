@@ -1,11 +1,14 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
+import { notFound, badRequest, databaseError } from '../lib/errors';
+import { parsePositiveInt } from '../lib/validate';
 
 export const ingest = new Hono<{ Bindings: Env }>();
 
 // List ingestion jobs
 ingest.get('/jobs', async (c) => {
   const { limit = '20', vendor, status } = c.req.query();
+  const limitNum = parsePositiveInt(limit, 20);
 
   let query = 'SELECT * FROM ingestion_jobs WHERE 1=1';
   const params: any[] = [];
@@ -21,26 +24,34 @@ ingest.get('/jobs', async (c) => {
   }
 
   query += ' ORDER BY created_at DESC LIMIT ?';
-  params.push(parseInt(limit));
+  params.push(limitNum);
 
-  const result = await c.env.DB.prepare(query).bind(...params).all();
-
-  return c.json(result.results);
+  try {
+    const result = await c.env.DB.prepare(query).bind(...params).all();
+    return c.json(result.results);
+  } catch (err) {
+    throw databaseError(err);
+  }
 });
 
 // Get ingestion job by ID
 ingest.get('/jobs/:id', async (c) => {
   const id = c.req.param('id');
 
-  const job = await c.env.DB.prepare(
-    'SELECT * FROM ingestion_jobs WHERE id = ?'
-  ).bind(id).first();
+  try {
+    const job = await c.env.DB.prepare(
+      'SELECT * FROM ingestion_jobs WHERE id = ?'
+    ).bind(id).first();
 
-  if (!job) {
-    return c.json({ error: 'Job not found' }, 404);
+    if (!job) {
+      throw notFound('Job', id);
+    }
+
+    return c.json(job);
+  } catch (err) {
+    if (err instanceof Error && err.name === 'ApiError') throw err;
+    throw databaseError(err);
   }
-
-  return c.json(job);
 });
 
 // Import findings from JSON/CSV
@@ -63,9 +74,9 @@ ingest.post('/upload', async (c) => {
       findings = Array.isArray(body) ? body : body.findings || body.vulnerabilities || [];
     } else if (contentType.includes('text/csv') || contentType.includes('multipart/form-data')) {
       // For CSV, we'd parse it here - simplified for now
-      return c.json({ error: 'CSV parsing not yet implemented in edge worker' }, 501);
+      throw badRequest('CSV parsing not yet implemented in edge worker');
     } else {
-      return c.json({ error: 'Unsupported content type' }, 400);
+      throw badRequest(`Unsupported content type: ${contentType}`);
     }
 
     let imported = 0;
@@ -145,7 +156,7 @@ ingest.post('/upload', async (c) => {
       WHERE id = ?
     `).bind(JSON.stringify([err.message]), jobId).run();
 
-    return c.json({ error: 'Import failed', message: err.message }, 500);
+    throw databaseError(err);
   }
 });
 
