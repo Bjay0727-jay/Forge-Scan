@@ -253,3 +253,37 @@ export interface ImportResult {
 }
 
 export type ImportFormat = 'sarif' | 'cyclonedx' | 'csv' | 'json';
+
+// Ingest types (vendor-specific CSV import via /ingest endpoints)
+export type IngestVendor = 'generic' | 'tenable' | 'qualys' | 'rapid7';
+export type IngestDataType = 'findings' | 'assets' | 'auto';
+export type IngestJobStatus = 'processing' | 'completed' | 'failed';
+
+export interface IngestJob {
+  id: string;
+  vendor: string;
+  source: string;
+  status: IngestJobStatus;
+  records_processed: number | null;
+  records_imported: number | null;
+  records_skipped: number | null;
+  errors: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+export interface IngestUploadResult {
+  job_id: string;
+  type: 'findings' | 'assets';
+  status: string;
+  records_processed: number;
+  records_imported: number;
+  records_skipped: number;
+  errors: string[];
+}
+
+export interface IngestVendorInfo {
+  vendors: string[];
+  note: string;
+}

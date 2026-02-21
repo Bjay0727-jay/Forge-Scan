@@ -16,6 +16,11 @@ import type {
   Severity,
   ActiveScansResponse,
   ScanTasksResponse,
+  IngestJob,
+  IngestUploadResult,
+  IngestVendorInfo,
+  IngestVendor,
+  IngestDataType,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
@@ -341,6 +346,53 @@ export const importApi = {
     }
 
     return response.json();
+  },
+};
+
+// Ingest API (vendor-specific CSV import)
+export const ingestApi = {
+  uploadFile: async (
+    file: File,
+    vendor: IngestVendor = 'generic',
+    dataType: IngestDataType = 'findings',
+  ): Promise<IngestUploadResult> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const token = localStorage.getItem('forgescan_token');
+    const query = buildQueryString({ vendor, type: dataType });
+    const response = await fetch(`${API_BASE_URL}/ingest/upload${query}`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new ApiError(
+        errorData.error?.message || errorData.error || `HTTP error ${response.status}`,
+        response.status
+      );
+    }
+
+    return response.json();
+  },
+
+  getJobs: async (params: {
+    limit?: number;
+    vendor?: string;
+    status?: string;
+  } = {}): Promise<IngestJob[]> => {
+    const query = buildQueryString(params as Record<string, string | number | boolean | undefined>);
+    return request<IngestJob[]>(`/ingest/jobs${query}`);
+  },
+
+  getJob: async (id: string): Promise<IngestJob> => {
+    return request<IngestJob>(`/ingest/jobs/${id}`);
+  },
+
+  getVendors: async (): Promise<IngestVendorInfo> => {
+    return request<IngestVendorInfo>('/ingest/vendors');
   },
 };
 
