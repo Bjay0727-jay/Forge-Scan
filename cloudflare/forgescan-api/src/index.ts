@@ -17,6 +17,7 @@ import { scanner } from './routes/scanner';
 import { integrations } from './routes/integrations';
 import { notifications } from './routes/notifications';
 import { compliance } from './routes/compliance';
+import { docs } from './routes/docs';
 
 export interface Env {
   DB: D1Database;
@@ -53,6 +54,9 @@ app.get('/', (c) => {
 app.get('/health', (c) => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// API Documentation (public – no auth required)
+app.route('/api/docs', docs);
 
 // Auth middleware for all /api/v1/* routes (skips public paths internally)
 app.use('/api/v1/*', authMiddleware);
