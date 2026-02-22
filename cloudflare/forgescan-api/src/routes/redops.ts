@@ -6,6 +6,9 @@ import { executeCampaign } from '../services/redops/controller';
 // Register agent implementations (side-effect imports)
 import '../services/redops/agents/web-misconfig';
 import '../services/redops/agents/api-auth-bypass';
+import '../services/redops/agents/web-injection';
+import '../services/redops/agents/cloud-iam';
+import '../services/redops/agents/id-credential';
 
 export const redops = new Hono<{ Bindings: Env }>();
 

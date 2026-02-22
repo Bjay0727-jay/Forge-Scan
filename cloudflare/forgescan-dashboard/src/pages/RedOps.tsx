@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Crosshair,
   Play,
@@ -21,6 +21,7 @@ import {
   Clock,
   CheckCircle,
   XCircle,
+  Radio,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -44,6 +45,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { redopsApi } from '@/lib/api';
+import { usePollingApi } from '@/hooks/usePollingApi';
 import { formatRelativeTime, getSeverityColor } from '@/lib/utils';
 import type {
   RedOpsCampaign,
@@ -224,31 +226,34 @@ function CampaignRow({
   onDelete: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [agents, setAgents] = useState<RedOpsAgent[]>([]);
-  const [agentsLoading, setAgentsLoading] = useState(false);
 
-  const loadAgents = useCallback(async () => {
-    if (campaign.total_agents === 0) return;
-    setAgentsLoading(true);
-    try {
-      const data = await redopsApi.getCampaignAgents(campaign.id);
-      setAgents(data);
-    } catch {
-      // Silently fail
-    } finally {
-      setAgentsLoading(false);
-    }
-  }, [campaign.id, campaign.total_agents]);
+  const isRunningCampaign = ['reconnaissance', 'scanning', 'exploitation', 'queued'].includes(campaign.status);
 
+  // Use polling for agent data — polls every 3s when campaign is running & expanded
+  const agentApiCall = useCallback(
+    () => redopsApi.getCampaignAgents(campaign.id),
+    [campaign.id]
+  );
+
+  const {
+    data: agents,
+    loading: agentsLoading,
+    refetch: refetchAgents,
+  } = usePollingApi<RedOpsAgent[]>(agentApiCall, {
+    interval: 3000,
+    enabled: expanded && campaign.total_agents > 0 && isRunningCampaign,
+    immediate: expanded && campaign.total_agents > 0,
+  });
+
+  // Fetch agents once when expanding a non-running campaign
   useEffect(() => {
-    if (expanded && agents.length === 0 && campaign.total_agents > 0) {
-      loadAgents();
+    if (expanded && campaign.total_agents > 0 && !isRunningCampaign && !agents) {
+      refetchAgents();
     }
-  }, [expanded, agents.length, campaign.total_agents, loadAgents]);
+  }, [expanded, campaign.total_agents, isRunningCampaign, agents, refetchAgents]);
 
-  const isRunning = ['reconnaissance', 'scanning', 'exploitation', 'queued'].includes(campaign.status);
   const canLaunch = campaign.status === 'created' || campaign.status === 'failed';
-  const canCancel = isRunning;
+  const canCancel = isRunningCampaign;
   const canDelete = !['reconnaissance', 'scanning', 'exploitation'].includes(campaign.status);
 
   const categories: string[] = (() => {
@@ -405,7 +410,7 @@ function CampaignRow({
                 </div>
               ) : (
                 <div className="grid gap-1.5">
-                  {agents.map((agent) => (
+                  {(agents || []).map((agent) => (
                     <div key={agent.id} className="flex items-center justify-between rounded bg-muted/50 px-3 py-2 text-sm">
                       <div className="flex items-center gap-2">
                         {CATEGORY_ICONS[agent.agent_category]}
@@ -626,56 +631,81 @@ function CreateCampaignDialog({
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 export function RedOps() {
-  const [overview, setOverview] = useState<RedOpsOverview | null>(null);
-  const [campaigns, setCampaigns] = useState<RedOpsCampaign[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
-    try {
-      const [overviewData, campaignsData] = await Promise.all([
-        redopsApi.getOverview(),
-        redopsApi.listCampaigns({ page: 1, page_size: 20, sort: 'desc' }),
-      ]);
-      setOverview(overviewData);
-      setCampaigns(campaignsData.items);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load data');
-    } finally {
-      setLoading(false);
-    }
+  // Fetch overview + campaigns in a single polling call
+  const fetchDashboard = useCallback(async () => {
+    const [overviewData, campaignsData] = await Promise.all([
+      redopsApi.getOverview(),
+      redopsApi.listCampaigns({ page: 1, page_size: 20, sort: 'desc' }),
+    ]);
+    return { overview: overviewData, campaigns: campaignsData.items };
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  // Determine if any campaigns are active (for adaptive polling)
+  const {
+    data,
+    loading,
+    error,
+    isPolling,
+    lastUpdated,
+    refetch,
+  } = usePollingApi(fetchDashboard, {
+    interval: 5000,
+    enabled: true,
+    immediate: true,
+  });
+
+  const overview = data?.overview ?? null;
+  const campaigns = data?.campaigns ?? [];
+
+  // Enable faster polling (3s) when campaigns are active
+  const hasActiveCampaigns = useMemo(
+    () => campaigns.some((c) => ['reconnaissance', 'scanning', 'exploitation', 'queued'].includes(c.status)),
+    [campaigns]
+  );
+
+  const {
+    data: activeData,
+    refetch: refetchActive,
+  } = usePollingApi(fetchDashboard, {
+    interval: 3000,
+    enabled: hasActiveCampaigns,
+    immediate: false,
+  });
+
+  // Use active data when available and campaigns are running
+  const effectiveOverview = (hasActiveCampaigns && activeData?.overview) ? activeData.overview : overview;
+  const effectiveCampaigns = (hasActiveCampaigns && activeData?.campaigns) ? activeData.campaigns : campaigns;
 
   const handleLaunch = async (id: string) => {
     try {
+      setActionError(null);
       await redopsApi.launchCampaign(id);
-      loadData();
+      refetch();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to launch campaign');
+      setActionError(err instanceof Error ? err.message : 'Failed to launch campaign');
     }
   };
 
   const handleCancel = async (id: string) => {
     try {
+      setActionError(null);
       await redopsApi.cancelCampaign(id);
-      loadData();
+      refetch();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to cancel campaign');
+      setActionError(err instanceof Error ? err.message : 'Failed to cancel campaign');
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
+      setActionError(null);
       await redopsApi.deleteCampaign(id);
-      loadData();
+      refetch();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete campaign');
+      setActionError(err instanceof Error ? err.message : 'Failed to delete campaign');
     }
   };
 
@@ -686,6 +716,8 @@ export function RedOps() {
       </div>
     );
   }
+
+  const displayError = actionError || error;
 
   return (
     <div>
@@ -701,7 +733,19 @@ export function RedOps() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={loadData}>
+          {/* Live indicator */}
+          {isPolling && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Radio className="h-3 w-3 text-green-400 animate-pulse" />
+              <span>Live</span>
+              {lastUpdated && (
+                <span className="text-muted-foreground/60">
+                  {formatRelativeTime(lastUpdated.toISOString())}
+                </span>
+              )}
+            </div>
+          )}
+          <Button variant="outline" size="sm" onClick={refetch}>
             <RefreshCw className="h-4 w-4" />
           </Button>
           <Button
@@ -713,20 +757,20 @@ export function RedOps() {
         </div>
       </div>
 
-      {error && (
+      {displayError && (
         <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400 flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-medium">Error</p>
-            <p className="mt-1">{error}</p>
+            <p className="mt-1">{displayError}</p>
           </div>
         </div>
       )}
 
       {/* Overview Stats */}
       <div className="space-y-6">
-        <OverviewStats overview={overview} />
-        <SeverityBar overview={overview} />
+        <OverviewStats overview={effectiveOverview} />
+        <SeverityBar overview={effectiveOverview} />
 
         {/* Campaigns List */}
         <Card>
@@ -735,13 +779,18 @@ export function RedOps() {
               <div>
                 <CardTitle>Pen Test Campaigns</CardTitle>
                 <CardDescription>
-                  {campaigns.length} campaign{campaigns.length !== 1 ? 's' : ''}
+                  {effectiveCampaigns.length} campaign{effectiveCampaigns.length !== 1 ? 's' : ''}
+                  {hasActiveCampaigns && (
+                    <span className="ml-2 text-cyan-400">
+                      — polling every 3s
+                    </span>
+                  )}
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            {campaigns.length === 0 ? (
+            {effectiveCampaigns.length === 0 ? (
               <div className="text-center py-12">
                 <Shield className="mx-auto h-12 w-12 text-muted-foreground/30" />
                 <h3 className="mt-4 text-lg font-medium">No campaigns yet</h3>
@@ -757,7 +806,7 @@ export function RedOps() {
               </div>
             ) : (
               <div className="space-y-2">
-                {campaigns.map((campaign) => (
+                {effectiveCampaigns.map((campaign) => (
                   <CampaignRow
                     key={campaign.id}
                     campaign={campaign}
@@ -776,7 +825,7 @@ export function RedOps() {
       <CreateCampaignDialog
         open={showCreate}
         onClose={() => setShowCreate(false)}
-        onCreated={loadData}
+        onCreated={refetch}
       />
     </div>
   );
