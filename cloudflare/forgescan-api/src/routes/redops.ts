@@ -2,6 +2,10 @@ import { Hono } from 'hono';
 import type { Env } from '../index';
 import { notFound, badRequest, databaseError } from '../lib/errors';
 import { requireField, parsePagination, validateSortOrder } from '../lib/validate';
+import { executeCampaign } from '../services/redops/controller';
+// Register agent implementations (side-effect imports)
+import '../services/redops/agents/web-misconfig';
+import '../services/redops/agents/api-auth-bypass';
 
 export const redops = new Hono<{ Bindings: Env }>();
 
@@ -232,6 +236,20 @@ redops.post('/campaigns/:id/launch', async (c) => {
     const updated = await c.env.DB.prepare(
       'SELECT * FROM redops_campaigns WHERE id = ?'
     ).bind(id).first();
+
+    // Trigger the agent controller to execute the campaign asynchronously
+    // Uses waitUntil to run in the background (Cloudflare Workers pattern)
+    if (c.env.ANTHROPIC_API_KEY) {
+      const ctx = c.executionCtx;
+      if (ctx && 'waitUntil' in ctx) {
+        (ctx as ExecutionContext).waitUntil(
+          executeCampaign(c.env.DB, id, c.env.ANTHROPIC_API_KEY, c.env.SENDGRID_API_KEY)
+            .catch((err: unknown) => {
+              console.error(`Campaign ${id} execution error:`, err);
+            })
+        );
+      }
+    }
 
     return c.json({
       campaign: updated,
@@ -541,6 +559,77 @@ redops.put('/findings/:id', async (c) => {
     ).bind(id).first();
 
     return c.json(updated);
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'ApiError') throw err;
+    throw databaseError(err);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CROSS-PRODUCT CORRELATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Correlate RedOps findings with ForgeScan vulnerabilities
+redops.post('/findings/:id/correlate', async (c) => {
+  const id = c.req.param('id');
+
+  try {
+    const finding = await c.env.DB.prepare(
+      'SELECT * FROM redops_findings WHERE id = ?'
+    ).bind(id).first();
+
+    if (!finding) throw notFound('Finding', id);
+
+    // Try to find matching ForgeScan findings by CVE, CWE, or target+port
+    let matchQuery = 'SELECT id, asset_id, title, severity, vendor_id FROM findings WHERE 1=0';
+    const matchParams: unknown[] = [];
+
+    if (finding.cve_id) {
+      matchQuery += ' OR vendor_id = ?';
+      matchParams.push(finding.cve_id);
+    }
+    if (finding.cwe_id) {
+      matchQuery += ' OR evidence LIKE ?';
+      matchParams.push(`%${finding.cwe_id}%`);
+    }
+
+    // Also try matching by title similarity
+    if (finding.title) {
+      const keywords = (finding.title as string).split(/[\s—-]+/).filter((w: string) => w.length > 4).slice(0, 3);
+      for (const keyword of keywords) {
+        matchQuery += ' OR title LIKE ?';
+        matchParams.push(`%${keyword}%`);
+      }
+    }
+
+    const matches = await c.env.DB.prepare(
+      `SELECT id, asset_id, title, severity, vendor_id FROM findings WHERE ${matchQuery.replace('WHERE 1=0', '1=0')} LIMIT 5`
+    ).bind(...matchParams).all();
+
+    if (matches.results && matches.results.length > 0) {
+      const bestMatch = matches.results[0];
+
+      // Link the RedOps finding to the ForgeScan finding
+      await c.env.DB.prepare(
+        "UPDATE redops_findings SET finding_id = ?, asset_id = ?, updated_at = datetime('now') WHERE id = ?"
+      ).bind(bestMatch.id, bestMatch.asset_id, id).run();
+
+      return c.json({
+        correlated: true,
+        redops_finding_id: id,
+        forgescan_finding_id: bestMatch.id,
+        asset_id: bestMatch.asset_id,
+        matches_found: matches.results.length,
+        all_matches: matches.results,
+      });
+    }
+
+    return c.json({
+      correlated: false,
+      redops_finding_id: id,
+      matches_found: 0,
+      message: 'No matching ForgeScan findings found',
+    });
   } catch (err: unknown) {
     if (err instanceof Error && err.name === 'ApiError') throw err;
     throw databaseError(err);

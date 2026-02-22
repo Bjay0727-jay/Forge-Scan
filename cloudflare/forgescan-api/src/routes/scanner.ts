@@ -2,6 +2,7 @@ import { Hono, Context, MiddlewareHandler } from 'hono';
 import type { Env } from '../index';
 import { requireRole } from '../middleware/auth';
 import { updateScanFromTasks } from '../services/scan-orchestrator';
+import { publish } from '../services/event-bus';
 
 // ---------- Types ----------
 
@@ -452,6 +453,52 @@ scanner.post('/tasks/:id/results', authenticateScanner, async (c) => {
 
     // Check if parent scan is complete
     await updateScanFromTasks(db, task.scan_id);
+
+    // ── Event Bus: publish scan and vulnerability events ──
+    const correlationId = task.scan_id;
+
+    // Publish asset discovery events
+    if (assetsDiscovered > 0) {
+      await publish(db, 'forge.asset.discovered', 'forgescan', {
+        scan_id: task.scan_id,
+        task_id: taskId,
+        assets_discovered: assetsDiscovered,
+        scanner_id: scannerInfo.scanner_id,
+      }, { correlation_id: correlationId, sendgridApiKey: c.env.SENDGRID_API_KEY });
+    }
+
+    // Publish individual vulnerability events for high/critical findings
+    if (findings && Array.isArray(findings)) {
+      for (const finding of findings) {
+        const sev = (finding.severity || 'medium').toLowerCase();
+        if (sev === 'critical' || sev === 'high') {
+          await publish(db, 'forge.vulnerability.detected', 'forgescan', {
+            title: finding.title,
+            severity: sev,
+            cve_id: finding.cve_id || null,
+            cvss_score: finding.cvss_score || null,
+            target: finding.target || finding.ip || null,
+            hostname: finding.hostname || null,
+            port: finding.port || null,
+            service: finding.service || null,
+            scan_id: task.scan_id,
+            task_id: taskId,
+          }, { correlation_id: correlationId, sendgridApiKey: c.env.SENDGRID_API_KEY });
+        }
+      }
+    }
+
+    // Publish scan completion event
+    if (status === 'completed') {
+      await publish(db, 'forge.scan.completed', 'forgescan', {
+        scan_id: task.scan_id,
+        task_id: taskId,
+        findings_count: findingsCount,
+        assets_discovered: assetsDiscovered,
+        scanner_id: scannerInfo.scanner_id,
+        summary: summary || null,
+      }, { correlation_id: correlationId, sendgridApiKey: c.env.SENDGRID_API_KEY });
+    }
 
     return c.json({
       message: 'Results received',

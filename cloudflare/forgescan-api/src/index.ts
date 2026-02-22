@@ -18,6 +18,7 @@ import { integrations } from './routes/integrations';
 import { notifications } from './routes/notifications';
 import { compliance } from './routes/compliance';
 import { redops } from './routes/redops';
+import { events } from './routes/events';
 import { docs } from './routes/docs';
 
 export interface Env {
@@ -30,6 +31,7 @@ export interface Env {
   JWT_SECRET: string;
   NVD_API_KEY?: string;
   SENDGRID_API_KEY?: string;
+  ANTHROPIC_API_KEY?: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -80,6 +82,7 @@ app.route('/api/v1/integrations', integrations);
 app.route('/api/v1/notifications', notifications);
 app.route('/api/v1/compliance', compliance);
 app.route('/api/v1/redops', redops);
+app.route('/api/v1/events', events);
 
 // 404 handler
 app.notFound((c) => {
