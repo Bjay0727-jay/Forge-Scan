@@ -67,20 +67,20 @@ export function Sidebar() {
   return (
     <div className="flex h-full w-64 flex-col" style={{ background: '#060f1a' }}>
       {/* Brand Header */}
-      <div className="flex flex-col items-center justify-center px-2 pt-4 pb-3" style={{ borderBottom: '1px solid rgba(75,119,169,0.2)' }}>
+      <div className="flex flex-col items-center justify-center px-2 pt-2 pb-2" style={{ borderBottom: '1px solid rgba(75,119,169,0.2)' }}>
         <img
           src="/forge-logo-400.png"
           alt="Forge Cyber Defense"
-          className="w-60 h-auto"
+          className="w-44 h-auto"
           draggable={false}
         />
-        <span className="text-[13px] font-semibold tracking-[0.35em] uppercase -mt-1" style={{ color: '#14b8a6', fontFamily: 'Sora, Inter, system-ui, sans-serif' }}>
+        <span className="text-[11px] font-semibold tracking-[0.35em] uppercase -mt-1" style={{ color: '#14b8a6', fontFamily: 'Sora, Inter, system-ui, sans-serif' }}>
           ForgeScan 360
         </span>
       </div>
 
       {/* Main Navigation */}
-      <nav className="flex-1 space-y-0.5 px-3 py-4 overflow-y-auto">
+      <nav className="flex-1 space-y-0.5 px-3 py-2 overflow-y-auto">
         {mainNavigation.map((item) => (
           <NavLink
             key={item.name}
@@ -88,7 +88,7 @@ export function Sidebar() {
             end={item.href === '/'}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150',
+                'flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all duration-150',
                 isActive
                   ? 'text-white'
                   : 'hover:text-white'
@@ -100,7 +100,7 @@ export function Sidebar() {
               border: isActive ? '1px solid rgba(13,148,136,0.2)' : '1px solid transparent',
             })}
           >
-            <item.icon className="h-[18px] w-[18px] flex-shrink-0" />
+            <item.icon className="h-4 w-4 flex-shrink-0" />
             {item.name}
           </NavLink>
         ))}
@@ -108,7 +108,7 @@ export function Sidebar() {
         {/* Admin Section */}
         {hasRole(user, 'platform_admin') && (
           <>
-            <div className="my-3 mx-3" style={{ borderTop: '1px solid rgba(75,119,169,0.2)' }} />
+            <div className="my-2 mx-3" style={{ borderTop: '1px solid rgba(75,119,169,0.2)' }} />
             <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#4b77a9' }}>
               Admin
             </p>
@@ -118,7 +118,7 @@ export function Sidebar() {
                 to={item.href}
                 className={({ isActive }) =>
                   cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150',
+                    'flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all duration-150',
                     isActive
                       ? 'text-white'
                       : 'hover:text-white'
@@ -130,7 +130,7 @@ export function Sidebar() {
                   border: isActive ? '1px solid rgba(13,148,136,0.2)' : '1px solid transparent',
                 })}
               >
-                <item.icon className="h-[18px] w-[18px] flex-shrink-0" />
+                <item.icon className="h-4 w-4 flex-shrink-0" />
                 {item.name}
               </NavLink>
             ))}
@@ -139,14 +139,14 @@ export function Sidebar() {
       </nav>
 
       {/* Bottom Section */}
-      <div className="p-3 space-y-2" style={{ borderTop: '1px solid rgba(75,119,169,0.2)' }}>
+      <div className="p-2 space-y-1.5" style={{ borderTop: '1px solid rgba(75,119,169,0.2)' }}>
         {bottomNavigation.map((item) => (
           <NavLink
             key={item.name}
             to={item.href}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150',
+                'flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all duration-150',
                 isActive
                   ? 'text-white'
                   : 'hover:text-white'
@@ -158,18 +158,18 @@ export function Sidebar() {
               border: isActive ? '1px solid rgba(13,148,136,0.2)' : '1px solid transparent',
             })}
           >
-            <item.icon className="h-[18px] w-[18px] flex-shrink-0" />
+            <item.icon className="h-4 w-4 flex-shrink-0" />
             {item.name}
           </NavLink>
         ))}
 
         {/* User Profile */}
         {user && (
-          <div className="rounded-lg p-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(75,119,169,0.2)' }}>
+          <div className="rounded-lg p-2" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(75,119,169,0.2)' }}>
             <div className="flex items-center justify-between">
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-white">{user.display_name}</p>
-                <p className="truncate text-xs" style={{ color: '#4b77a9' }}>{user.email}</p>
+                <p className="truncate text-[13px] font-medium text-white">{user.display_name}</p>
+                <p className="truncate text-[11px]" style={{ color: '#4b77a9' }}>{user.email}</p>
                 <Badge className={cn('mt-1 text-[10px] border', roleBadgeColor(user.role))}>
                   {user.role.replace('_', ' ')}
                 </Badge>
