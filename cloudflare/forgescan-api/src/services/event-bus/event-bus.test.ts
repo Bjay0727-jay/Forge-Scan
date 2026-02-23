@@ -49,7 +49,7 @@ function createMockDB(options: {
     _getInsertCalls: () => insertCalls,
   };
 
-  return db as unknown as D1Database & { _getInsertCalls: () => any[] };
+  return db as unknown as D1Database & { prepare: ReturnType<typeof vi.fn>; _getInsertCalls: () => any[] };
 }
 
 // ─── Mock notification engine ────────────────────────────────────────────────
@@ -199,7 +199,7 @@ describe('Event Bus — publish()', () => {
     await publish(db, 'forge.scan.started', 'forgescan', {}, { correlation_id: 'corr-123' });
 
     // Verify the INSERT was called with the correlation ID
-    const prepareCall = db.prepare.mock.calls.find((c: any) =>
+    const prepareCall = (db.prepare as ReturnType<typeof vi.fn>).mock.calls.find((c: any) =>
       c[0].includes('INSERT INTO forge_events')
     );
     expect(prepareCall).toBeDefined();
@@ -325,7 +325,7 @@ describe('Event Bus — queryEvents()', () => {
     const db = createMockDB({ firstResult: { total: 0 } });
     await queryEvents(db, { event_type: 'forge.scan.started' });
 
-    const prepareCall = db.prepare.mock.calls.find((c: any) =>
+    const prepareCall = (db.prepare as ReturnType<typeof vi.fn>).mock.calls.find((c: any) =>
       c[0].includes('event_type = ?')
     );
     expect(prepareCall).toBeDefined();
@@ -335,7 +335,7 @@ describe('Event Bus — queryEvents()', () => {
     const db = createMockDB({ firstResult: { total: 0 } });
     await queryEvents(db, { correlation_id: 'campaign-123' });
 
-    const prepareCall = db.prepare.mock.calls.find((c: any) =>
+    const prepareCall = (db.prepare as ReturnType<typeof vi.fn>).mock.calls.find((c: any) =>
       c[0].includes('correlation_id = ?')
     );
     expect(prepareCall).toBeDefined();

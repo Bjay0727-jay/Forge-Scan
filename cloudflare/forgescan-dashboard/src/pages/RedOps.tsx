@@ -658,7 +658,7 @@ export function RedOps() {
   });
 
   const overview = data?.overview ?? null;
-  const campaigns = data?.campaigns ?? [];
+  const campaigns = useMemo(() => data?.campaigns ?? [], [data?.campaigns]);
 
   // Enable faster polling (3s) when campaigns are active
   const hasActiveCampaigns = useMemo(
@@ -668,7 +668,6 @@ export function RedOps() {
 
   const {
     data: activeData,
-    refetch: refetchActive,
   } = usePollingApi(fetchDashboard, {
     interval: 3000,
     enabled: hasActiveCampaigns,
