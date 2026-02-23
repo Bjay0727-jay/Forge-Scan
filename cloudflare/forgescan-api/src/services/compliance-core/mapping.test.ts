@@ -230,8 +230,8 @@ describe('generatePOAMEntry()', () => {
     });
 
     const scheduled = new Date(entry.scheduled_completion);
-    const now = new Date();
-    const diffDays = Math.round((scheduled.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const today = new Date(new Date().toISOString().split('T')[0]);
+    const diffDays = Math.round((scheduled.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
     expect(diffDays).toBe(15);
   });
@@ -244,8 +244,8 @@ describe('generatePOAMEntry()', () => {
     });
 
     const scheduled = new Date(entry.scheduled_completion);
-    const now = new Date();
-    const diffDays = Math.round((scheduled.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const today = new Date(new Date().toISOString().split('T')[0]);
+    const diffDays = Math.round((scheduled.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
     expect(diffDays).toBe(30);
   });
@@ -258,8 +258,8 @@ describe('generatePOAMEntry()', () => {
     });
 
     const scheduled = new Date(entry.scheduled_completion);
-    const now = new Date();
-    const diffDays = Math.round((scheduled.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const today = new Date(new Date().toISOString().split('T')[0]);
+    const diffDays = Math.round((scheduled.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
     expect(diffDays).toBe(90);
   });
@@ -272,8 +272,8 @@ describe('generatePOAMEntry()', () => {
     });
 
     const scheduled = new Date(entry.scheduled_completion);
-    const now = new Date();
-    const diffDays = Math.round((scheduled.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const today = new Date(new Date().toISOString().split('T')[0]);
+    const diffDays = Math.round((scheduled.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
     expect(diffDays).toBe(180);
   });
