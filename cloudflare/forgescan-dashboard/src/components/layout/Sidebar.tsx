@@ -15,6 +15,7 @@ import {
   Users,
   LogOut,
   Crosshair,
+  Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth, hasRole } from '@/lib/auth';
@@ -28,6 +29,7 @@ const mainNavigation = [
   { name: 'Findings', href: '/findings', icon: AlertTriangle },
   { name: 'Scans', href: '/scans', icon: Scan },
   { name: 'RedOPS', href: '/redops', icon: Crosshair },
+  { name: 'ForgeSOC', href: '/soc', icon: Shield },
   { name: 'Vulnerabilities', href: '/vulnerabilities', icon: ShieldAlert },
   { name: 'Integrations', href: '/integrations', icon: Plug },
   { name: 'Compliance', href: '/compliance', icon: ClipboardCheck },

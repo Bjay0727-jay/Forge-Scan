@@ -27,6 +27,10 @@ import type {
   RedOpsAgentType,
   RedOpsOverview,
   CreateCampaignInput,
+  SOCAlert,
+  SOCIncident,
+  SOCDetectionRule,
+  SOCOverview,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
@@ -506,6 +510,141 @@ export const redopsApi = {
     return request<RedOpsFinding>(`/redops/findings/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
+    });
+  },
+};
+
+// ForgeSOC API
+export const socApi = {
+  getOverview: async (): Promise<SOCOverview> => {
+    return request<SOCOverview>('/soc/overview');
+  },
+
+  listAlerts: async (params: {
+    page?: number;
+    page_size?: number;
+    severity?: string;
+    status?: string;
+    alert_type?: string;
+    source?: string;
+  } = {}): Promise<PaginatedResponse<SOCAlert>> => {
+    const query = buildQueryString(params as Record<string, string | number | boolean | undefined>);
+    return request<PaginatedResponse<SOCAlert>>(`/soc/alerts${query}`);
+  },
+
+  getAlert: async (id: string): Promise<SOCAlert> => {
+    return request<SOCAlert>(`/soc/alerts/${id}`);
+  },
+
+  createAlert: async (data: {
+    title: string;
+    description?: string;
+    severity?: string;
+    alert_type?: string;
+    assigned_to?: string;
+    tags?: string[];
+  }): Promise<SOCAlert> => {
+    return request<SOCAlert>('/soc/alerts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateAlert: async (id: string, data: {
+    status?: string;
+    severity?: string;
+    assigned_to?: string;
+    incident_id?: string;
+  }): Promise<SOCAlert> => {
+    return request<SOCAlert>(`/soc/alerts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  listIncidents: async (params: {
+    page?: number;
+    page_size?: number;
+    status?: string;
+    severity?: string;
+  } = {}): Promise<PaginatedResponse<SOCIncident>> => {
+    const query = buildQueryString(params as Record<string, string | number | boolean | undefined>);
+    return request<PaginatedResponse<SOCIncident>>(`/soc/incidents${query}`);
+  },
+
+  getIncident: async (id: string): Promise<SOCIncident> => {
+    return request<SOCIncident>(`/soc/incidents/${id}`);
+  },
+
+  createIncident: async (data: {
+    title: string;
+    description?: string;
+    severity?: string;
+    incident_type?: string;
+    lead_analyst?: string;
+  }): Promise<SOCIncident> => {
+    return request<SOCIncident>('/soc/incidents', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateIncident: async (id: string, data: {
+    status?: string;
+    severity?: string;
+    lead_analyst?: string;
+    root_cause?: string;
+    lessons_learned?: string;
+  }): Promise<SOCIncident> => {
+    return request<SOCIncident>(`/soc/incidents/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  linkAlertToIncident: async (incidentId: string, alertId: string): Promise<{ message: string }> => {
+    return request<{ message: string }>(`/soc/incidents/${incidentId}/alerts`, {
+      method: 'POST',
+      body: JSON.stringify({ alert_id: alertId }),
+    });
+  },
+
+  listDetectionRules: async (): Promise<{ items: SOCDetectionRule[] }> => {
+    return request<{ items: SOCDetectionRule[] }>('/soc/detection-rules');
+  },
+
+  createDetectionRule: async (data: {
+    name: string;
+    event_pattern: string;
+    description?: string;
+    conditions?: Record<string, unknown>;
+    alert_severity?: string;
+    alert_type?: string;
+    auto_escalate?: boolean;
+    cooldown_seconds?: number;
+  }): Promise<SOCDetectionRule> => {
+    return request<SOCDetectionRule>('/soc/detection-rules', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateDetectionRule: async (id: string, data: {
+    name?: string;
+    is_active?: number;
+    conditions?: Record<string, unknown>;
+    alert_severity?: string;
+    auto_escalate?: number;
+  }): Promise<SOCDetectionRule> => {
+    return request<SOCDetectionRule>(`/soc/detection-rules/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteDetectionRule: async (id: string): Promise<void> => {
+    return request<void>(`/soc/detection-rules/${id}`, {
+      method: 'DELETE',
     });
   },
 };

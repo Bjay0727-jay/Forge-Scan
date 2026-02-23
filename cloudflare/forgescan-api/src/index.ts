@@ -19,7 +19,9 @@ import { notifications } from './routes/notifications';
 import { compliance } from './routes/compliance';
 import { redops } from './routes/redops';
 import { events } from './routes/events';
+import { soc } from './routes/soc';
 import { docs } from './routes/docs';
+import { registerSOCHandlers } from './services/forgesoc/alert-handler';
 
 export interface Env {
   DB: D1Database;
@@ -35,6 +37,9 @@ export interface Env {
 }
 
 const app = new Hono<{ Bindings: Env }>();
+
+// Register ForgeSOC event bus handlers at module load
+registerSOCHandlers();
 
 // Middleware
 app.use('*', logger());
@@ -83,6 +88,7 @@ app.route('/api/v1/notifications', notifications);
 app.route('/api/v1/compliance', compliance);
 app.route('/api/v1/redops', redops);
 app.route('/api/v1/events', events);
+app.route('/api/v1/soc', soc);
 
 // 404 handler
 app.notFound((c) => {

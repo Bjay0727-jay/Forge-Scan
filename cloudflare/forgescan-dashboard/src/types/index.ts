@@ -432,3 +432,107 @@ export interface CreateCampaignInput {
   compliance_mapping?: boolean;
   scheduled_at?: string;
 }
+
+// ─── ForgeSOC Types ──────────────────────────────────────────────────────────
+
+export type SOCAlertStatus = 'new' | 'triaged' | 'investigating' | 'escalated' | 'resolved' | 'closed' | 'false_positive';
+export type SOCAlertType = 'vulnerability' | 'exploitation' | 'anomaly' | 'compliance' | 'threat_intel';
+export type SOCIncidentStatus = 'open' | 'investigating' | 'containment' | 'eradication' | 'recovery' | 'post_incident' | 'closed';
+
+export interface SOCAlert {
+  id: string;
+  title: string;
+  description: string | null;
+  severity: Severity;
+  status: SOCAlertStatus;
+  source: string;
+  source_event_id: string | null;
+  source_finding_id: string | null;
+  alert_type: SOCAlertType;
+  tags: string | null;
+  assigned_to: string | null;
+  incident_id: string | null;
+  correlation_id: string | null;
+  mitre_tactic: string | null;
+  mitre_technique: string | null;
+  affected_assets: string | null;
+  raw_data: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SOCIncident {
+  id: string;
+  title: string;
+  description: string | null;
+  severity: Severity;
+  status: SOCIncidentStatus;
+  priority: number;
+  incident_type: string;
+  lead_analyst: string | null;
+  alert_count: number;
+  affected_asset_count: number;
+  tags: string | null;
+  mitre_tactics: string | null;
+  mitre_techniques: string | null;
+  containment_actions: string | null;
+  root_cause: string | null;
+  lessons_learned: string | null;
+  started_at: string | null;
+  contained_at: string | null;
+  resolved_at: string | null;
+  closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  timeline?: SOCTimelineEntry[];
+  alerts?: SOCAlert[];
+}
+
+export interface SOCTimelineEntry {
+  id: string;
+  incident_id: string;
+  action: string;
+  description: string | null;
+  actor: string | null;
+  old_value: string | null;
+  new_value: string | null;
+  created_at: string;
+}
+
+export interface SOCDetectionRule {
+  id: string;
+  name: string;
+  description: string | null;
+  event_pattern: string;
+  conditions: string | null;
+  alert_severity: Severity;
+  alert_type: string;
+  tags: string | null;
+  is_active: number;
+  auto_escalate: number;
+  cooldown_seconds: number;
+  last_triggered_at: string | null;
+  trigger_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SOCOverview {
+  alerts: {
+    total: number;
+    new: number;
+    active: number;
+    resolved: number;
+    last_24h: number;
+  };
+  incidents: {
+    total: number;
+    active: number;
+    closed: number;
+  };
+  severity_breakdown: Array<{ severity: string; count: number }>;
+  recent_alerts: SOCAlert[];
+  active_incidents: SOCIncident[];
+  generated_at: string;
+}
