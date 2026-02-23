@@ -471,11 +471,12 @@ export function Assets() {
                   onCancel={() => setDeleteConfirm(null)}
                 />
               )}
-              <Table>
+              <div className="overflow-x-auto">
+              <Table className="table-fixed w-full">
                 <TableHeader>
                   <TableRow>
                     <TableHead
-                      className="cursor-pointer select-none hover:text-primary transition-colors"
+                      className="w-[20%] cursor-pointer select-none hover:text-primary transition-colors"
                       style={{ color: sortBy === 'hostname' ? '#14b8a6' : undefined }}
                       onClick={() => handleSort('hostname')}
                     >
@@ -485,7 +486,7 @@ export function Assets() {
                       </span>
                     </TableHead>
                     <TableHead
-                      className="cursor-pointer select-none hover:text-primary transition-colors"
+                      className="w-[10%] cursor-pointer select-none hover:text-primary transition-colors"
                       style={{ color: sortBy === 'asset_type' ? '#14b8a6' : undefined }}
                       onClick={() => handleSort('asset_type')}
                     >
@@ -494,20 +495,20 @@ export function Assets() {
                         {sortBy === 'asset_type' ? (sortOrder === 'desc' ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />) : <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />}
                       </span>
                     </TableHead>
-                    <TableHead>Identifier</TableHead>
+                    <TableHead className="w-[16%]">Identifier</TableHead>
                     <TableHead
-                      className="cursor-pointer select-none hover:text-primary transition-colors"
+                      className="w-[12%] cursor-pointer select-none hover:text-primary transition-colors"
                       style={{ color: sortBy === 'risk_score' ? '#14b8a6' : undefined }}
                       onClick={() => handleSort('risk_score')}
                     >
                       <span className="flex items-center gap-1.5">
-                        Risk Score
+                        Risk
                         {sortBy === 'risk_score' ? (sortOrder === 'desc' ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />) : <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />}
                       </span>
                     </TableHead>
-                    <TableHead>Tags</TableHead>
+                    <TableHead className="w-[18%]">Tags</TableHead>
                     <TableHead
-                      className="cursor-pointer select-none hover:text-primary transition-colors"
+                      className="w-[14%] cursor-pointer select-none hover:text-primary transition-colors"
                       style={{ color: sortBy === 'last_seen' ? '#14b8a6' : undefined }}
                       onClick={() => handleSort('last_seen')}
                     >
@@ -516,57 +517,57 @@ export function Assets() {
                         {sortBy === 'last_seen' ? (sortOrder === 'desc' ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />) : <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />}
                       </span>
                     </TableHead>
-                    <TableHead className="w-[100px]">Actions</TableHead>
+                    <TableHead className="w-[10%]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {assets.map((asset) => (
                     <TableRow key={asset.id}>
-                      <TableCell>
+                      <TableCell className="truncate">
                         <button
-                          className="flex items-center gap-3 hover:underline text-left cursor-pointer"
+                          className="flex items-center gap-2 hover:underline text-left cursor-pointer min-w-0"
                           onClick={() => handleViewAsset(asset)}
                         >
                           <AssetTypeIcon type={asset.type} />
-                          <span className="font-medium text-primary">{asset.name}</span>
+                          <span className="font-medium text-primary truncate">{asset.name}</span>
                         </button>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">{capitalize(asset.type)}</Badge>
                       </TableCell>
-                      <TableCell className="font-mono text-sm">
+                      <TableCell className="font-mono text-sm truncate">
                         {asset.identifier}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <div className="h-2 w-16 rounded-full bg-muted">
+                          <div className="h-2 w-12 rounded-full bg-muted shrink-0">
                             <div
                               className="h-2 rounded-full bg-primary"
                               style={{ width: `${asset.risk_score * 10}%` }}
                             />
                           </div>
-                          <span className="text-sm">{asset.risk_score}/10</span>
+                          <span className="text-sm">{asset.risk_score}</span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {asset.tags.slice(0, 3).map((tag) => (
+                          {asset.tags.slice(0, 2).map((tag) => (
                             <Badge key={tag} variant="secondary" className="text-xs">
                               {tag}
                             </Badge>
                           ))}
-                          {asset.tags.length > 3 && (
+                          {asset.tags.length > 2 && (
                             <Badge variant="secondary" className="text-xs">
-                              +{asset.tags.length - 3}
+                              +{asset.tags.length - 2}
                             </Badge>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                         {formatDateTime(asset.updated_at)}
                       </TableCell>
                       <TableCell>
-                        <div className="flex gap-2">
+                        <div className="flex gap-1">
                           <Button variant="ghost" size="icon" onClick={() => handleViewAsset(asset)}>
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -583,6 +584,7 @@ export function Assets() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
 
