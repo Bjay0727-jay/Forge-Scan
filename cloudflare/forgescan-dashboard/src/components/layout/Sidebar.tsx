@@ -65,7 +65,7 @@ export function Sidebar() {
   };
 
   return (
-    <div className="flex h-full w-64 flex-col" style={{ background: '#060f1a' }}>
+    <div className="flex h-full w-64 flex-col" style={{ background: '#0b1929' }}>
       {/* Brand Header */}
       <div className="flex flex-col items-center justify-center px-2 pt-2 pb-2" style={{ borderBottom: '1px solid rgba(75,119,169,0.2)' }}>
         <img
@@ -189,7 +189,7 @@ export function Sidebar() {
         )}
 
         {/* Forge Cyber Defense footer text */}
-        <p className="text-center text-[9px] tracking-wider pt-1" style={{ color: '#1a3a5c' }}>
+        <p className="text-center text-[9px] tracking-wider pt-1" style={{ color: '#2d5a8a' }}>
           FORGE CYBER DEFENSE
         </p>
       </div>

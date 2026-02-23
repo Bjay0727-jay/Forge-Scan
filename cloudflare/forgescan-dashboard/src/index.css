@@ -7,26 +7,26 @@
 @layer base {
   :root {
     /* Forge Cyber Defense - Dark Theme (default)
-       Navy 700-900 backgrounds, white text, Teal accents */
-    --background: 213 50% 10%;
-    --foreground: 210 40% 95%;
-    --card: 213 55% 14%;
-    --card-foreground: 210 40% 95%;
-    --popover: 213 55% 12%;
-    --popover-foreground: 210 40% 95%;
-    --primary: 174 84% 32%;
+       Navy backgrounds lightened for readability, white text, Teal accents */
+    --background: 213 45% 14%;
+    --foreground: 210 40% 96%;
+    --card: 213 45% 18%;
+    --card-foreground: 210 40% 96%;
+    --popover: 213 45% 17%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 174 84% 36%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 213 40% 18%;
-    --secondary-foreground: 210 40% 90%;
-    --muted: 213 35% 16%;
-    --muted-foreground: 213 20% 60%;
-    --accent: 213 40% 20%;
+    --secondary: 213 35% 22%;
+    --secondary-foreground: 210 40% 92%;
+    --muted: 213 35% 20%;
+    --muted-foreground: 213 18% 65%;
+    --accent: 213 35% 24%;
     --accent-foreground: 174 60% 55%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 213 30% 20%;
-    --input: 213 30% 22%;
-    --ring: 174 84% 32%;
+    --border: 213 28% 26%;
+    --input: 213 30% 26%;
+    --ring: 174 84% 36%;
     --radius: 0.5rem;
 
     font-family: 'Inter', system-ui, sans-serif;
@@ -53,12 +53,12 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: hsl(213 50% 10%);
+  background: hsl(213 45% 14%);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(213 30% 25%);
+  background: hsl(213 28% 30%);
   border-radius: 4px;
 }
 
