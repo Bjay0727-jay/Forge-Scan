@@ -82,7 +82,8 @@ export function getStateColor(state: string): string {
   return colors[state] || colors.open;
 }
 
-export function truncate(str: string, length: number): string {
+export function truncate(str: string | null | undefined, length: number): string {
+  if (!str) return '';
   if (str.length <= length) return str;
   return str.slice(0, length) + '...';
 }
