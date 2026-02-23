@@ -42,7 +42,11 @@ demo.post('/seed', async (c) => {
       'organization_branding', 'organization_members', 'organizations',
     ];
     for (const table of clearTables) {
-      await db.prepare(`DELETE FROM ${table}`).run();
+      try {
+        await db.prepare(`DELETE FROM ${table}`).run();
+      } catch {
+        // Table may not exist yet — safe to skip
+      }
     }
 
     // ── 1. Organization ────────────────────────────────────────────────────
@@ -143,11 +147,11 @@ demo.post('/seed', async (c) => {
       const startedAt = daysAgo(s.daysAgoStart);
       const completedAt = s.status === 'completed' ? hoursAgo(s.daysAgoStart * 24 - 2) : null;
       await db.prepare(`
-        INSERT INTO scans (id, name, scan_type, targets, config, status, findings_count, started_at, completed_at, created_at, updated_at)
-        VALUES (?, ?, ?, ?, '{}', ?, ?, ?, ?, ?, ?)
+        INSERT INTO scans (id, name, scan_type, targets, config, status, findings_count, started_at, completed_at, created_at, updated_at, org_id)
+        VALUES (?, ?, ?, ?, '{}', ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         id, s.name, s.type, JSON.stringify([s.target]), s.status, s.findings,
-        startedAt, completedAt, startedAt, now(),
+        startedAt, completedAt, startedAt, now(), orgId,
       ).run();
     }
 
