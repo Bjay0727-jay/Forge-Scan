@@ -569,6 +569,100 @@ export interface SOCDetectionRule {
   updated_at: string;
 }
 
+// ─── MSSP / Multi-Tenant Types ────────────────────────────────────────────
+
+export type OrgTier = 'trial' | 'standard' | 'professional' | 'enterprise';
+export type OrgStatus = 'active' | 'suspended' | 'deactivated';
+export type OrgRole = 'owner' | 'admin' | 'analyst' | 'viewer';
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  tier: OrgTier;
+  status: OrgStatus;
+  max_assets: number;
+  max_users: number;
+  max_scanners: number;
+  contact_email: string | null;
+  contact_name: string | null;
+  industry: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  member_count?: number;
+  stats?: {
+    assets: number;
+    findings: number;
+    scans: number;
+    alerts: number;
+    incidents?: number;
+    severity_breakdown?: Array<{ severity: string; count: number }>;
+  };
+}
+
+export interface OrgMember {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  org_role: OrgRole;
+  is_primary: number;
+  joined_at: string;
+  email?: string;
+  display_name?: string;
+  global_role?: string;
+  is_active?: number;
+  last_login_at?: string | null;
+}
+
+export interface OrgBranding {
+  id: string;
+  organization_id: string;
+  company_name: string | null;
+  logo_url: string | null;
+  favicon_url: string | null;
+  primary_color: string;
+  accent_color: string;
+  sidebar_bg: string;
+  login_title: string | null;
+  login_subtitle: string | null;
+  support_email: string | null;
+  support_url: string | null;
+  custom_domain: string | null;
+  powered_by_visible: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MSSPOverview {
+  totals: {
+    organizations: number;
+    active: number;
+    suspended: number;
+    total_users: number;
+    total_assets: number;
+    total_findings: number;
+    total_scans: number;
+    total_alerts: number;
+  };
+  tier_breakdown: Record<string, number>;
+  tenants: Array<Organization & { member_count: number; stats: { assets: number; findings: number; scans: number; alerts: number } }>;
+  generated_at: string;
+}
+
+export interface TenantHealthCard {
+  org_id: string;
+  name: string;
+  slug: string;
+  tier: string;
+  risk_level: string;
+  critical_findings: number;
+  open_alerts: number;
+  active_scans: number;
+  last_scan_at: string | null;
+}
+
 export interface SOCOverview {
   alerts: {
     total: number;

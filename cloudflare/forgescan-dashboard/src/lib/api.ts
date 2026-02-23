@@ -32,6 +32,10 @@ import type {
   SOCIncident,
   SOCDetectionRule,
   SOCOverview,
+  Organization,
+  OrgBranding,
+  MSSPOverview,
+  TenantHealthCard,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
@@ -694,6 +698,104 @@ export const onboardingApi = {
       method: 'POST',
       body: JSON.stringify({ target }),
     });
+  },
+};
+
+// MSSP / Multi-Tenant API
+export const msspApi = {
+  getOverview: async (): Promise<MSSPOverview> => {
+    return request<MSSPOverview>('/mssp/overview');
+  },
+
+  listOrganizations: async (params: {
+    page?: number;
+    page_size?: number;
+    status?: string;
+    tier?: string;
+    search?: string;
+  } = {}): Promise<PaginatedResponse<Organization>> => {
+    const query = buildQueryString(params as Record<string, string | number | boolean | undefined>);
+    return request<PaginatedResponse<Organization>>(`/mssp/organizations${query}`);
+  },
+
+  getOrganization: async (id: string): Promise<Organization & { members: unknown[]; branding: OrgBranding | null; stats: Record<string, unknown> }> => {
+    return request(`/mssp/organizations/${id}`);
+  },
+
+  createOrganization: async (data: {
+    name: string;
+    tier?: string;
+    max_assets?: number;
+    max_users?: number;
+    max_scanners?: number;
+    contact_email?: string;
+    contact_name?: string;
+    industry?: string;
+    notes?: string;
+  }): Promise<Organization> => {
+    return request<Organization>('/mssp/organizations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateOrganization: async (id: string, data: Partial<{
+    name: string;
+    tier: string;
+    status: string;
+    max_assets: number;
+    max_users: number;
+    max_scanners: number;
+    contact_email: string;
+    contact_name: string;
+    industry: string;
+    notes: string;
+  }>): Promise<Organization> => {
+    return request<Organization>(`/mssp/organizations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteOrganization: async (id: string): Promise<{ message: string }> => {
+    return request(`/mssp/organizations/${id}`, { method: 'DELETE' });
+  },
+
+  addMember: async (orgId: string, data: { user_id: string; org_role?: string; is_primary?: boolean }): Promise<unknown> => {
+    return request(`/mssp/organizations/${orgId}/members`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateMember: async (orgId: string, userId: string, data: { org_role?: string; is_primary?: boolean }): Promise<unknown> => {
+    return request(`/mssp/organizations/${orgId}/members/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  removeMember: async (orgId: string, userId: string): Promise<{ message: string }> => {
+    return request(`/mssp/organizations/${orgId}/members/${userId}`, { method: 'DELETE' });
+  },
+
+  getBranding: async (orgId: string): Promise<OrgBranding> => {
+    return request<OrgBranding>(`/mssp/organizations/${orgId}/branding`);
+  },
+
+  updateBranding: async (orgId: string, data: Partial<OrgBranding>): Promise<OrgBranding> => {
+    return request<OrgBranding>(`/mssp/organizations/${orgId}/branding`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  getHealth: async (): Promise<{ tenants: TenantHealthCard[]; generated_at: string }> => {
+    return request('/mssp/health');
+  },
+
+  getMyOrganizations: async (): Promise<{ items: Organization[]; is_mssp_admin: boolean }> => {
+    return request('/mssp/my-organizations');
   },
 };
 
