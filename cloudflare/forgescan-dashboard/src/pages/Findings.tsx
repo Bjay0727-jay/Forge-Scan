@@ -131,7 +131,7 @@ function FindingDetailDialog({
             </div>
           )}
 
-          {finding.references.length > 0 && (
+          {finding.references && finding.references.length > 0 && (
             <div>
               <h4 className="mb-1 text-sm font-medium">References</h4>
               <ul className="list-inside list-disc text-sm text-muted-foreground">
