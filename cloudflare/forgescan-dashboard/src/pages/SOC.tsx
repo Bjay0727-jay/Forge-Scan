@@ -199,11 +199,10 @@ export function SOC() {
           onFilterChange={setAlertFilter}
           page={alertPage}
           onPageChange={setAlertPage}
-          onRefresh={loadAlerts}
         />
       )}
-      {activeTab === 'incidents' && <IncidentsTab incidents={incidents} loading={loading} onRefresh={loadIncidents} />}
-      {activeTab === 'rules' && <RulesTab rules={rules} loading={loading} onRefresh={loadRules} />}
+      {activeTab === 'incidents' && <IncidentsTab incidents={incidents} loading={loading} />}
+      {activeTab === 'rules' && <RulesTab rules={rules} loading={loading} />}
     </div>
   );
 }
@@ -305,7 +304,7 @@ function OverviewTab({ overview, loading }: { overview: SOCOverview | null; load
               <p className="text-sm" style={{ color: '#4b77a9' }}>No active incidents</p>
             ) : (
               <div className="space-y-3">
-                {overview.active_incidents.map((inc: any) => (
+                {overview.active_incidents.map((inc: SOCIncident) => (
                   <div
                     key={inc.id}
                     className="flex items-center justify-between p-3 rounded-lg"
@@ -353,7 +352,7 @@ function OverviewTab({ overview, loading }: { overview: SOCOverview | null; load
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {overview.recent_alerts.map((alert: any) => (
+                {overview.recent_alerts.map((alert: SOCAlert) => (
                   <TableRow key={alert.id} style={{ borderColor: 'rgba(75,119,169,0.1)' }}>
                     <TableCell className="text-white text-sm font-medium max-w-[300px] truncate">
                       {alert.title}
@@ -409,7 +408,6 @@ function AlertsTab({
   onFilterChange,
   page,
   onPageChange,
-  onRefresh,
 }: {
   alerts: PaginatedResponse<SOCAlert> | null;
   loading: boolean;
@@ -417,7 +415,6 @@ function AlertsTab({
   onFilterChange: (f: { severity?: string; status?: string }) => void;
   page: number;
   onPageChange: (p: number) => void;
-  onRefresh: () => void;
 }) {
   const severities = ['', 'critical', 'high', 'medium', 'low', 'info'];
   const statuses = ['', 'new', 'triaged', 'investigating', 'escalated', 'resolved', 'closed'];
@@ -529,11 +526,9 @@ function AlertsTab({
 function IncidentsTab({
   incidents,
   loading,
-  onRefresh,
 }: {
   incidents: PaginatedResponse<SOCIncident> | null;
   loading: boolean;
-  onRefresh: () => void;
 }) {
   return (
     <div className="space-y-4">
@@ -596,11 +591,9 @@ function IncidentsTab({
 function RulesTab({
   rules,
   loading,
-  onRefresh,
 }: {
   rules: SOCDetectionRule[];
   loading: boolean;
-  onRefresh: () => void;
 }) {
   return (
     <div className="space-y-4">
