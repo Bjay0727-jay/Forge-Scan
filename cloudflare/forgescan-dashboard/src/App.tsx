@@ -20,6 +20,10 @@ import { RedOps } from '@/pages/RedOps';
 import { SOC } from '@/pages/SOC';
 import { MSSPPortal } from '@/pages/MSSPPortal';
 import { Onboarding } from '@/pages/Onboarding';
+import { Containers } from '@/pages/Containers';
+import { CodeScan } from '@/pages/CodeScan';
+import { Playbooks } from '@/pages/Playbooks';
+import { ThreatIntel } from '@/pages/ThreatIntel';
 
 function App() {
   return (
@@ -60,6 +64,10 @@ function App() {
             <Route path="notifications" element={<Notifications />} />
             <Route path="redops" element={<RedOps />} />
             <Route path="soc" element={<SOC />} />
+            <Route path="containers" element={<Containers />} />
+            <Route path="codescan" element={<CodeScan />} />
+            <Route path="playbooks" element={<Playbooks />} />
+            <Route path="threat-intel" element={<ThreatIntel />} />
             <Route path="settings" element={<Settings />} />
             <Route
               path="admin/mssp"

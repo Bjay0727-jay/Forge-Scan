@@ -36,6 +36,14 @@ import type {
   OrgBranding,
   MSSPOverview,
   TenantHealthCard,
+  ContainerImage,
+  ContainerOverview,
+  SASTProject,
+  SASTOverview,
+  SOARPlaybook,
+  SOAROverview,
+  ThreatIntelFeed,
+  ThreatIntelOverview,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
@@ -797,6 +805,76 @@ export const msspApi = {
   getMyOrganizations: async (): Promise<{ items: Organization[]; is_mssp_admin: boolean }> => {
     return request('/mssp/my-organizations');
   },
+};
+
+// Container Scanning API
+export const containersApi = {
+  getOverview: async (): Promise<ContainerOverview> => request('/containers/overview'),
+  listImages: async (params: { page?: number; page_size?: number; search?: string } = {}): Promise<PaginatedResponse<ContainerImage>> => {
+    const query = buildQueryString(params as Record<string, string | number | boolean | undefined>);
+    return request(`/containers/images${query}`);
+  },
+  getImage: async (id: string): Promise<ContainerImage & { scans: unknown[]; latest_findings: unknown[] }> => request(`/containers/images/${id}`),
+  addImage: async (data: { registry: string; repository: string; tag?: string }): Promise<ContainerImage> => request('/containers/images', { method: 'POST', body: JSON.stringify(data) }),
+  scanImage: async (id: string): Promise<{ scan_result_id: string; findings_count: number; critical: number; high: number; message: string }> => request(`/containers/images/${id}/scan`, { method: 'POST' }),
+  deleteImage: async (id: string): Promise<void> => request(`/containers/images/${id}`, { method: 'DELETE' }),
+};
+
+// SAST Code Scanning API
+export const sastApi = {
+  getOverview: async (): Promise<SASTOverview> => request('/sast/overview'),
+  listProjects: async (params: { page?: number; page_size?: number; search?: string } = {}): Promise<PaginatedResponse<SASTProject>> => {
+    const query = buildQueryString(params as Record<string, string | number | boolean | undefined>);
+    return request(`/sast/projects${query}`);
+  },
+  getProject: async (id: string): Promise<SASTProject & { scans: unknown[]; latest_findings: unknown[] }> => request(`/sast/projects/${id}`),
+  addProject: async (data: { name: string; repository_url?: string; branch?: string; language?: string }): Promise<SASTProject> => request('/sast/projects', { method: 'POST', body: JSON.stringify(data) }),
+  scanProject: async (id: string): Promise<{ scan_id: string; issues_found: number; critical: number; high: number; message: string }> => request(`/sast/projects/${id}/scan`, { method: 'POST' }),
+  deleteProject: async (id: string): Promise<void> => request(`/sast/projects/${id}`, { method: 'DELETE' }),
+  getRules: async (): Promise<{ rules: unknown[]; total: number }> => request('/sast/rules'),
+};
+
+// SOAR Playbooks API
+export const soarApi = {
+  getOverview: async (): Promise<SOAROverview> => request('/soar/overview'),
+  listPlaybooks: async (params: { page?: number; enabled?: string } = {}): Promise<PaginatedResponse<SOARPlaybook>> => {
+    const query = buildQueryString(params as Record<string, string | number | boolean | undefined>);
+    return request(`/soar/playbooks${query}`);
+  },
+  getPlaybook: async (id: string): Promise<SOARPlaybook & { recent_executions: unknown[] }> => request(`/soar/playbooks/${id}`),
+  createPlaybook: async (data: { name: string; trigger_type: string; trigger_config: unknown; steps: unknown[]; description?: string }): Promise<SOARPlaybook> =>
+    request('/soar/playbooks', { method: 'POST', body: JSON.stringify(data) }),
+  updatePlaybook: async (id: string, data: Partial<{ name: string; enabled: boolean; steps: unknown[] }>): Promise<SOARPlaybook> =>
+    request(`/soar/playbooks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deletePlaybook: async (id: string): Promise<void> => request(`/soar/playbooks/${id}`, { method: 'DELETE' }),
+  executePlaybook: async (id: string, data?: { alert_id?: string; incident_id?: string }): Promise<{ execution_id: string; status: string; steps_completed: number; step_results: unknown[] }> =>
+    request(`/soar/playbooks/${id}/execute`, { method: 'POST', body: JSON.stringify(data || {}) }),
+  getTemplates: async (): Promise<{ templates: unknown[]; total: number }> => request('/soar/templates'),
+  getActionTypes: async (): Promise<{ action_types: unknown[]; total: number }> => request('/soar/action-types'),
+};
+
+// Threat Intel API
+export const threatIntelApi = {
+  getOverview: async (): Promise<ThreatIntelOverview> => request('/threat-intel/overview'),
+  listFeeds: async (): Promise<{ items: ThreatIntelFeed[]; total: number }> => request('/threat-intel/feeds'),
+  getFeed: async (id: string): Promise<ThreatIntelFeed & { active_indicators: number; total_matches: number; recent_indicators: unknown[] }> => request(`/threat-intel/feeds/${id}`),
+  createFeed: async (data: { name: string; feed_type: string; source_url?: string; format?: string }): Promise<ThreatIntelFeed> =>
+    request('/threat-intel/feeds', { method: 'POST', body: JSON.stringify(data) }),
+  updateFeed: async (id: string, data: Partial<{ name: string; enabled: boolean }>): Promise<ThreatIntelFeed> =>
+    request(`/threat-intel/feeds/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteFeed: async (id: string): Promise<void> => request(`/threat-intel/feeds/${id}`, { method: 'DELETE' }),
+  syncFeed: async (id: string): Promise<{ indicators_imported: number; message: string }> => request(`/threat-intel/feeds/${id}/sync`, { method: 'POST' }),
+  correlate: async (): Promise<{ indicators_checked: number; new_matches: number; matches: unknown[] }> => request('/threat-intel/correlate', { method: 'POST' }),
+  listIndicators: async (params: { page?: number; type?: string; search?: string } = {}): Promise<PaginatedResponse<unknown>> => {
+    const query = buildQueryString(params as Record<string, string | number | boolean | undefined>);
+    return request(`/threat-intel/indicators${query}`);
+  },
+  listMatches: async (params: { page?: number } = {}): Promise<PaginatedResponse<unknown>> => {
+    const query = buildQueryString(params as Record<string, string | number | boolean | undefined>);
+    return request(`/threat-intel/matches${query}`);
+  },
+  getBuiltinFeeds: async (): Promise<{ feeds: unknown[]; total: number }> => request('/threat-intel/builtin-feeds'),
+  addBuiltinFeed: async (index: number): Promise<ThreatIntelFeed> => request(`/threat-intel/builtin-feeds/${index}`, { method: 'POST' }),
 };
 
 // Health check

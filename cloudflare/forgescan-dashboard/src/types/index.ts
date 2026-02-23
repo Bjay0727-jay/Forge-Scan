@@ -663,6 +663,106 @@ export interface TenantHealthCard {
   last_scan_at: string | null;
 }
 
+// ─── Container Scanning Types ─────────────────────────────────────────────
+
+export interface ContainerImage {
+  id: string;
+  registry: string;
+  repository: string;
+  tag: string;
+  digest: string | null;
+  base_image: string | null;
+  last_scanned: string | null;
+  scan_count?: number;
+  total_critical?: number;
+  total_high?: number;
+  created_at: string;
+}
+
+export interface ContainerOverview {
+  totals: { images: number; scans: number; open_findings: number };
+  severity_breakdown: Array<{ severity: string; count: number }>;
+  top_vulnerable_images: Array<Record<string, unknown>>;
+  recent_scans: Array<Record<string, unknown>>;
+  generated_at: string;
+}
+
+// ─── SAST Types ───────────────────────────────────────────────────────────
+
+export interface SASTProject {
+  id: string;
+  name: string;
+  repository_url: string | null;
+  branch: string;
+  language: string | null;
+  last_scanned: string | null;
+  loc: number | null;
+  file_count: number | null;
+  scan_count?: number;
+  total_issues?: number;
+  created_at: string;
+}
+
+export interface SASTOverview {
+  totals: { projects: number; scans: number; open_issues: number };
+  severity_breakdown: Array<{ severity: string; count: number }>;
+  category_breakdown: Array<{ category: string; count: number }>;
+  top_projects: Array<Record<string, unknown>>;
+  rules_count: number;
+  generated_at: string;
+}
+
+// ─── SOAR Types ───────────────────────────────────────────────────────────
+
+export interface SOARPlaybook {
+  id: string;
+  name: string;
+  description: string | null;
+  trigger_type: string;
+  trigger_config: string;
+  steps: string;
+  enabled: number;
+  severity_filter: string | null;
+  trigger_count: number;
+  success_count: number;
+  failure_count: number;
+  last_triggered_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SOAROverview {
+  totals: { playbooks: number; enabled: number; total_executions: number; successful: number; failed: number; success_rate: number };
+  recent_executions: Array<Record<string, unknown>>;
+  templates_available: number;
+  action_types_available: number;
+  generated_at: string;
+}
+
+// ─── Threat Intel Types ───────────────────────────────────────────────────
+
+export interface ThreatIntelFeed {
+  id: string;
+  name: string;
+  feed_type: string;
+  source_url: string | null;
+  format: string;
+  enabled: number;
+  last_fetch_at: string | null;
+  last_fetch_status: string | null;
+  indicators_count: number;
+  created_at: string;
+}
+
+export interface ThreatIntelOverview {
+  totals: { feeds: number; active_feeds: number; active_indicators: number; total_matches: number };
+  indicator_types: Array<{ indicator_type: string; count: number }>;
+  severity_breakdown: Array<{ severity: string; count: number }>;
+  recent_matches: Array<Record<string, unknown>>;
+  builtin_feeds_available: number;
+  generated_at: string;
+}
+
 export interface SOCOverview {
   alerts: {
     total: number;
