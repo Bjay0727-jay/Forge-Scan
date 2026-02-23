@@ -166,8 +166,8 @@ export function UserManagement() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Users className="h-8 w-8" /> User Management
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Users className="h-5 w-5" /> User Management
           </h1>
           <p className="text-muted-foreground mt-1">Manage platform users and their roles</p>
         </div>

@@ -67,19 +67,19 @@ export function ThreatIntel() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Threat Intelligence</h1>
-          <p className="text-sm text-[#6b8fb9] mt-1">Aggregate feeds, correlate indicators against your assets, surface hidden threats</p>
+          <p className="text-sm text-muted-foreground mt-1">Aggregate feeds, correlate indicators against your assets, surface hidden threats</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={runCorrelation} disabled={correlating} className="border-[#1e3a5f] text-[#6b8fb9] hover:text-white">
+          <Button variant="outline" size="sm" onClick={runCorrelation} disabled={correlating} className="border-border text-muted-foreground hover:text-white">
             {correlating ? <RefreshCw className="h-4 w-4 mr-1 animate-spin" /> : <Target className="h-4 w-4 mr-1" />} Correlate
           </Button>
           <Button size="sm" onClick={openBuiltin} className="bg-teal-600 hover:bg-teal-700 text-white"><Plus className="h-4 w-4 mr-1" /> Add Feed</Button>
         </div>
       </div>
 
-      <div className="flex gap-1 p-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(75,119,169,0.2)' }}>
+      <div className="flex gap-1 p-1 rounded-lg bg-white/[0.04] border border-navy-400/20">
         {(['overview', 'feeds', 'matches'] as const).map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === tab ? 'bg-teal-600/20 text-teal-400 border border-teal-500/30' : 'text-[#6b8fb9] hover:text-white border border-transparent'}`}>
+          <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === tab ? 'bg-teal-600/20 text-teal-400 border border-teal-500/30' : 'text-muted-foreground hover:text-white border border-transparent'}`}>
             {tab === 'overview' ? 'Overview' : tab === 'feeds' ? 'Feeds' : 'Matches'}
           </button>
         ))}
@@ -90,27 +90,27 @@ export function ThreatIntel() {
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: 'Active Feeds', value: overview.totals.active_feeds, sub: `${overview.totals.feeds} total`, icon: Rss, color: '#8b5cf6' },
-              { label: 'Indicators', value: overview.totals.active_indicators.toLocaleString(), sub: 'active IOCs', icon: Database, color: '#14b8a6' },
-              { label: 'Matches', value: overview.totals.total_matches, sub: 'correlated hits', icon: Target, color: '#f59e0b' },
-              { label: 'Built-in Feeds', value: overview.builtin_feeds_available, sub: 'available', icon: Globe, color: '#3b82f6' },
+              { label: 'Active Feeds', value: overview.totals.active_feeds, sub: `${overview.totals.feeds} total`, icon: Rss, color: 'text-violet-400' },
+              { label: 'Indicators', value: overview.totals.active_indicators.toLocaleString(), sub: 'active IOCs', icon: Database, color: 'text-teal-400' },
+              { label: 'Matches', value: overview.totals.total_matches, sub: 'correlated hits', icon: Target, color: 'text-amber-400' },
+              { label: 'Built-in Feeds', value: overview.builtin_feeds_available, sub: 'available', icon: Globe, color: 'text-blue-400' },
             ].map(s => (
-              <Card key={s.label} className="border-[#1e3a5f]/60" style={{ background: 'rgba(255,255,255,0.03)' }}>
+              <Card key={s.label} className="border-border/60 bg-white/[0.03]">
                 <CardContent className="p-4 flex items-center justify-between">
-                  <div><p className="text-2xl font-bold text-white">{s.value}</p><p className="text-xs text-[#4b77a9]">{s.label}</p><p className="text-[10px] text-[#3a6590]">{s.sub}</p></div>
-                  <s.icon className="h-8 w-8" style={{ color: s.color, opacity: 0.5 }} />
+                  <div><p className="text-2xl font-bold text-white">{s.value}</p><p className="text-xs text-muted-foreground">{s.label}</p><p className="text-[10px] text-muted-foreground/60">{s.sub}</p></div>
+                  <s.icon className={`h-6 w-6 opacity-50 ${s.color}`} />
                 </CardContent>
               </Card>
             ))}
           </div>
 
           {overview.indicator_types.length > 0 && (
-            <Card className="border-[#1e3a5f]/60" style={{ background: 'rgba(255,255,255,0.03)' }}>
+            <Card className="border-border/60 bg-white/[0.03]">
               <CardContent className="p-4">
                 <h3 className="text-sm font-semibold text-white mb-3">Indicator Types</h3>
                 <div className="flex gap-3 flex-wrap">
                   {overview.indicator_types.map(t => (
-                    <div key={t.indicator_type} className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(75,119,169,0.15)' }}>
+                    <div key={t.indicator_type} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-navy-400/15">
                       <span className="text-xs text-white font-medium">{t.indicator_type}</span>
                       <Badge className="text-[10px] bg-teal-500/15 text-teal-400 border-teal-500/30">{t.count}</Badge>
                     </div>
@@ -121,22 +121,22 @@ export function ThreatIntel() {
           )}
 
           {overview.recent_matches.length > 0 && (
-            <Card className="border-[#1e3a5f]/60" style={{ background: 'rgba(255,255,255,0.03)' }}>
+            <Card className="border-border/60 bg-white/[0.03]">
               <CardContent className="p-4">
                 <h3 className="text-sm font-semibold text-white mb-3">Recent Matches</h3>
                 <div className="space-y-2">
                   {overview.recent_matches.map((m, i) => {
                     const match = m as Record<string, unknown>;
                     return (
-                      <div key={i} className="flex items-center justify-between p-2 rounded text-xs" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                      <div key={i} className="flex items-center justify-between p-2 rounded text-xs bg-white/[0.03]">
                         <div className="flex items-center gap-2">
                           <AlertTriangle className="h-3 w-3 text-amber-400" />
                           <span className="text-white font-medium">{match.indicator_value as string}</span>
                           <Badge className={`text-[10px] border ${sevBadge(match.indicator_severity as string)}`}>{match.indicator_severity as string}</Badge>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-[#4b77a9]">{match.match_type as string}</span>
-                          <span className="text-[#3a6590]">{match.feed_name as string}</span>
+                          <span className="text-muted-foreground">{match.match_type as string}</span>
+                          <span className="text-muted-foreground/60">{match.feed_name as string}</span>
                         </div>
                       </div>
                     );
@@ -152,12 +152,12 @@ export function ThreatIntel() {
       {activeTab === 'feeds' && (
         <div className="space-y-2">
           {feeds.map(feed => (
-            <div key={feed.id} className="flex items-center justify-between p-4 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(75,119,169,0.15)' }}>
+            <div key={feed.id} className="flex items-center justify-between p-4 rounded-lg bg-white/[0.03] border border-navy-400/15">
               <div className="flex items-center gap-3">
                 <Rss className="h-5 w-5 text-purple-400" />
                 <div>
                   <p className="text-sm font-medium text-white">{feed.name}</p>
-                  <p className="text-xs text-[#4b77a9]">{feed.feed_type} · {feed.format} · {feed.indicators_count} indicators · Last: {feed.last_fetch_at ? new Date(feed.last_fetch_at).toLocaleDateString() : 'Never'}</p>
+                  <p className="text-xs text-muted-foreground">{feed.feed_type} · {feed.format} · {feed.indicators_count} indicators · Last: {feed.last_fetch_at ? new Date(feed.last_fetch_at).toLocaleDateString() : 'Never'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -169,14 +169,14 @@ export function ThreatIntel() {
                     {feed.last_fetch_status}
                   </Badge>
                 )}
-                <Button variant="outline" size="sm" onClick={() => syncFeed(feed.id)} disabled={syncing === feed.id} className="text-xs border-[#1e3a5f] text-[#6b8fb9] hover:text-white hover:border-teal-500/50">
+                <Button variant="outline" size="sm" onClick={() => syncFeed(feed.id)} disabled={syncing === feed.id} className="text-xs border-border text-muted-foreground hover:text-white hover:border-teal-500/50">
                   {syncing === feed.id ? <RefreshCw className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                   <span className="ml-1">Sync</span>
                 </Button>
               </div>
             </div>
           ))}
-          {feeds.length === 0 && <p className="text-sm text-[#4b77a9] text-center py-12">No feeds configured. Click "Add Feed" to subscribe to threat intelligence sources.</p>}
+          {feeds.length === 0 && <p className="text-sm text-muted-foreground text-center py-12">No feeds configured. Click "Add Feed" to subscribe to threat intelligence sources.</p>}
         </div>
       )}
 
@@ -184,7 +184,7 @@ export function ThreatIntel() {
       {activeTab === 'matches' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-[#6b8fb9]">Indicators matched against your internal assets, findings, and alerts</p>
+            <p className="text-sm text-muted-foreground">Indicators matched against your internal assets, findings, and alerts</p>
             <Button variant="outline" size="sm" onClick={runCorrelation} disabled={correlating} className="border-teal-500/30 text-teal-400 hover:bg-teal-500/10">
               {correlating ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : <Zap className="h-3 w-3 mr-1" />} Run Correlation
             </Button>
@@ -194,12 +194,12 @@ export function ThreatIntel() {
               {overview.recent_matches.map((m, i) => {
                 const match = m as Record<string, unknown>;
                 return (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(75,119,169,0.15)' }}>
+                  <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-white/[0.03] border border-navy-400/15">
                     <div className="flex items-center gap-3">
                       <Link2 className="h-4 w-4 text-amber-400" />
                       <div>
                         <p className="text-sm font-medium text-white">{match.indicator_value as string}</p>
-                        <p className="text-xs text-[#4b77a9]">{match.indicator_type as string} · {match.match_type as string} · {match.feed_name as string}</p>
+                        <p className="text-xs text-muted-foreground">{match.indicator_type as string} · {match.match_type as string} · {match.feed_name as string}</p>
                       </div>
                     </div>
                     <Badge className={`text-xs border ${sevBadge(match.indicator_severity as string)}`}>{match.indicator_severity as string}</Badge>
@@ -208,21 +208,21 @@ export function ThreatIntel() {
               })}
             </div>
           ) : (
-            <p className="text-sm text-[#4b77a9] text-center py-12">No matches yet. Add feeds, sync indicators, then run correlation.</p>
+            <p className="text-sm text-muted-foreground text-center py-12">No matches yet. Add feeds, sync indicators, then run correlation.</p>
           )}
         </div>
       )}
 
       {/* Built-in Feeds Dialog */}
       <Dialog open={showBuiltin} onOpenChange={setShowBuiltin}>
-        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto" style={{ background: '#0f2133', border: '1px solid rgba(75,119,169,0.3)' }}>
-          <DialogHeader><DialogTitle className="text-white flex items-center gap-2"><Globe className="h-5 w-5 text-teal-400" /> Available Threat Feeds</DialogTitle><DialogDescription className="text-[#6b8fb9]">One-click subscribe to curated threat intelligence sources.</DialogDescription></DialogHeader>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Globe className="h-5 w-5 text-teal-400" /> Available Threat Feeds</DialogTitle><DialogDescription>One-click subscribe to curated threat intelligence sources.</DialogDescription></DialogHeader>
           <div className="space-y-3 mt-2">
             {builtinFeeds.map((f, i) => (
-              <div key={i} className="flex items-start justify-between p-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(75,119,169,0.15)' }}>
+              <div key={i} className="flex items-start justify-between p-3 rounded-lg bg-white/[0.04] border border-navy-400/15">
                 <div>
                   <p className="text-sm font-medium text-white">{f.name}</p>
-                  <p className="text-xs text-[#4b77a9] mt-1">{f.description}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{f.description}</p>
                   <div className="flex gap-2 mt-1">
                     <Badge className="text-[10px] bg-sky-500/15 text-sky-400 border-sky-500/30">{f.feed_type}</Badge>
                     <Badge className="text-[10px] bg-zinc-500/15 text-zinc-400 border-zinc-500/30">{f.format}</Badge>
@@ -237,17 +237,17 @@ export function ThreatIntel() {
 
       {/* Correlation Result */}
       <Dialog open={!!correlationResult} onOpenChange={() => setCorrelationResult(null)}>
-        <DialogContent style={{ background: '#0f2133', border: '1px solid rgba(75,119,169,0.3)' }}>
-          <DialogHeader><DialogTitle className="text-white">Correlation Results</DialogTitle></DialogHeader>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Correlation Results</DialogTitle></DialogHeader>
           {correlationResult && (
             <div className="space-y-3">
-              <p className="text-sm text-[#6b8fb9]">Checked {correlationResult.indicators_checked} indicators against internal data</p>
+              <p className="text-sm text-muted-foreground">Checked {correlationResult.indicators_checked} indicators against internal data</p>
               <p className="text-lg font-bold text-white">{correlationResult.new_matches} new matches found</p>
               {(correlationResult.matches as Array<{ indicator: string; type: string }>).slice(0, 5).map((m, i) => (
                 <div key={i} className="flex items-center gap-2 text-xs">
                   <Target className="h-3 w-3 text-amber-400" />
                   <span className="text-white">{m.indicator}</span>
-                  <span className="text-[#4b77a9]">({m.type})</span>
+                  <span className="text-muted-foreground">({m.type})</span>
                 </div>
               ))}
             </div>

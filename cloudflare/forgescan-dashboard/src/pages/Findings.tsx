@@ -269,7 +269,7 @@ export function Findings() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Findings</h1>
+        <h1 className="text-2xl font-bold">Findings</h1>
         <p className="text-muted-foreground">
           View and manage security findings
         </p>

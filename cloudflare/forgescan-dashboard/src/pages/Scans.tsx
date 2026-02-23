@@ -853,7 +853,7 @@ export function Scans() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Scans</h1>
+          <h1 className="text-2xl font-bold">Scans</h1>
           <p className="text-muted-foreground">
             Manage and monitor security scans
           </p>

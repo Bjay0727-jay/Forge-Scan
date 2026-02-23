@@ -181,8 +181,8 @@ export function Compliance() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <ClipboardCheck className="h-8 w-8" /> Compliance
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <ClipboardCheck className="h-5 w-5" /> Compliance
           </h1>
           <p className="text-muted-foreground mt-1">Framework mappings and gap analysis</p>
         </div>

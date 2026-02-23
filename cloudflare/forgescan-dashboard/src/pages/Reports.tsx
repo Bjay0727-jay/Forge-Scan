@@ -216,8 +216,8 @@ export function Reports() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <FileText className="h-8 w-8" /> Reports
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <FileText className="h-5 w-5" /> Reports
           </h1>
           <p className="text-muted-foreground mt-1">Generate and download security reports</p>
         </div>
