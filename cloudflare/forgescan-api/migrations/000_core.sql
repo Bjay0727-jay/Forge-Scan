@@ -2,10 +2,18 @@
 -- Migration 000: Core Tables
 -- Creates the three foundational tables: assets, scans, and findings
 -- These must exist before any other migration that references them.
+--
+-- NOTE: DROP TABLE is used because a prior failed migration may have left
+-- partial/incorrect table schemas in the database.
 -- ============================================================================
 
+-- Drop in reverse dependency order (findings depends on assets + scans)
+DROP TABLE IF EXISTS findings;
+DROP TABLE IF EXISTS scans;
+DROP TABLE IF EXISTS assets;
+
 -- Discovered assets (hosts, containers, cloud resources, etc.)
-CREATE TABLE IF NOT EXISTS assets (
+CREATE TABLE assets (
     id TEXT PRIMARY KEY,
     hostname TEXT,
     fqdn TEXT,
@@ -25,7 +33,7 @@ CREATE TABLE IF NOT EXISTS assets (
 );
 
 -- Scan jobs (network, container, web, code, cloud, compliance)
-CREATE TABLE IF NOT EXISTS scans (
+CREATE TABLE scans (
     id TEXT PRIMARY KEY,
     name TEXT,
     scan_type TEXT NOT NULL,
@@ -42,7 +50,7 @@ CREATE TABLE IF NOT EXISTS scans (
 );
 
 -- Individual vulnerability findings linked to assets and scans
-CREATE TABLE IF NOT EXISTS findings (
+CREATE TABLE findings (
     id TEXT PRIMARY KEY,
     asset_id TEXT REFERENCES assets(id) ON DELETE SET NULL,
     scan_id TEXT REFERENCES scans(id) ON DELETE SET NULL,
