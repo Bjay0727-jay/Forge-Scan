@@ -30,6 +30,21 @@ demo.post('/seed', async (c) => {
   const db = c.env.DB;
 
   try {
+    // ── 0. Clear existing demo data so seed is idempotent ────────────────
+    const clearTables = [
+      'soar_action_log', 'soar_executions', 'soar_playbooks',
+      'soc_incident_timeline', 'soc_alert_incidents', 'soc_incidents', 'soc_alerts',
+      'threat_intel_matches', 'threat_intel_indicators', 'threat_intel_feeds',
+      'sast_findings', 'sast_scan_results', 'sast_projects',
+      'container_findings', 'container_scan_results', 'container_images',
+      'redops_findings', 'redops_agents', 'redops_campaigns',
+      'findings', 'scan_tasks', 'scans', 'assets',
+      'organization_branding', 'organization_members', 'organizations',
+    ];
+    for (const table of clearTables) {
+      await db.prepare(`DELETE FROM ${table}`).run();
+    }
+
     // ── 1. Organization ────────────────────────────────────────────────────
     const orgId = uuid();
     await db.prepare(`
