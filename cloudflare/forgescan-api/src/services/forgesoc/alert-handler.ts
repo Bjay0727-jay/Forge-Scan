@@ -5,6 +5,7 @@
 
 import { registerHandler } from '../event-bus';
 import type { ForgeEvent } from '../event-bus/types';
+import { computeAlertConfidence } from './ml-correlation';
 
 /**
  * Create a SOC alert from an event, checking detection rules for matching.
@@ -87,6 +88,24 @@ export async function createAlertFromEvent(
     // Auto-escalate to incident if configured
     if (rule.auto_escalate) {
       incidentId = await createIncidentFromAlert(db, alertId, title, rule.alert_severity);
+    }
+
+    // Compute confidence score for the new alert
+    try {
+      const confidence = await computeAlertConfidence(db, alertId);
+      await db
+        .prepare(
+          `UPDATE soc_alerts SET
+            confidence_score = ?,
+            confidence_level = ?,
+            confidence_signals = ?,
+            updated_at = datetime('now')
+           WHERE id = ?`
+        )
+        .bind(confidence.score, confidence.level, JSON.stringify(confidence.signals), alertId)
+        .run();
+    } catch {
+      // Non-fatal: confidence scoring failure shouldn't block alert creation
     }
 
     // Only one alert per event (first matching rule wins)
