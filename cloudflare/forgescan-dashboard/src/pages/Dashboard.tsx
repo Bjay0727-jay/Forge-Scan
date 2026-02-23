@@ -16,8 +16,6 @@ import {
   Target,
   Zap,
   Loader2,
-  Database,
-  Trash2,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -43,7 +41,7 @@ import { StateBarChart } from '@/components/charts/StateBarChart';
 import { ErrorState } from '@/components/ErrorState';
 import { useApi } from '@/hooks/useApi';
 import { usePollingApi } from '@/hooks/usePollingApi';
-import { dashboardApi, scansApi, onboardingApi, demoApi } from '@/lib/api';
+import { dashboardApi, scansApi, onboardingApi } from '@/lib/api';
 import {
   Dialog,
   DialogContent,
@@ -481,89 +479,6 @@ function QuickScanDialog() {
   );
 }
 
-// ── Demo Seed Dialog ─────────────────────────────────────────────────────
-function DemoSeedDialog({ onComplete }: { onComplete: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [clearing, setClearing] = useState(false);
-  const [result, setResult] = useState<{ message: string; counts?: Record<string, number> } | null>(null);
-  const [error, setError] = useState('');
-
-  const handleSeed = async () => {
-    setLoading(true);
-    setError('');
-    setResult(null);
-    try {
-      const res = await demoApi.seed();
-      setResult(res);
-      onComplete();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to seed demo data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleClear = async () => {
-    setClearing(true);
-    setError('');
-    setResult(null);
-    try {
-      const res = await demoApi.clear();
-      setResult({ message: res.message });
-      onComplete();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to clear demo data');
-    } finally {
-      setClearing(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setResult(null); setError(''); } }}>
-      <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
-          <Database className="h-4 w-4" /> Demo Data
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Demo Data</DialogTitle>
-          <DialogDescription>
-            Populate the database with realistic sample data across all modules, or clear it.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          {result && (
-            <div className="rounded-md bg-green-500/10 px-4 py-3 text-sm text-green-500">
-              {result.message}
-              {result.counts && (
-                <span className="ml-1 text-muted-foreground">
-                  ({Object.values(result.counts).reduce((a, b) => a + b, 0)} records)
-                </span>
-              )}
-            </div>
-          )}
-          {error && (
-            <div className="rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>
-          )}
-          <p className="text-sm text-muted-foreground">
-            Seeds assets, vulnerabilities, scans, findings, containers, SAST projects, threat intel, SOC alerts/incidents, SOAR playbooks, and red team campaigns.
-          </p>
-        </div>
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="destructive" onClick={handleClear} disabled={loading || clearing} className="gap-2">
-            {clearing ? <><Loader2 className="h-4 w-4 animate-spin" /> Clearing...</> : <><Trash2 className="h-4 w-4" /> Clear All</>}
-          </Button>
-          <Button onClick={handleSeed} disabled={loading || clearing} className="gap-2">
-            {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Seeding...</> : <><Database className="h-4 w-4" /> Load Demo Data</>}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function LoadingSkeleton() {
   return (
     <div className="space-y-6">
@@ -766,7 +681,6 @@ export function Dashboard() {
           </p>
         </div>
         <div className="flex gap-2">
-          <DemoSeedDialog onComplete={refetch} />
           <QuickScanDialog />
           <Button onClick={refetch} variant="outline">
             Refresh
