@@ -61,7 +61,7 @@ VALUES (
   'Auto-validate critical vulnerabilities',
   'forge.vulnerability.detected',
   'redops_trigger',
-  '{"action":"create_validation_campaign","campaign_type":"validation","exploitation_level":"safe","auto_launch":false}',
+  '{"action":"create_validation_campaign","campaign_type":"validation","exploitation_level":"safe","auto_launch":true}',
   '{"severity":["critical"],"min_cvss":9.0}',
   1,
   50
