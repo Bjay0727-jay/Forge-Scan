@@ -149,7 +149,7 @@ function OverviewStats({ overview }: { overview: RedOpsOverview | null }) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">{stat.label}</p>
-                <p className={`text-3xl font-bold ${stat.color || ''}`}>{stat.value}</p>
+                <p className={`text-2xl font-bold ${stat.color || ''}`}>{stat.value}</p>
               </div>
               <div className={`rounded-lg p-3 ${stat.highlight ? 'bg-red-500/10' : 'bg-muted'}`}>
                 {stat.icon}
@@ -723,7 +723,7 @@ export function RedOps() {
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
+          <h1 className="text-2xl font-bold flex items-center gap-3">
             <Crosshair className="h-8 w-8 text-red-400" />
             ForgeRedOPS
           </h1>

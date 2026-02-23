@@ -620,13 +620,11 @@ export function Vulnerabilities() {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3" style={{ fontFamily: 'Sora, Inter, system-ui, sans-serif' }}>
-            <div className="rounded-lg p-2" style={{ background: 'rgba(13,148,136,0.12)' }}>
-              <Shield className="h-7 w-7" style={{ color: '#14b8a6' }} />
-            </div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Shield className="h-5 w-5 text-teal-400" />
             Vulnerability Intelligence
           </h1>
-          <p className="text-base text-muted-foreground mt-1.5 ml-14">NVD CVEs, CISA KEV, and FIRST EPSS data</p>
+          <p className="text-sm text-muted-foreground mt-1">NVD CVEs, CISA KEV, and FIRST EPSS data</p>
         </div>
         <Button variant="outline" size="lg" onClick={loadData} className="gap-2">
           <RefreshCw className="h-4 w-4" /> Refresh
@@ -642,7 +640,7 @@ export function Vulnerabilities() {
                 <Database className="h-6 w-6" style={{ color: '#14b8a6' }} />
               </div>
               <div>
-                <p className="text-3xl font-bold">{(stats?.total || 0).toLocaleString()}</p>
+                <p className="text-2xl font-bold">{(stats?.total || 0).toLocaleString()}</p>
                 <p className="text-sm text-muted-foreground mt-0.5">Total CVEs</p>
               </div>
             </div>
@@ -655,7 +653,7 @@ export function Vulnerabilities() {
                 <AlertTriangle className="h-6 w-6 text-red-400" />
               </div>
               <div>
-                <p className="text-3xl font-bold">{stats?.critical || 0}</p>
+                <p className="text-2xl font-bold">{stats?.critical || 0}</p>
                 <p className="text-sm text-muted-foreground mt-0.5">Critical</p>
               </div>
             </div>
@@ -668,7 +666,7 @@ export function Vulnerabilities() {
                 <Shield className="h-6 w-6 text-orange-400" />
               </div>
               <div>
-                <p className="text-3xl font-bold">{syncState?.kev_total || 0}</p>
+                <p className="text-2xl font-bold">{syncState?.kev_total || 0}</p>
                 <p className="text-sm text-muted-foreground mt-0.5">CISA KEV</p>
               </div>
             </div>
@@ -681,7 +679,7 @@ export function Vulnerabilities() {
                 <Activity className="h-6 w-6 text-blue-400" />
               </div>
               <div>
-                <p className="text-3xl font-bold">{syncState?.epss_total || 0}</p>
+                <p className="text-2xl font-bold">{syncState?.epss_total || 0}</p>
                 <p className="text-sm text-muted-foreground mt-0.5">EPSS Scored</p>
               </div>
             </div>

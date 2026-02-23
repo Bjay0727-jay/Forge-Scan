@@ -540,7 +540,7 @@ export function Import() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Import Data</h1>
+        <h1 className="text-2xl font-bold">Import Data</h1>
         <p className="text-muted-foreground">
           Import assets and security findings from scanner exports and various formats
         </p>

@@ -6,6 +6,9 @@
 
 @layer base {
   :root {
+    /* Global base font-size — shrinks all rem-based sizing proportionally */
+    font-size: 14px;
+
     /* Forge Cyber Defense - Dark Theme (default)
        Navy backgrounds lightened for readability, white text, Teal accents */
     --background: 213 45% 14%;
@@ -28,6 +31,17 @@
     --input: 213 30% 26%;
     --ring: 174 84% 36%;
     --radius: 0.5rem;
+
+    /* Semantic text colors — use instead of hardcoded hex */
+    --forge-text-primary: #e2e8f0;
+    --forge-text-secondary: #94a3b8;
+    --forge-text-muted: #64748b;
+    --forge-text-accent: #14b8a6;
+    --forge-sidebar-bg: #0b1929;
+    --forge-sidebar-text: #6b8fb9;
+    --forge-sidebar-text-muted: #4b77a9;
+    --forge-card-bg: rgba(255,255,255,0.03);
+    --forge-card-border: rgba(75,119,169,0.15);
 
     font-family: 'Inter', system-ui, sans-serif;
   }

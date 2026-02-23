@@ -168,7 +168,7 @@ function ExecutiveScorecard({ metrics }: { metrics: ExecutiveMetrics }) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">
+            <div className="text-2xl font-bold">
               {metrics.mttr.overall_avg_days > 0 ? `${metrics.mttr.overall_avg_days}d` : '--'}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -204,7 +204,7 @@ function ExecutiveScorecard({ metrics }: { metrics: ExecutiveMetrics }) {
           <CardContent>
             <div className="flex items-baseline gap-1">
               <span
-                className="text-3xl font-bold"
+                className="text-2xl font-bold"
                 style={{ color: sla.overall_pct >= 80 ? '#22c55e' : sla.overall_pct >= 60 ? '#eab308' : '#ef4444' }}
               >
                 {sla.overall_pct}%
@@ -550,7 +550,7 @@ export function Dashboard() {
   if (loading && execLoading) {
     return (
       <div>
-        <h1 className="mb-6 text-3xl font-bold">Dashboard</h1>
+        <h1 className="mb-6 text-2xl font-bold">Dashboard</h1>
         <LoadingSkeleton />
       </div>
     );
@@ -559,7 +559,7 @@ export function Dashboard() {
   if (error) {
     return (
       <div>
-        <h1 className="mb-6 text-3xl font-bold">Dashboard</h1>
+        <h1 className="mb-6 text-2xl font-bold">Dashboard</h1>
         <ErrorState
           title="Failed to load dashboard"
           message={error}
@@ -675,7 +675,7 @@ export function Dashboard() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Executive Dashboard</h1>
+          <h1 className="text-2xl font-bold">Executive Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Security posture overview for the last {execData.period_days} days
           </p>

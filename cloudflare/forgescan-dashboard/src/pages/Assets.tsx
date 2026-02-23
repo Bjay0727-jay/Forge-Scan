@@ -390,7 +390,7 @@ export function Assets() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Assets</h1>
+          <h1 className="text-2xl font-bold">Assets</h1>
           <p className="text-muted-foreground">
             Manage your infrastructure assets
           </p>
