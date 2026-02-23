@@ -8,6 +8,7 @@ import {
   generateApiKey,
 } from '../lib/crypto';
 import { requireRole } from '../middleware/auth';
+import { seedFrameworks } from '../services/compliance';
 
 interface Env {
   DB: D1Database;
@@ -78,12 +79,22 @@ auth.post('/register', async (c) => {
       VALUES (?, ?, ?, ?, ?, ?)
     `).bind(id, email.toLowerCase(), passwordHash, salt, display_name, role).run();
 
+    // Auto-seed compliance frameworks on first admin account creation
+    if (isBootstrap) {
+      try {
+        await seedFrameworks(c.env.DB);
+      } catch (seedErr) {
+        console.error('Auto-seed compliance failed (non-fatal):', seedErr);
+      }
+    }
+
     return c.json({
       id,
       email: email.toLowerCase(),
       display_name,
       role,
       is_active: true,
+      is_bootstrap: isBootstrap,
       created_at: new Date().toISOString(),
     }, 201);
   } catch (err) {

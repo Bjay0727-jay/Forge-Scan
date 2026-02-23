@@ -18,6 +18,7 @@ import { Compliance } from '@/pages/Compliance';
 import { Reports } from '@/pages/Reports';
 import { RedOps } from '@/pages/RedOps';
 import { SOC } from '@/pages/SOC';
+import { Onboarding } from '@/pages/Onboarding';
 
 function App() {
   return (
@@ -26,6 +27,16 @@ function App() {
         <Routes>
           {/* Public route */}
           <Route path="/login" element={<Login />} />
+
+          {/* Onboarding wizard (protected but outside Layout) */}
+          <Route
+            path="/setup"
+            element={
+              <ProtectedRoute>
+                <Onboarding />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Protected routes */}
           <Route
