@@ -6,6 +6,13 @@ import { Hono } from 'hono';
 import type { Env } from '../index';
 import { badRequest } from '../lib/errors';
 import { correlateCampaignFindings } from '../services/forgesoc/alert-handler';
+import {
+  detectAlertVolumeAnomaly,
+  clusterAlerts,
+  autoClusterAndEscalate,
+  computeAlertConfidence,
+  batchComputeConfidence,
+} from '../services/forgesoc/ml-correlation';
 
 export const soc = new Hono<{ Bindings: Env }>();
 
@@ -644,5 +651,136 @@ soc.post('/correlate/:campaignId', async (c) => {
     incident_id: result.incident_id,
     message: `Correlated ${result.correlated} findings. ` +
       (result.incident_id ? `Auto-escalated to incident ${result.incident_id}.` : 'No auto-escalation needed.'),
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ForgeML — AI/ML Correlation Endpoints
+// ═════════════════════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /soc/ml/anomaly — Detect alert volume anomaly
+// ─────────────────────────────────────────────────────────────────────────────
+soc.get('/ml/anomaly', async (c) => {
+  const windowMinutes = parseInt(c.req.query('window_minutes') || '60', 10);
+  const baselineDays = parseInt(c.req.query('baseline_days') || '30', 10);
+  const zThreshold = parseFloat(c.req.query('z_threshold') || '2.0');
+
+  const result = await detectAlertVolumeAnomaly(c.env.DB, windowMinutes, baselineDays, zThreshold);
+  return c.json(result);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /soc/ml/clusters — Preview alert clusters (dry run)
+// ─────────────────────────────────────────────────────────────────────────────
+soc.get('/ml/clusters', async (c) => {
+  const windowHours = parseInt(c.req.query('window_hours') || '24', 10);
+  const minSize = parseInt(c.req.query('min_size') || '2', 10);
+  const threshold = parseFloat(c.req.query('threshold') || '0.5');
+
+  const clusters = await clusterAlerts(c.env.DB, windowHours, minSize, threshold);
+  return c.json({
+    clusters,
+    total_clusters: clusters.length,
+    total_alerts_clustered: clusters.reduce((s, cl) => s + cl.alert_count, 0),
+    generated_at: new Date().toISOString(),
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /soc/ml/cluster — Run clustering and auto-create incidents
+// ─────────────────────────────────────────────────────────────────────────────
+soc.post('/ml/cluster', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const windowHours = body.window_hours || 24;
+  const minConfidence = body.min_confidence || 50;
+
+  const result = await autoClusterAndEscalate(c.env.DB, windowHours, minConfidence);
+  return c.json({
+    ...result,
+    message: `Found ${result.clusters_found} clusters. Created ${result.incidents_created} incidents, linked ${result.alerts_linked} alerts.`,
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /soc/ml/confidence/:alertId — Get confidence score for a single alert
+// ─────────────────────────────────────────────────────────────────────────────
+soc.get('/ml/confidence/:alertId', async (c) => {
+  const alertId = c.req.param('alertId');
+  const result = await computeAlertConfidence(c.env.DB, alertId);
+  return c.json(result);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /soc/ml/score — Batch-compute confidence scores for unscored alerts
+// ─────────────────────────────────────────────────────────────────────────────
+soc.post('/ml/score', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const limit = body.limit || 50;
+
+  const result = await batchComputeConfidence(c.env.DB, limit);
+  return c.json({
+    ...result,
+    message: `Scored ${result.scored} alerts`,
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /soc/ml/overview — ML correlation dashboard summary
+// ─────────────────────────────────────────────────────────────────────────────
+soc.get('/ml/overview', async (c) => {
+  const [anomaly, clusters, confidenceStats] = await Promise.all([
+    detectAlertVolumeAnomaly(c.env.DB, 60, 30, 2.0),
+    clusterAlerts(c.env.DB, 24, 2, 0.5),
+    c.env.DB
+      .prepare(
+        `SELECT
+          AVG(confidence_score) as avg_confidence,
+          COUNT(CASE WHEN confidence_level = 'critical' THEN 1 END) as critical_count,
+          COUNT(CASE WHEN confidence_level = 'high' THEN 1 END) as high_count,
+          COUNT(CASE WHEN confidence_level = 'medium' THEN 1 END) as medium_count,
+          COUNT(CASE WHEN confidence_level = 'low' THEN 1 END) as low_count,
+          COUNT(CASE WHEN confidence_score IS NOT NULL THEN 1 END) as scored_count,
+          COUNT(CASE WHEN confidence_score IS NULL AND status NOT IN ('closed','false_positive') THEN 1 END) as unscored_count
+        FROM soc_alerts`
+      )
+      .first<{
+        avg_confidence: number | null;
+        critical_count: number;
+        high_count: number;
+        medium_count: number;
+        low_count: number;
+        scored_count: number;
+        unscored_count: number;
+      }>(),
+  ]);
+
+  return c.json({
+    anomaly_detection: {
+      status: anomaly.is_anomaly ? 'ALERT' : 'NORMAL',
+      ...anomaly,
+    },
+    clustering: {
+      pending_clusters: clusters.length,
+      total_alerts_clusterable: clusters.reduce((s, cl) => s + cl.alert_count, 0),
+      clusters: clusters.map((cl) => ({
+        title: cl.title,
+        alert_count: cl.alert_count,
+        severity: cl.severity,
+        confidence: cl.confidence,
+      })),
+    },
+    confidence: {
+      avg_score: Math.round(confidenceStats?.avg_confidence || 0),
+      by_level: {
+        critical: confidenceStats?.critical_count || 0,
+        high: confidenceStats?.high_count || 0,
+        medium: confidenceStats?.medium_count || 0,
+        low: confidenceStats?.low_count || 0,
+      },
+      scored: confidenceStats?.scored_count || 0,
+      unscored: confidenceStats?.unscored_count || 0,
+    },
+    generated_at: new Date().toISOString(),
   });
 });
