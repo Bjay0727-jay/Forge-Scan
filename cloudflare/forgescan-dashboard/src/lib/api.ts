@@ -884,4 +884,14 @@ export const healthApi = {
   },
 };
 
+// Demo data seeding
+export const demoApi = {
+  seed: async (): Promise<{ message: string; counts: Record<string, number> }> => {
+    return request('/demo/seed', { method: 'POST' });
+  },
+  clear: async (): Promise<{ message: string; deleted: Record<string, number> }> => {
+    return request('/demo/clear', { method: 'DELETE' });
+  },
+};
+
 export { ApiError };
