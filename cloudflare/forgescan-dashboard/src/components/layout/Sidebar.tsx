@@ -17,6 +17,7 @@ import {
   Crosshair,
   Shield,
   Rocket,
+  Building2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth, hasRole } from '@/lib/auth';
@@ -45,6 +46,7 @@ const bottomNavigation = [
 ];
 
 const adminNavigation = [
+  { name: 'MSSP Portal', href: '/admin/mssp', icon: Building2 },
   { name: 'Scanners', href: '/admin/scanners', icon: Cpu },
   { name: 'Users', href: '/admin/users', icon: Users },
 ];

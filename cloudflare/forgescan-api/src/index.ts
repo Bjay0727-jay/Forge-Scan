@@ -21,6 +21,7 @@ import { redops } from './routes/redops';
 import { events } from './routes/events';
 import { soc } from './routes/soc';
 import { onboarding } from './routes/onboarding';
+import { mssp } from './routes/mssp';
 import { docs } from './routes/docs';
 import { registerSOCHandlers } from './services/forgesoc/alert-handler';
 
@@ -91,6 +92,7 @@ app.route('/api/v1/redops', redops);
 app.route('/api/v1/events', events);
 app.route('/api/v1/soc', soc);
 app.route('/api/v1/onboarding', onboarding);
+app.route('/api/v1/mssp', mssp);
 
 // 404 handler
 app.notFound((c) => {

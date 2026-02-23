@@ -18,6 +18,7 @@ import { Compliance } from '@/pages/Compliance';
 import { Reports } from '@/pages/Reports';
 import { RedOps } from '@/pages/RedOps';
 import { SOC } from '@/pages/SOC';
+import { MSSPPortal } from '@/pages/MSSPPortal';
 import { Onboarding } from '@/pages/Onboarding';
 
 function App() {
@@ -60,6 +61,14 @@ function App() {
             <Route path="redops" element={<RedOps />} />
             <Route path="soc" element={<SOC />} />
             <Route path="settings" element={<Settings />} />
+            <Route
+              path="admin/mssp"
+              element={
+                <ProtectedRoute requiredRoles={['platform_admin']}>
+                  <MSSPPortal />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="admin/scanners"
               element={
