@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS findings (
     cvss_score REAL,
     risk_score REAL,
     affected_component TEXT,
-    references TEXT DEFAULT '[]',       -- JSON array of reference URLs
+    "references" TEXT DEFAULT '[]',     -- JSON array of reference URLs
     metadata TEXT DEFAULT '{}',         -- JSON object of extra data
     first_seen TEXT DEFAULT (datetime('now')),
     last_seen TEXT DEFAULT (datetime('now')),
