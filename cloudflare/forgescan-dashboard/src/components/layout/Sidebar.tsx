@@ -18,6 +18,10 @@ import {
   Shield,
   Rocket,
   Building2,
+  Box,
+  Code,
+  Workflow,
+  Globe,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth, hasRole } from '@/lib/auth';
@@ -37,6 +41,10 @@ const mainNavigation = [
   { name: 'Compliance', href: '/compliance', icon: ClipboardCheck },
   { name: 'Reports', href: '/reports', icon: FileText },
   { name: 'Notifications', href: '/notifications', icon: Bell },
+  { name: 'Containers', href: '/containers', icon: Box },
+  { name: 'Code Scan', href: '/codescan', icon: Code },
+  { name: 'Playbooks', href: '/playbooks', icon: Workflow },
+  { name: 'Threat Intel', href: '/threat-intel', icon: Globe },
   { name: 'Import', href: '/import', icon: Upload },
 ];
 

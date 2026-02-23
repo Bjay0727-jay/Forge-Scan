@@ -22,6 +22,10 @@ import { events } from './routes/events';
 import { soc } from './routes/soc';
 import { onboarding } from './routes/onboarding';
 import { mssp } from './routes/mssp';
+import { containers } from './routes/containers';
+import { sast } from './routes/sast';
+import { soar } from './routes/soar';
+import { threatIntel } from './routes/threat-intel';
 import { docs } from './routes/docs';
 import { registerSOCHandlers } from './services/forgesoc/alert-handler';
 
@@ -93,6 +97,10 @@ app.route('/api/v1/events', events);
 app.route('/api/v1/soc', soc);
 app.route('/api/v1/onboarding', onboarding);
 app.route('/api/v1/mssp', mssp);
+app.route('/api/v1/containers', containers);
+app.route('/api/v1/sast', sast);
+app.route('/api/v1/soar', soar);
+app.route('/api/v1/threat-intel', threatIntel);
 
 // 404 handler
 app.notFound((c) => {
