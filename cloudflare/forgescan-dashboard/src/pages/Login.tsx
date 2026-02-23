@@ -12,7 +12,7 @@ function ForgeLoginLogo() {
     <img
       src="/forge-logo-800.png"
       alt="Forge Cyber Defense"
-      className="mx-auto mb-2 w-80 h-auto"
+      className="mx-auto mb-1 w-48 h-auto"
       draggable={false}
     />
   );
@@ -64,22 +64,22 @@ export function Login() {
   return (
     <div className="flex min-h-screen items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #060f1a 0%, #091e36 50%, #0F2A4A 100%)' }}>
       <Card className="w-full max-w-md border-navy-700/50" style={{ background: 'rgba(9,30,54,0.9)', backdropFilter: 'blur(20px)' }}>
-        <CardHeader className="text-center">
+        <CardHeader className="text-center pb-2 pt-4">
           <ForgeLoginLogo />
-          <CardTitle className="text-2xl text-white" style={{ fontFamily: 'Sora, Inter, system-ui, sans-serif' }}>
+          <CardTitle className="text-xl text-white" style={{ fontFamily: 'Sora, Inter, system-ui, sans-serif' }}>
             ForgeScan 360
           </CardTitle>
-          <CardDescription className="text-navy-300">
+          <CardDescription className="text-navy-300 text-sm">
             {mode === 'login'
               ? 'Sign in to your account'
               : 'Create your first admin account'}
           </CardDescription>
-          <p className="text-[10px] tracking-widest uppercase mt-1" style={{ color: '#4b77a9' }}>
+          <p className="text-[10px] tracking-widest uppercase mt-0.5" style={{ color: '#4b77a9' }}>
             Forge Cyber Defense
           </p>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <CardContent className="pt-2">
+          <form onSubmit={handleSubmit} className="space-y-3">
             {mode === 'register' && (
               <div className="space-y-2">
                 <Label htmlFor="displayName">Display Name</Label>
