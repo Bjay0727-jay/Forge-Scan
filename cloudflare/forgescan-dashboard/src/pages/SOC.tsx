@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Shield,
   AlertTriangle,
@@ -8,6 +8,10 @@ import {
   RefreshCw,
   Target,
   Zap,
+  Plus,
+  X,
+  ArrowRight,
+  CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,12 +24,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { usePollingApi } from '@/hooks/usePollingApi';
 import { socApi } from '@/lib/api';
 import type {
   SOCOverview,
   SOCAlert,
   SOCIncident,
   SOCDetectionRule,
+  SOCTimelineEntry,
   PaginatedResponse,
 } from '@/types';
 
@@ -79,6 +85,18 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
+
+const fieldStyle = {
+  background: 'rgba(255,255,255,0.06)',
+  color: '#c9d6e3',
+  border: '1px solid rgba(75,119,169,0.3)',
+};
+
 // ─── Tabs ────────────────────────────────────────────────────────────────────
 
 type TabId = 'overview' | 'alerts' | 'incidents' | 'rules';
@@ -87,51 +105,41 @@ type TabId = 'overview' | 'alerts' | 'incidents' | 'rules';
 
 export function SOC() {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
-  const [overview, setOverview] = useState<SOCOverview | null>(null);
-  const [alerts, setAlerts] = useState<PaginatedResponse<SOCAlert> | null>(null);
-  const [incidents, setIncidents] = useState<PaginatedResponse<SOCIncident> | null>(null);
-  const [rules, setRules] = useState<SOCDetectionRule[]>([]);
-  const [loading, setLoading] = useState(true);
   const [alertFilter, setAlertFilter] = useState<{ severity?: string; status?: string }>({});
   const [alertPage, setAlertPage] = useState(1);
+  const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
 
-  const loadOverview = useCallback(async () => {
-    try {
-      const data = await socApi.getOverview();
-      setOverview(data);
-    } catch { /* empty */ }
-  }, []);
+  // Polling-based data fetching
+  const { data: overview, loading: overviewLoading, refetch: refetchOverview, isPolling } = usePollingApi<SOCOverview>(
+    () => socApi.getOverview(),
+    { interval: 10000 },
+  );
 
-  const loadAlerts = useCallback(async () => {
-    try {
-      const data = await socApi.listAlerts({ page: alertPage, page_size: 25, ...alertFilter });
-      setAlerts(data);
-    } catch { /* empty */ }
-  }, [alertPage, alertFilter]);
+  const alertFetcher = useCallback(
+    () => socApi.listAlerts({ page: alertPage, page_size: 25, ...alertFilter }),
+    [alertPage, alertFilter],
+  );
+  const { data: alerts, loading: alertsLoading, refetch: refetchAlerts } = usePollingApi<PaginatedResponse<SOCAlert>>(
+    alertFetcher,
+    { interval: 10000 },
+  );
 
-  const loadIncidents = useCallback(async () => {
-    try {
-      const data = await socApi.listIncidents({ page: 1, page_size: 25 });
-      setIncidents(data);
-    } catch { /* empty */ }
-  }, []);
+  const { data: incidents, loading: incidentsLoading, refetch: refetchIncidents } = usePollingApi<PaginatedResponse<SOCIncident>>(
+    () => socApi.listIncidents({ page: 1, page_size: 25 }),
+    { interval: 15000 },
+  );
 
-  const loadRules = useCallback(async () => {
-    try {
-      const data = await socApi.listDetectionRules();
-      setRules(data.items);
-    } catch { /* empty */ }
-  }, []);
+  const { data: rulesData, loading: rulesLoading, refetch: refetchRules } = usePollingApi<{ items: SOCDetectionRule[] }>(
+    () => socApi.listDetectionRules(),
+    { interval: 30000 },
+  );
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    await Promise.all([loadOverview(), loadAlerts(), loadIncidents(), loadRules()]);
-    setLoading(false);
-  }, [loadOverview, loadAlerts, loadIncidents, loadRules]);
+  const rules = rulesData?.items || [];
+  const loading = overviewLoading;
 
-  useEffect(() => { loadAll(); }, [loadAll]);
-
-  useEffect(() => { loadAlerts(); }, [loadAlerts]);
+  const handleRefresh = async () => {
+    await Promise.all([refetchOverview(), refetchAlerts(), refetchIncidents(), refetchRules()]);
+  };
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode; count?: number }[] = [
     { id: 'overview', label: 'Overview', icon: <Activity className="h-4 w-4" /> },
@@ -153,16 +161,24 @@ export function SOC() {
             Security Operations Center — Alert triage, incident response, and detection rules
           </p>
         </div>
-        <Button
-          size="sm"
-          onClick={loadAll}
-          disabled={loading}
-          className="gap-1.5"
-          style={{ background: 'rgba(13,148,136,0.15)', color: '#14b8a6', border: '1px solid rgba(13,148,136,0.2)' }}
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-3">
+          {isPolling && (
+            <span className="flex items-center gap-1.5 text-[11px]" style={{ color: '#4b77a9' }}>
+              <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+              Live
+            </span>
+          )}
+          <Button
+            size="sm"
+            onClick={handleRefresh}
+            disabled={loading}
+            className="gap-1.5"
+            style={{ background: 'rgba(13,148,136,0.15)', color: '#14b8a6', border: '1px solid rgba(13,148,136,0.2)' }}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Tab Bar */}
@@ -194,15 +210,22 @@ export function SOC() {
       {activeTab === 'alerts' && (
         <AlertsTab
           alerts={alerts}
-          loading={loading}
+          loading={alertsLoading}
           filter={alertFilter}
           onFilterChange={setAlertFilter}
           page={alertPage}
           onPageChange={setAlertPage}
         />
       )}
-      {activeTab === 'incidents' && <IncidentsTab incidents={incidents} loading={loading} />}
-      {activeTab === 'rules' && <RulesTab rules={rules} loading={loading} />}
+      {activeTab === 'incidents' && (
+        <IncidentsTab
+          incidents={incidents}
+          loading={incidentsLoading}
+          selectedId={selectedIncidentId}
+          onSelectIncident={setSelectedIncidentId}
+        />
+      )}
+      {activeTab === 'rules' && <RulesTab rules={rules} loading={rulesLoading} onRefresh={refetchRules} />}
     </div>
   );
 }
@@ -467,7 +490,7 @@ function AlertsTab({
                   </TableCell>
                 </TableRow>
               ) : (
-                (alerts?.items || []).map((alert) => (
+                (alerts?.items || []).map((alert: SOCAlert) => (
                   <TableRow key={alert.id} style={{ borderColor: 'rgba(75,119,169,0.1)' }}>
                     <TableCell className="text-white text-sm font-medium max-w-[300px] truncate">
                       {alert.title}
@@ -526,63 +549,242 @@ function AlertsTab({
 function IncidentsTab({
   incidents,
   loading,
+  selectedId,
+  onSelectIncident,
 }: {
   incidents: PaginatedResponse<SOCIncident> | null;
   loading: boolean;
+  selectedId: string | null;
+  onSelectIncident: (id: string | null) => void;
 }) {
   return (
     <div className="space-y-4">
-      <Card style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(75,119,169,0.2)' }}>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow style={{ borderColor: 'rgba(75,119,169,0.2)' }}>
-                <TableHead style={{ color: '#4b77a9' }}>Incident</TableHead>
-                <TableHead style={{ color: '#4b77a9' }}>Priority</TableHead>
-                <TableHead style={{ color: '#4b77a9' }}>Severity</TableHead>
-                <TableHead style={{ color: '#4b77a9' }}>Status</TableHead>
-                <TableHead style={{ color: '#4b77a9' }}>Alerts</TableHead>
-                <TableHead style={{ color: '#4b77a9' }}>Created</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(incidents?.items || []).length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12" style={{ color: '#4b77a9' }}>
-                    {loading ? 'Loading...' : 'No incidents. Incidents are created when critical alerts are auto-escalated.'}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                (incidents?.items || []).map((incident) => (
-                  <TableRow key={incident.id} style={{ borderColor: 'rgba(75,119,169,0.1)' }}>
-                    <TableCell className="text-white text-sm font-medium max-w-[300px] truncate">
-                      {incident.title}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={`text-[10px] border ${
-                        incident.priority <= 1 ? 'bg-red-500/20 text-red-400 border-red-500/30' :
-                        incident.priority <= 2 ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
-                        'bg-blue-500/20 text-blue-400 border-blue-500/30'
-                      }`}>
-                        P{incident.priority}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{severityBadge(incident.severity)}</TableCell>
-                    <TableCell>{statusBadge(incident.status)}</TableCell>
-                    <TableCell>
-                      <span className="text-sm" style={{ color: '#6b8fb9' }}>{incident.alert_count}</span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-xs" style={{ color: '#4b77a9' }}>{timeAgo(incident.created_at)}</span>
-                    </TableCell>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Incident List */}
+        <div className={selectedId ? 'lg:col-span-1' : 'lg:col-span-3'}>
+          <Card style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(75,119,169,0.2)' }}>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow style={{ borderColor: 'rgba(75,119,169,0.2)' }}>
+                    <TableHead style={{ color: '#4b77a9' }}>Incident</TableHead>
+                    <TableHead style={{ color: '#4b77a9' }}>P</TableHead>
+                    <TableHead style={{ color: '#4b77a9' }}>Sev</TableHead>
+                    <TableHead style={{ color: '#4b77a9' }}>Status</TableHead>
+                    {!selectedId && <TableHead style={{ color: '#4b77a9' }}>Alerts</TableHead>}
+                    {!selectedId && <TableHead style={{ color: '#4b77a9' }}>Created</TableHead>}
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                </TableHeader>
+                <TableBody>
+                  {(incidents?.items || []).length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={selectedId ? 4 : 6} className="text-center py-12" style={{ color: '#4b77a9' }}>
+                        {loading ? 'Loading...' : 'No incidents. Incidents are created when critical alerts are auto-escalated.'}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    (incidents?.items || []).map((incident: SOCIncident) => (
+                      <TableRow
+                        key={incident.id}
+                        className="cursor-pointer"
+                        onClick={() => onSelectIncident(selectedId === incident.id ? null : incident.id)}
+                        style={{
+                          borderColor: 'rgba(75,119,169,0.1)',
+                          background: selectedId === incident.id ? 'rgba(13,148,136,0.08)' : undefined,
+                        }}
+                      >
+                        <TableCell className="text-white text-sm font-medium max-w-[200px] truncate">
+                          {incident.title}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={`text-[10px] border ${
+                            incident.priority <= 1 ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                            incident.priority <= 2 ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
+                            'bg-blue-500/20 text-blue-400 border-blue-500/30'
+                          }`}>
+                            P{incident.priority}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{severityBadge(incident.severity)}</TableCell>
+                        <TableCell>{statusBadge(incident.status)}</TableCell>
+                        {!selectedId && (
+                          <TableCell>
+                            <span className="text-sm" style={{ color: '#6b8fb9' }}>{incident.alert_count}</span>
+                          </TableCell>
+                        )}
+                        {!selectedId && (
+                          <TableCell>
+                            <span className="text-xs" style={{ color: '#4b77a9' }}>{timeAgo(incident.created_at)}</span>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Timeline Panel */}
+        {selectedId && (
+          <div className="lg:col-span-2">
+            <IncidentTimeline
+              incidentId={selectedId}
+              onClose={() => onSelectIncident(null)}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Incident Timeline ──────────────────────────────────────────────────────
+
+function IncidentTimeline({ incidentId, onClose }: { incidentId: string; onClose: () => void }) {
+  const incidentFetcher = useCallback(() => socApi.getIncident(incidentId), [incidentId]);
+  const { data: incident, loading } = usePollingApi<SOCIncident>(
+    incidentFetcher,
+    { interval: 10000 },
+  );
+
+  if (loading || !incident) {
+    return (
+      <Card style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(75,119,169,0.2)' }}>
+        <CardContent className="flex items-center justify-center h-48">
+          <RefreshCw className="h-5 w-5 animate-spin" style={{ color: '#14b8a6' }} />
         </CardContent>
       </Card>
-    </div>
+    );
+  }
+
+  const timeline: SOCTimelineEntry[] = incident.timeline || [];
+
+  const statusSteps = ['open', 'investigating', 'containment', 'eradication', 'recovery', 'post_incident', 'closed'];
+  const currentStep = statusSteps.indexOf(incident.status);
+
+  return (
+    <Card style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(75,119,169,0.2)' }}>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-white text-sm">{incident.title}</CardTitle>
+          <Button size="sm" variant="ghost" onClick={onClose} className="h-7 w-7 p-0">
+            <X className="h-4 w-4" style={{ color: '#6b8fb9' }} />
+          </Button>
+        </div>
+        <div className="flex items-center gap-2 mt-1">
+          {severityBadge(incident.severity)}
+          {statusBadge(incident.status)}
+          <Badge className={`text-[10px] border ${
+            incident.priority <= 1 ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+            'bg-orange-500/20 text-orange-400 border-orange-500/30'
+          }`}>P{incident.priority}</Badge>
+          <span className="text-[11px]" style={{ color: '#4b77a9' }}>{incident.alert_count} alerts</span>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Status Progress */}
+        <div className="flex items-center gap-1">
+          {statusSteps.map((step, i) => (
+            <div key={step} className="flex items-center">
+              <div
+                className="flex items-center justify-center h-6 w-6 rounded-full text-[9px] font-bold"
+                style={{
+                  background: i <= currentStep ? 'rgba(13,148,136,0.3)' : 'rgba(255,255,255,0.06)',
+                  color: i <= currentStep ? '#14b8a6' : '#4b77a9',
+                  border: `1px solid ${i <= currentStep ? 'rgba(13,148,136,0.4)' : 'rgba(75,119,169,0.2)'}`,
+                }}
+              >
+                {i < currentStep ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
+              </div>
+              {i < statusSteps.length - 1 && (
+                <div
+                  className="h-0.5 w-4"
+                  style={{ background: i < currentStep ? '#14b8a6' : 'rgba(75,119,169,0.2)' }}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-1 text-[9px]" style={{ color: '#4b77a9' }}>
+          {statusSteps.map((step) => (
+            <span key={step} className="flex-1 text-center truncate">{step.replace('_', ' ')}</span>
+          ))}
+        </div>
+
+        {/* Description */}
+        {incident.description && (
+          <p className="text-sm" style={{ color: '#6b8fb9' }}>{incident.description}</p>
+        )}
+
+        {/* Timeline Events */}
+        <div>
+          <h4 className="text-xs font-medium mb-3" style={{ color: '#4b77a9' }}>Timeline</h4>
+          {timeline.length === 0 ? (
+            <p className="text-xs" style={{ color: '#4b77a9' }}>No timeline events recorded</p>
+          ) : (
+            <div className="space-y-0">
+              {timeline.map((entry: SOCTimelineEntry, i: number) => (
+                <div key={entry.id} className="flex gap-3">
+                  {/* Timeline connector */}
+                  <div className="flex flex-col items-center">
+                    <div
+                      className="h-2.5 w-2.5 rounded-full mt-1.5"
+                      style={{ background: i === 0 ? '#14b8a6' : 'rgba(75,119,169,0.4)' }}
+                    />
+                    {i < timeline.length - 1 && (
+                      <div className="w-px flex-1 my-1" style={{ background: 'rgba(75,119,169,0.2)' }} />
+                    )}
+                  </div>
+                  <div className="pb-4 min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-white capitalize">{entry.action}</span>
+                      <span className="text-[10px]" style={{ color: '#4b77a9' }}>{formatDate(entry.created_at)}</span>
+                    </div>
+                    {entry.description && (
+                      <p className="text-[11px] mt-0.5" style={{ color: '#6b8fb9' }}>{entry.description}</p>
+                    )}
+                    {entry.old_value && entry.new_value && (
+                      <div className="flex items-center gap-1.5 mt-1 text-[10px]">
+                        <span style={{ color: '#ef4444' }}>{entry.old_value}</span>
+                        <ArrowRight className="h-2.5 w-2.5" style={{ color: '#4b77a9' }} />
+                        <span style={{ color: '#22c55e' }}>{entry.new_value}</span>
+                      </div>
+                    )}
+                    {entry.actor && (
+                      <span className="text-[10px]" style={{ color: '#4b77a9' }}>by {entry.actor}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Linked Alerts */}
+        {incident.alerts && incident.alerts.length > 0 && (
+          <div>
+            <h4 className="text-xs font-medium mb-2" style={{ color: '#4b77a9' }}>Linked Alerts ({incident.alerts.length})</h4>
+            <div className="space-y-1.5">
+              {incident.alerts.map((alert: SOCAlert) => (
+                <div
+                  key={alert.id}
+                  className="flex items-center justify-between p-2 rounded"
+                  style={{ background: 'rgba(255,255,255,0.04)' }}
+                >
+                  <span className="text-xs text-white truncate max-w-[200px]">{alert.title}</span>
+                  <div className="flex items-center gap-1.5">
+                    {severityBadge(alert.severity)}
+                    {statusBadge(alert.status)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -591,18 +793,49 @@ function IncidentsTab({
 function RulesTab({
   rules,
   loading,
+  onRefresh,
 }: {
   rules: SOCDetectionRule[];
   loading: boolean;
+  onRefresh: () => Promise<void>;
 }) {
+  const [showCreate, setShowCreate] = useState(false);
+  const [editRule, setEditRule] = useState<SOCDetectionRule | null>(null);
+
   return (
     <div className="space-y-4">
+      {/* Create/Edit Form */}
+      {(showCreate || editRule) && (
+        <RuleForm
+          rule={editRule}
+          onClose={() => { setShowCreate(false); setEditRule(null); }}
+          onSaved={async () => {
+            setShowCreate(false);
+            setEditRule(null);
+            await onRefresh();
+          }}
+        />
+      )}
+
       <Card style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(75,119,169,0.2)' }}>
         <CardHeader>
-          <CardTitle className="text-white text-sm">Detection Rules</CardTitle>
-          <CardDescription style={{ color: '#4b77a9' }}>
-            Rules that automatically create SOC alerts when events match patterns and conditions
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-white text-sm">Detection Rules</CardTitle>
+              <CardDescription style={{ color: '#4b77a9' }}>
+                Rules that automatically create SOC alerts when events match patterns and conditions
+              </CardDescription>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => { setEditRule(null); setShowCreate(true); }}
+              className="gap-1.5"
+              style={{ background: 'rgba(13,148,136,0.15)', color: '#14b8a6', border: '1px solid rgba(13,148,136,0.2)' }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New Rule
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -614,12 +847,13 @@ function RulesTab({
                 <TableHead style={{ color: '#4b77a9' }}>Auto-Escalate</TableHead>
                 <TableHead style={{ color: '#4b77a9' }}>Status</TableHead>
                 <TableHead style={{ color: '#4b77a9' }}>Triggers</TableHead>
+                <TableHead style={{ color: '#4b77a9' }}></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rules.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12" style={{ color: '#4b77a9' }}>
+                  <TableCell colSpan={7} className="text-center py-12" style={{ color: '#4b77a9' }}>
                     {loading ? 'Loading...' : 'No detection rules configured'}
                   </TableCell>
                 </TableRow>
@@ -659,6 +893,17 @@ function RulesTab({
                     <TableCell>
                       <span className="text-sm" style={{ color: '#6b8fb9' }}>{rule.trigger_count}</span>
                     </TableCell>
+                    <TableCell>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setEditRule(rule)}
+                        className="h-7 px-2 text-xs"
+                        style={{ color: '#6b8fb9' }}
+                      >
+                        Edit
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -667,5 +912,212 @@ function RulesTab({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// ─── Rule Create/Edit Form ───────────────────────────────────────────────────
+
+function RuleForm({
+  rule,
+  onClose,
+  onSaved,
+}: {
+  rule: SOCDetectionRule | null;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const isEdit = !!rule;
+  const [name, setName] = useState(rule?.name || '');
+  const [description, setDescription] = useState(rule?.description || '');
+  const [eventPattern, setEventPattern] = useState(rule?.event_pattern || '');
+  const [alertSeverity, setAlertSeverity] = useState(rule?.alert_severity || 'high');
+  const [alertType, setAlertType] = useState(rule?.alert_type || 'anomaly');
+  const [autoEscalate, setAutoEscalate] = useState(rule?.auto_escalate ? true : false);
+  const [cooldown, setCooldown] = useState(rule?.cooldown_seconds || 0);
+  const [isActive, setIsActive] = useState(rule ? !!rule.is_active : true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async () => {
+    if (!name.trim() || !eventPattern.trim()) {
+      setError('Name and event pattern are required');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      if (isEdit && rule) {
+        await socApi.updateDetectionRule(rule.id, {
+          name,
+          alert_severity: alertSeverity,
+          auto_escalate: autoEscalate ? 1 : 0,
+          is_active: isActive ? 1 : 0,
+        });
+      } else {
+        await socApi.createDetectionRule({
+          name,
+          event_pattern: eventPattern,
+          description: description || undefined,
+          alert_severity: alertSeverity,
+          alert_type: alertType,
+          auto_escalate: autoEscalate,
+          cooldown_seconds: cooldown,
+        });
+      }
+      await onSaved();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save rule');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(13,148,136,0.3)' }}>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-white text-sm flex items-center gap-2">
+            {isEdit ? 'Edit Detection Rule' : 'Create Detection Rule'}
+          </CardTitle>
+          <Button size="sm" variant="ghost" onClick={onClose} className="h-7 w-7 p-0">
+            <X className="h-4 w-4" style={{ color: '#6b8fb9' }} />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error && (
+          <div className="p-2 rounded text-sm text-red-400 border" style={{ background: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)' }}>
+            {error}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Name */}
+          <div>
+            <label className="block text-xs mb-1" style={{ color: '#4b77a9' }}>Rule Name *</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Critical Vulnerability Alert"
+              className="w-full rounded-md px-3 py-2 text-sm"
+              style={fieldStyle}
+            />
+          </div>
+
+          {/* Event Pattern */}
+          <div>
+            <label className="block text-xs mb-1" style={{ color: '#4b77a9' }}>Event Pattern *</label>
+            <input
+              value={eventPattern}
+              onChange={(e) => setEventPattern(e.target.value)}
+              placeholder="e.g. forge.vulnerability.*"
+              disabled={isEdit}
+              className="w-full rounded-md px-3 py-2 text-sm disabled:opacity-50"
+              style={fieldStyle}
+            />
+          </div>
+
+          {/* Alert Severity */}
+          <div>
+            <label className="block text-xs mb-1" style={{ color: '#4b77a9' }}>Alert Severity</label>
+            <select
+              value={alertSeverity}
+              onChange={(e) => setAlertSeverity(e.target.value as 'critical' | 'high' | 'medium' | 'low' | 'info')}
+              className="w-full rounded-md px-3 py-2 text-sm"
+              style={fieldStyle}
+            >
+              {['critical', 'high', 'medium', 'low', 'info'].map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Alert Type */}
+          <div>
+            <label className="block text-xs mb-1" style={{ color: '#4b77a9' }}>Alert Type</label>
+            <select
+              value={alertType}
+              onChange={(e) => setAlertType(e.target.value)}
+              className="w-full rounded-md px-3 py-2 text-sm"
+              style={fieldStyle}
+            >
+              {['vulnerability', 'exploitation', 'anomaly', 'compliance', 'threat_intel'].map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Cooldown */}
+          <div>
+            <label className="block text-xs mb-1" style={{ color: '#4b77a9' }}>Cooldown (seconds)</label>
+            <input
+              type="number"
+              value={cooldown}
+              onChange={(e) => setCooldown(parseInt(e.target.value) || 0)}
+              min={0}
+              className="w-full rounded-md px-3 py-2 text-sm"
+              style={fieldStyle}
+            />
+          </div>
+
+          {/* Toggles */}
+          <div className="flex items-center gap-6 pt-5">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoEscalate}
+                onChange={(e) => setAutoEscalate(e.target.checked)}
+                className="rounded"
+              />
+              <span className="text-sm" style={{ color: '#6b8fb9' }}>Auto-escalate</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
+                className="rounded"
+              />
+              <span className="text-sm" style={{ color: '#6b8fb9' }}>Active</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Description */}
+        <div>
+          <label className="block text-xs mb-1" style={{ color: '#4b77a9' }}>Description</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="What does this rule detect?"
+            rows={2}
+            className="w-full rounded-md px-3 py-2 text-sm resize-none"
+            style={fieldStyle}
+          />
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center justify-end gap-2 pt-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onClose}
+            style={{ color: '#6b8fb9', borderColor: 'rgba(75,119,169,0.2)' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleSubmit}
+            disabled={saving}
+            className="gap-1.5"
+            style={{ background: 'rgba(13,148,136,0.2)', color: '#14b8a6', border: '1px solid rgba(13,148,136,0.3)' }}
+          >
+            {saving && <RefreshCw className="h-3 w-3 animate-spin" />}
+            {isEdit ? 'Save Changes' : 'Create Rule'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
