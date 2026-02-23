@@ -16,6 +16,7 @@ import {
   LogOut,
   Crosshair,
   Shield,
+  Rocket,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth, hasRole } from '@/lib/auth';
@@ -39,6 +40,7 @@ const mainNavigation = [
 ];
 
 const bottomNavigation = [
+  { name: 'Getting Started', href: '/setup', icon: Rocket },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

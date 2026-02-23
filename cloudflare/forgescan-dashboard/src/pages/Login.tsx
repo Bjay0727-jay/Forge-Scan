@@ -39,6 +39,7 @@ export function Login() {
     setLoading(true);
 
     try {
+      let isBootstrap = false;
       if (mode === 'register') {
         const regResponse = await fetch(`${API_BASE_URL}/auth/register`, {
           method: 'POST',
@@ -50,10 +51,13 @@ export function Login() {
           const regError = await regResponse.json().catch(() => ({ error: 'Registration failed' }));
           throw new Error(regError.error || 'Registration failed');
         }
+        const regData = await regResponse.json().catch(() => ({}));
+        isBootstrap = regData.is_bootstrap === true;
       }
 
       await login(email, password);
-      navigate(from, { replace: true });
+      // Redirect new bootstrap admin to onboarding wizard
+      navigate(isBootstrap ? '/setup' : from, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed');
     } finally {

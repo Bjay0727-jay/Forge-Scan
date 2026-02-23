@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Server,
   AlertTriangle,
@@ -14,6 +14,8 @@ import {
   CheckCircle2,
   XCircle,
   Target,
+  Zap,
+  Loader2,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -39,7 +41,18 @@ import { StateBarChart } from '@/components/charts/StateBarChart';
 import { ErrorState } from '@/components/ErrorState';
 import { useApi } from '@/hooks/useApi';
 import { usePollingApi } from '@/hooks/usePollingApi';
-import { dashboardApi, scansApi } from '@/lib/api';
+import { dashboardApi, scansApi, onboardingApi } from '@/lib/api';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { formatRelativeTime, capitalize } from '@/lib/utils';
 import type { DashboardStats, ExecutiveMetrics, Severity } from '@/types';
 
@@ -398,6 +411,74 @@ function MttrBarChart({ mttr }: { mttr: ExecutiveMetrics['mttr'] }) {
   );
 }
 
+// ── Quick Scan Dialog ──────────────────────────────────────────────────────
+function QuickScanDialog() {
+  const [open, setOpen] = useState(false);
+  const [target, setTarget] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+
+  const handleScan = async () => {
+    if (!target.trim()) return;
+    setLoading(true);
+    setError('');
+    try {
+      await onboardingApi.quickScan(target.trim());
+      setOpen(false);
+      setTarget('');
+      navigate('/scans');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start scan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button className="gap-2">
+          <Zap className="h-4 w-4" /> Quick Scan
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Quick Scan</DialogTitle>
+          <DialogDescription>
+            Run a network + configuration audit on a CIDR range or hostname.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="qs-target">Target</Label>
+            <Input
+              id="qs-target"
+              placeholder="e.g., 192.168.1.0/24 or example.com"
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              disabled={loading}
+              onKeyDown={(e) => e.key === 'Enter' && handleScan()}
+            />
+            <p className="text-xs text-muted-foreground">
+              Scans ports 1-1024 + common services, detects services, and checks for vulnerabilities.
+            </p>
+          </div>
+          {error && (
+            <div className="rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button onClick={handleScan} disabled={loading || !target.trim()} className="gap-2">
+            {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting...</> : <><Zap className="h-4 w-4" /> Launch Scan</>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function LoadingSkeleton() {
   return (
     <div className="space-y-6">
@@ -599,9 +680,12 @@ export function Dashboard() {
             Security posture overview for the last {execData.period_days} days
           </p>
         </div>
-        <Button onClick={refetch} variant="outline">
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <QuickScanDialog />
+          <Button onClick={refetch} variant="outline">
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Executive Scorecard */}

@@ -666,6 +666,37 @@ export const socApi = {
   },
 };
 
+// Onboarding API
+export const onboardingApi = {
+  getStatus: async (): Promise<{
+    steps: Record<string, boolean>;
+    completed: number;
+    total: number;
+    is_complete: boolean;
+    counts: Record<string, number>;
+  }> => {
+    return request('/onboarding/status');
+  },
+
+  seedCompliance: async (): Promise<{ message: string; frameworks: number; controls: number }> => {
+    return request('/onboarding/seed-compliance', { method: 'POST' });
+  },
+
+  quickScan: async (target: string): Promise<{
+    scan_id: string;
+    name: string;
+    target: string;
+    status: string;
+    tasks_created: number;
+    message: string;
+  }> => {
+    return request('/onboarding/quick-scan', {
+      method: 'POST',
+      body: JSON.stringify({ target }),
+    });
+  },
+};
+
 // Health check
 export const healthApi = {
   check: async (): Promise<ApiResponse<{ status: string }>> => {
