@@ -334,7 +334,7 @@ async function executeNotificationHandler(
   };
 }
 
-/** Auto-create a ForgeRedOps validation campaign from a vulnerability event */
+/** Auto-create (and optionally auto-launch) a ForgeRedOps validation campaign */
 async function executeRedOpsTriggerHandler(
   db: D1Database,
   event: ForgeEvent,
@@ -347,6 +347,10 @@ async function executeRedOpsTriggerHandler(
     const targetScope = buildTargetScope(event.payload);
     const campaignType = (config.campaign_type as string) || 'validation';
     const exploitationLevel = (config.exploitation_level as string) || 'safe';
+    const autoLaunch = config.auto_launch === true;
+
+    // Infer agent categories from vulnerability context
+    const categories = inferAgentCategories(event.payload);
 
     const campaignName = `Auto-validate: ${event.payload.title || event.payload.cve_id || 'Critical finding'}`;
 
@@ -357,7 +361,7 @@ async function executeRedOpsTriggerHandler(
           target_scope, agent_categories, max_concurrent_agents,
           exploitation_level, risk_threshold, auto_poam, compliance_mapping,
           created_at, updated_at
-        ) VALUES (?, ?, ?, 'created', ?, ?, '["web","api"]', 2, ?, 'critical', 1, 1, datetime('now'), datetime('now'))`
+        ) VALUES (?, ?, ?, 'created', ?, ?, ?, 2, ?, 'critical', 1, 1, datetime('now'), datetime('now'))`
       )
       .bind(
         campaignId,
@@ -365,18 +369,97 @@ async function executeRedOpsTriggerHandler(
         `Auto-created from event ${event.id}: ${event.event_type}`,
         campaignType,
         JSON.stringify(targetScope),
+        JSON.stringify(categories),
         exploitationLevel
       )
       .run();
 
+    // When auto_launch is enabled, create agents and transition to queued
+    if (autoLaunch) {
+      const placeholders = categories.map(() => '?').join(',');
+      const agentTypes = await db
+        .prepare(
+          `SELECT * FROM redops_agent_types WHERE enabled = 1 AND category IN (${placeholders}) ORDER BY category, id`
+        )
+        .bind(...categories)
+        .all<{ id: string; category: string; display_name: string; test_count: number }>();
+
+      let agentCount = 0;
+      for (const agentType of agentTypes.results || []) {
+        await db
+          .prepare(
+            `INSERT INTO redops_agents (
+              id, campaign_id, agent_type, agent_category, status,
+              tests_planned, tests_completed, tests_passed, tests_failed,
+              findings_count, exploitable_count, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, 'queued', ?, 0, 0, 0, 0, 0, datetime('now'), datetime('now'))`
+          )
+          .bind(crypto.randomUUID(), campaignId, agentType.id, agentType.category, agentType.test_count)
+          .run();
+        agentCount++;
+      }
+
+      await db
+        .prepare(
+          `UPDATE redops_campaigns SET
+            status = 'queued', total_agents = ?, started_at = datetime('now'), updated_at = datetime('now')
+          WHERE id = ?`
+        )
+        .bind(agentCount, campaignId)
+        .run();
+
+      return {
+        success: true,
+        message: `Created and queued validation campaign ${campaignId} with ${agentCount} agents (auto-launched)`,
+        data: { campaign_id: campaignId, auto_launch: true, agent_count: agentCount },
+      };
+    }
+
     return {
       success: true,
       message: `Created validation campaign ${campaignId} (requires manual approval to launch)`,
-      data: { campaign_id: campaignId, auto_launch: config.auto_launch === true },
+      data: { campaign_id: campaignId, auto_launch: false },
     };
   }
 
   return { success: false, message: `Unknown RedOps trigger action: ${action}` };
+}
+
+/** Infer which agent categories to deploy based on vulnerability context */
+function inferAgentCategories(payload: Record<string, unknown>): string[] {
+  const categories = new Set<string>();
+  const attackVector = ((payload.attack_vector as string) || '').toLowerCase();
+  const title = ((payload.title as string) || '').toLowerCase();
+  const cweId = (payload.cwe_id as string) || '';
+
+  if (attackVector.includes('web') || attackVector.includes('http') ||
+      title.includes('xss') || title.includes('injection') || title.includes('csrf') ||
+      cweId.includes('CWE-79') || cweId.includes('CWE-89') || cweId.includes('CWE-352')) {
+    categories.add('web');
+  }
+  if (attackVector.includes('api') || title.includes('api') || title.includes('auth') ||
+      cweId.includes('CWE-287') || cweId.includes('CWE-863')) {
+    categories.add('api');
+  }
+  if (attackVector.includes('network') || title.includes('tls') || title.includes('ssl') ||
+      title.includes('dns') || title.includes('port') || title.includes('firewall')) {
+    categories.add('network');
+  }
+  if (attackVector.includes('cloud') || title.includes('aws') || title.includes('azure') ||
+      title.includes('gcp') || title.includes('s3') || title.includes('iam')) {
+    categories.add('cloud');
+  }
+  if (title.includes('credential') || title.includes('password') || title.includes('brute') ||
+      cweId.includes('CWE-521') || cweId.includes('CWE-798')) {
+    categories.add('identity');
+  }
+
+  // Default: web + api
+  if (categories.size === 0) {
+    categories.add('web');
+    categories.add('api');
+  }
+  return Array.from(categories);
 }
 
 /** Build a target scope from vulnerability event payload */

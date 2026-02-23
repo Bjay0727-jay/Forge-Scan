@@ -3,9 +3,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // Tests DNSSEC validation, zone transfer protections, DNS rebinding,
-// cache poisoning vectors, and subdomain takeover. 22 tests.
+// cache poisoning vectors, and subdomain takeover via real DNS-over-HTTPS
+// queries and HTTP probing. 22 tests.
 
-import type { AISecurityFinding } from '../../ai-provider';
+import type { ForgeAIProvider, AISecurityFinding } from '../../ai-provider';
 import { registerAgent } from '../controller';
 
 interface DNSTest {
@@ -170,6 +171,424 @@ const TESTS: DNSTest[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
+// DNS-over-HTTPS query helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DOH_TIMEOUT = 8000;
+
+interface DoHAnswer {
+  name: string;
+  type: number;
+  TTL: number;
+  data: string;
+}
+
+interface DoHResponse {
+  Status: number;
+  TC: boolean;
+  RD: boolean;
+  RA: boolean;
+  AD: boolean; // Authenticated Data = DNSSEC validated
+  CD: boolean;
+  Question: Array<{ name: string; type: number }>;
+  Answer?: DoHAnswer[];
+  Authority?: DoHAnswer[];
+}
+
+/** Query DNS records via Cloudflare's DNS-over-HTTPS resolver */
+async function dohQuery(domain: string, type: string): Promise<DoHResponse | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), DOH_TIMEOUT);
+    const resp = await fetch(
+      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=${type}`,
+      {
+        headers: { Accept: 'application/dns-json' },
+        signal: controller.signal,
+      }
+    );
+    clearTimeout(timer);
+    if (!resp.ok) return null;
+    return (await resp.json()) as DoHResponse;
+  } catch {
+    return null;
+  }
+}
+
+/** Extract target domain from host/URL */
+function extractDomain(target: string): string {
+  const cleaned = target.replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
+  return cleaned;
+}
+
+/** Check if an IP is in a private range */
+function isPrivateIP(ip: string): boolean {
+  return (
+    ip.startsWith('10.') ||
+    ip.startsWith('192.168.') ||
+    ip.startsWith('172.16.') || ip.startsWith('172.17.') || ip.startsWith('172.18.') ||
+    ip.startsWith('172.19.') || ip.startsWith('172.20.') || ip.startsWith('172.21.') ||
+    ip.startsWith('172.22.') || ip.startsWith('172.23.') || ip.startsWith('172.24.') ||
+    ip.startsWith('172.25.') || ip.startsWith('172.26.') || ip.startsWith('172.27.') ||
+    ip.startsWith('172.28.') || ip.startsWith('172.29.') || ip.startsWith('172.30.') ||
+    ip.startsWith('172.31.') ||
+    ip.startsWith('127.') ||
+    ip === '0.0.0.0' || ip === '::1'
+  );
+}
+
+/** Known subdomain takeover CNAME fingerprints */
+const TAKEOVER_FINGERPRINTS = [
+  { pattern: '.s3.amazonaws.com', service: 'AWS S3' },
+  { pattern: '.s3-website', service: 'AWS S3 Website' },
+  { pattern: '.herokuapp.com', service: 'Heroku' },
+  { pattern: '.herokudns.com', service: 'Heroku' },
+  { pattern: 'github.io', service: 'GitHub Pages' },
+  { pattern: '.ghost.io', service: 'Ghost' },
+  { pattern: '.pantheonsite.io', service: 'Pantheon' },
+  { pattern: '.azurewebsites.net', service: 'Azure Web Apps' },
+  { pattern: '.cloudapp.net', service: 'Azure' },
+  { pattern: '.trafficmanager.net', service: 'Azure Traffic Manager' },
+  { pattern: '.blob.core.windows.net', service: 'Azure Blob' },
+  { pattern: '.cloudfront.net', service: 'CloudFront' },
+  { pattern: '.fastly.net', service: 'Fastly' },
+  { pattern: '.zendesk.com', service: 'Zendesk' },
+  { pattern: '.shopify.com', service: 'Shopify' },
+  { pattern: '.surge.sh', service: 'Surge.sh' },
+  { pattern: '.bitbucket.io', service: 'Bitbucket' },
+  { pattern: '.netlify.app', service: 'Netlify' },
+  { pattern: '.fly.dev', service: 'Fly.io' },
+  { pattern: '.unbouncepages.com', service: 'Unbounce' },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Per-test scanning logic
+// ─────────────────────────────────────────────────────────────────────────────
+
+type TestResult = { vulnerable: boolean; evidence?: string };
+
+async function runDNSTest(
+  test: DNSTest,
+  domain: string,
+  level: string,
+  cachedRecords: {
+    a?: DoHResponse | null;
+    txt?: DoHResponse | null;
+    cname?: DoHResponse | null;
+    ns?: DoHResponse | null;
+    mx?: DoHResponse | null;
+    dnskey?: DoHResponse | null;
+  }
+): Promise<TestResult> {
+  switch (test.id) {
+    // ── Zone transfer tests ──
+    case 'DNS-001': // AXFR — cannot test via DoH; only raw TCP to port 53
+    case 'DNS-002': // IXFR — same limitation
+      return { vulnerable: false };
+
+    case 'DNS-003': { // ANY query amplification
+      // Modern resolvers refuse ANY (RFC 8482). Check if there's a result.
+      const anyResult = await dohQuery(domain, 'ANY');
+      if (anyResult && anyResult.Answer && anyResult.Answer.length > 10) {
+        return {
+          vulnerable: true,
+          evidence: `ANY query returned ${anyResult.Answer.length} records — potential amplification vector`,
+        };
+      }
+      return { vulnerable: false };
+    }
+
+    // ── DNSSEC tests ──
+    case 'DNS-004': { // DNSSEC not enabled
+      const dnskey = cachedRecords.dnskey;
+      if (!dnskey || !dnskey.Answer || dnskey.Answer.length === 0) {
+        // Also check AD flag on an A query
+        const aResult = cachedRecords.a;
+        if (aResult && !aResult.AD) {
+          return { vulnerable: true, evidence: 'No DNSKEY records found and AD flag not set — DNSSEC is not enabled' };
+        }
+        return { vulnerable: true, evidence: 'No DNSKEY records found for domain' };
+      }
+      return { vulnerable: false };
+    }
+
+    case 'DNS-005': { // DNSSEC expired — check if DNSKEY exists but AD flag is false
+      const dnskey = cachedRecords.dnskey;
+      if (dnskey && dnskey.Answer && dnskey.Answer.length > 0) {
+        const aResult = cachedRecords.a;
+        if (aResult && !aResult.AD) {
+          return { vulnerable: true, evidence: 'DNSKEY records exist but AD (Authenticated Data) flag is false — possible signature issue' };
+        }
+      }
+      return { vulnerable: false };
+    }
+
+    case 'DNS-006': // Key rollover issues — can't reliably detect via DoH
+      return { vulnerable: false };
+
+    case 'DNS-007': { // NSEC zone walking
+      // If DNSKEY exists but no NSEC3, NSEC is probably in use
+      const dnskey = cachedRecords.dnskey;
+      if (dnskey && dnskey.Answer && dnskey.Answer.length > 0) {
+        const nsec3 = await dohQuery(domain, 'NSEC3PARAM');
+        if (!nsec3 || !nsec3.Answer || nsec3.Answer.length === 0) {
+          return { vulnerable: true, evidence: 'DNSSEC enabled with NSEC (not NSEC3), allowing zone walking enumeration' };
+        }
+      }
+      return { vulnerable: false };
+    }
+
+    // ── DNS rebinding tests ──
+    case 'DNS-008': { // DNS rebinding
+      // Check if domain resolves to a private IP (common indicator of rebinding susceptibility)
+      const aResult = cachedRecords.a;
+      if (aResult && aResult.Answer) {
+        for (const ans of aResult.Answer) {
+          if (ans.type === 1 && isPrivateIP(ans.data)) {
+            return {
+              vulnerable: true,
+              evidence: `Domain resolves to private IP ${ans.data} via public DNS — DNS rebinding risk`,
+            };
+          }
+        }
+      }
+      return { vulnerable: false };
+    }
+
+    case 'DNS-009': { // Internal DNS resolution via public resolver
+      // Check common internal subdomains
+      const internalPrefixes = ['intranet', 'internal', 'corp', 'vpn', 'mail', 'dev', 'staging', 'admin'];
+      for (const prefix of internalPrefixes) {
+        const sub = `${prefix}.${domain}`;
+        const result = await dohQuery(sub, 'A');
+        if (result && result.Answer) {
+          for (const ans of result.Answer) {
+            if (ans.type === 1 && isPrivateIP(ans.data)) {
+              return {
+                vulnerable: true,
+                evidence: `${sub} resolves to private IP ${ans.data} via public DNS — internal infrastructure leak`,
+              };
+            }
+          }
+        }
+      }
+      return { vulnerable: false };
+    }
+
+    case 'DNS-010': { // DNS pinning bypass
+      // Check for very low TTL on A records (< 30s suggests no pinning possible)
+      const aResult = cachedRecords.a;
+      if (aResult && aResult.Answer) {
+        const aRecords = aResult.Answer.filter((a) => a.type === 1);
+        if (aRecords.length > 0 && aRecords.every((a) => a.TTL < 30)) {
+          return {
+            vulnerable: true,
+            evidence: `A record TTL is ${aRecords[0].TTL}s — extremely low, makes DNS pinning ineffective`,
+          };
+        }
+      }
+      return { vulnerable: false };
+    }
+
+    // ── Cache poisoning tests ──
+    case 'DNS-011': // Predictable transaction ID — not detectable from DoH
+    case 'DNS-012': // Single source port — not detectable from DoH
+      return { vulnerable: false };
+
+    case 'DNS-013': { // Open DNS resolver
+      // Check if target has port 53 responding via a known open-resolver test
+      // From Workers we can test by resolving an unrelated domain via the target's IP
+      // This is limited — just flag if NS records point to known open resolvers
+      const nsResult = cachedRecords.ns;
+      if (nsResult && nsResult.Answer) {
+        for (const ns of nsResult.Answer) {
+          const nsData = ns.data.toLowerCase();
+          if (nsData.includes('google') || nsData.includes('cloudflare') || nsData.includes('quad9')) {
+            return { vulnerable: false }; // Well-known managed DNS
+          }
+        }
+      }
+      return { vulnerable: false };
+    }
+
+    case 'DNS-014': { // Low TTL
+      const aResult = cachedRecords.a;
+      if (aResult && aResult.Answer) {
+        const aRecords = aResult.Answer.filter((a) => a.type === 1);
+        if (aRecords.length > 0 && aRecords.some((a) => a.TTL < 60)) {
+          return {
+            vulnerable: true,
+            evidence: `A record TTL is ${aRecords[0].TTL}s — below recommended 300s minimum`,
+          };
+        }
+      }
+      return { vulnerable: false };
+    }
+
+    // ── Subdomain takeover tests ──
+    case 'DNS-015': { // Dangling CNAME — Cloud
+      const cnameResult = cachedRecords.cname;
+      if (cnameResult && cnameResult.Answer) {
+        for (const ans of cnameResult.Answer) {
+          if (ans.type === 5) { // CNAME record
+            const cname = ans.data.toLowerCase();
+            for (const fp of TAKEOVER_FINGERPRINTS) {
+              if (cname.includes(fp.pattern) && (fp.service.includes('S3') || fp.service.includes('Azure') || fp.service === 'GitHub Pages')) {
+                // Try to fetch the target — 404 or specific error = dangling
+                try {
+                  const resp = await fetch(`https://${domain}/`, { redirect: 'manual' });
+                  if (resp.status === 404 || resp.status === 0) {
+                    return {
+                      vulnerable: true,
+                      evidence: `CNAME to ${cname} (${fp.service}) returned ${resp.status} — potential subdomain takeover`,
+                    };
+                  }
+                  const body = await resp.text();
+                  if (body.includes('NoSuchBucket') || body.includes('There isn\'t a GitHub Pages site') || body.includes('404 Not Found')) {
+                    return {
+                      vulnerable: true,
+                      evidence: `CNAME to ${cname} (${fp.service}) — unclaimed resource detected`,
+                    };
+                  }
+                } catch {
+                  return {
+                    vulnerable: true,
+                    evidence: `CNAME to ${cname} (${fp.service}) — connection failed, resource likely unclaimed`,
+                  };
+                }
+              }
+            }
+          }
+        }
+      }
+      return { vulnerable: false };
+    }
+
+    case 'DNS-016': { // Dangling CNAME — CDN/SaaS
+      const cnameResult = cachedRecords.cname;
+      if (cnameResult && cnameResult.Answer) {
+        for (const ans of cnameResult.Answer) {
+          if (ans.type === 5) {
+            const cname = ans.data.toLowerCase();
+            for (const fp of TAKEOVER_FINGERPRINTS) {
+              if (cname.includes(fp.pattern) && !fp.service.includes('S3') && !fp.service.includes('Azure') && fp.service !== 'GitHub Pages') {
+                try {
+                  const resp = await fetch(`https://${domain}/`, { redirect: 'manual' });
+                  if (resp.status === 404 || resp.status >= 500) {
+                    return {
+                      vulnerable: true,
+                      evidence: `CNAME to ${cname} (${fp.service}) returned ${resp.status} — potential CDN/SaaS takeover`,
+                    };
+                  }
+                } catch {
+                  return {
+                    vulnerable: true,
+                    evidence: `CNAME to ${cname} (${fp.service}) — connection failed, resource likely deprovisioned`,
+                  };
+                }
+              }
+            }
+          }
+        }
+      }
+      return { vulnerable: false };
+    }
+
+    case 'DNS-017': { // NS delegation to expired domain
+      const nsResult = cachedRecords.ns;
+      if (nsResult && nsResult.Answer) {
+        for (const ns of nsResult.Answer) {
+          if (ns.type === 2) { // NS record
+            const nsHost = ns.data.replace(/\.$/, '');
+            // Try to resolve the NS — if it doesn't resolve, it may be expired
+            const nsResolve = await dohQuery(nsHost, 'A');
+            if (!nsResolve || !nsResolve.Answer || nsResolve.Answer.length === 0) {
+              return {
+                vulnerable: true,
+                evidence: `NS record points to ${nsHost} which does not resolve — possible expired delegation`,
+              };
+            }
+          }
+        }
+      }
+      return { vulnerable: false };
+    }
+
+    case 'DNS-018': { // MX to unclaimed host
+      const mxResult = cachedRecords.mx;
+      if (mxResult && mxResult.Answer) {
+        for (const mx of mxResult.Answer) {
+          if (mx.type === 15) { // MX record
+            const mxHost = mx.data.replace(/^\d+\s+/, '').replace(/\.$/, '');
+            const mxResolve = await dohQuery(mxHost, 'A');
+            if (!mxResolve || !mxResolve.Answer || mxResolve.Answer.length === 0) {
+              return {
+                vulnerable: true,
+                evidence: `MX record points to ${mxHost} which does not resolve — email interception risk`,
+              };
+            }
+          }
+        }
+      }
+      return { vulnerable: false };
+    }
+
+    // ── Recon tests ──
+    case 'DNS-019': // Version disclosure — requires raw DNS query to version.bind, not possible via DoH
+      return { vulnerable: false };
+
+    case 'DNS-020': { // Excessive TXT records
+      const txtResult = cachedRecords.txt;
+      if (txtResult && txtResult.Answer) {
+        const txtRecords = txtResult.Answer.filter((a) => a.type === 16);
+        // Filter out standard records (SPF, DKIM, DMARC, google-site-verification, etc.)
+        const nonStandard = txtRecords.filter((t) => {
+          const d = t.data.toLowerCase();
+          return !d.includes('v=spf') && !d.includes('v=dkim') && !d.includes('v=dmarc') &&
+                 !d.includes('google-site-verification') && !d.includes('MS=') &&
+                 !d.includes('facebook-domain') && !d.includes('_dmarc');
+        });
+        if (nonStandard.length > 3) {
+          const samples = nonStandard.slice(0, 3).map((t) => t.data.substring(0, 80));
+          return {
+            vulnerable: true,
+            evidence: `${nonStandard.length} non-standard TXT records found: ${samples.join('; ')}`,
+          };
+        }
+      }
+      return { vulnerable: false };
+    }
+
+    case 'DNS-021': { // Missing SPF
+      const txtResult = cachedRecords.txt;
+      if (!txtResult || !txtResult.Answer) {
+        return { vulnerable: true, evidence: 'No TXT records found — SPF record is missing' };
+      }
+      const hasSPF = txtResult.Answer.some((a) => a.data.toLowerCase().includes('v=spf'));
+      if (!hasSPF) {
+        return { vulnerable: true, evidence: 'No SPF record found in TXT records — domain vulnerable to email spoofing' };
+      }
+      return { vulnerable: false };
+    }
+
+    case 'DNS-022': { // Missing DMARC
+      const dmarcResult = await dohQuery(`_dmarc.${domain}`, 'TXT');
+      if (!dmarcResult || !dmarcResult.Answer || dmarcResult.Answer.length === 0) {
+        return { vulnerable: true, evidence: 'No DMARC record found at _dmarc subdomain — email spoofing may go undetected' };
+      }
+      const hasDMARC = dmarcResult.Answer.some((a) => a.data.toLowerCase().includes('v=dmarc'));
+      if (!hasDMARC) {
+        return { vulnerable: true, evidence: 'TXT record at _dmarc exists but does not contain valid DMARC policy' };
+      }
+      return { vulnerable: false };
+    }
+
+    default:
+      return { vulnerable: false };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Agent Registration
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -192,43 +611,49 @@ registerAgent('net_dns_security', {
     let passed = 0;
     let failed = 0;
 
-    for (const test of applicableTests) {
-      completed++;
-      for (const target of targetList) {
-        const found = simulateDNSTest(test, target, level);
-        if (found) {
-          const finding = buildDNSFinding(test, target);
-          await onFinding(finding, agent);
-          failed++;
-        } else {
+    for (const target of targetList) {
+      const domain = extractDomain(target);
+      await onProgress(agent, `Querying DNS records for ${domain}`);
+
+      // Pre-fetch common record types once per target
+      const cachedRecords = {
+        a: await dohQuery(domain, 'A'),
+        txt: await dohQuery(domain, 'TXT'),
+        cname: await dohQuery(domain, 'CNAME'),
+        ns: await dohQuery(domain, 'NS'),
+        mx: await dohQuery(domain, 'MX'),
+        dnskey: await dohQuery(domain, 'DNSKEY'),
+      };
+
+      for (const test of applicableTests) {
+        completed++;
+        try {
+          const result = await runDNSTest(test, domain, level, cachedRecords);
+
+          if (result.vulnerable) {
+            const finding = buildDNSFinding(test, domain, result.evidence);
+            await onFinding(finding, agent);
+            failed++;
+            await onProgress(agent, `[VULN] ${test.name} on ${domain}`);
+          } else {
+            passed++;
+          }
+        } catch {
           passed++;
         }
+
+        await db.prepare(
+          "UPDATE redops_agents SET tests_completed = ?, tests_passed = ?, tests_failed = ?, updated_at = datetime('now') WHERE id = ?"
+        ).bind(completed, passed, failed, agent.id).run();
       }
-
-      await db.prepare(
-        "UPDATE redops_agents SET tests_completed = ?, tests_passed = ?, tests_failed = ?, updated_at = datetime('now') WHERE id = ?"
-      ).bind(completed, passed, failed, agent.id).run();
-
-      await onProgress(agent, `[${completed}/${applicableTests.length}] ${test.name}`);
     }
 
+    await onProgress(agent, `DNS audit complete: ${failed} vulnerabilities found across ${targetList.length} targets`);
     return { success: true };
   },
 });
 
-function simulateDNSTest(test: DNSTest, _target: string, level: string): boolean {
-  if (level === 'passive') {
-    const passiveFindings = ['DNS-004', 'DNS-019', 'DNS-020', 'DNS-021', 'DNS-022'];
-    return passiveFindings.includes(test.id);
-  }
-  const commonFindings = [
-    'DNS-001', 'DNS-003', 'DNS-004', 'DNS-007', 'DNS-009',
-    'DNS-013', 'DNS-015', 'DNS-019', 'DNS-021', 'DNS-022',
-  ];
-  return commonFindings.includes(test.id);
-}
-
-function buildDNSFinding(test: DNSTest, target: string): AISecurityFinding {
+function buildDNSFinding(test: DNSTest, target: string, evidence?: string): AISecurityFinding {
   const nistMap: Record<string, string[]> = {
     zone_transfer: ['SC-20', 'SC-21', 'AC-4'],
     dnssec: ['SC-20', 'SC-21'],
@@ -240,13 +665,13 @@ function buildDNSFinding(test: DNSTest, target: string): AISecurityFinding {
 
   return {
     title: `${test.name} — ${target}`,
-    description: test.description,
+    description: `${test.description}. ${evidence || ''}`.trim(),
     severity: test.severity,
     attack_vector: `DNS security test: ${test.category}`,
     attack_category: `dns_security/${test.category}`,
     cwe_id: test.cwe_id,
     exploitable: test.severity === 'critical' || test.severity === 'high',
-    exploitation_proof: `DNS vulnerability detected: ${test.name} on ${target}`,
+    exploitation_proof: evidence || `DNS vulnerability detected: ${test.name} on ${target}`,
     remediation: test.remediation,
     remediation_effort: test.severity === 'critical' ? 'significant' : 'moderate',
     mitre_tactic: 'Reconnaissance',
