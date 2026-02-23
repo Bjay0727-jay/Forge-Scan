@@ -27,7 +27,6 @@ import { sast } from './routes/sast';
 import { soar } from './routes/soar';
 import { threatIntel } from './routes/threat-intel';
 import { docs } from './routes/docs';
-import { demo } from './routes/demo-seed';
 import { registerSOCHandlers } from './services/forgesoc/alert-handler';
 
 export interface Env {
@@ -102,7 +101,6 @@ app.route('/api/v1/containers', containers);
 app.route('/api/v1/sast', sast);
 app.route('/api/v1/soar', soar);
 app.route('/api/v1/threat-intel', threatIntel);
-app.route('/api/v1/demo', demo);
 
 // 404 handler
 app.notFound((c) => {
