@@ -5,6 +5,7 @@ import type {
   Finding,
   Scan,
   DashboardStats,
+  ExecutiveMetrics,
   AssetListParams,
   FindingListParams,
   ScanListParams,
@@ -161,6 +162,10 @@ export const dashboardApi = {
       risk_trend: [],
       top_vulnerabilities: [],
     };
+  },
+
+  getExecutiveMetrics: async (days: number = 90): Promise<ExecutiveMetrics> => {
+    return request<ExecutiveMetrics>(`/dashboard/executive?days=${days}`);
   },
 };
 

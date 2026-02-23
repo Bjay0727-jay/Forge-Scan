@@ -179,6 +179,57 @@ export interface TopVulnerability {
   cvss_score: number;
 }
 
+// Executive dashboard metrics
+export interface ExecutiveMetrics {
+  risk_grade: {
+    grade: string;
+    score: number;
+    open_findings: number;
+    severity_counts: Record<Severity, number>;
+  };
+  mttr: {
+    overall_avg_days: number;
+    overall_sample_size: number;
+    by_severity: Record<string, {
+      avg_days: number;
+      min_days: number;
+      max_days: number;
+      sample_size: number;
+    }>;
+  };
+  sla_compliance: {
+    overall_pct: number;
+    by_severity: Record<string, {
+      total: number;
+      within_sla: number;
+      compliance_pct: number;
+      target_days: number;
+    }>;
+    targets: Record<string, number>;
+    overdue: {
+      total: number;
+      critical: number;
+      high: number;
+    };
+  };
+  posture_trend: Array<{
+    week: string;
+    new_findings: number;
+    fixed: number;
+    risk_score: number;
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  }>;
+  redops_coverage: {
+    validated_cves: number;
+    exploitable: number;
+  };
+  period_days: number;
+  generated_at: string;
+}
+
 // API response types
 export interface ApiResponse<T> {
   success: boolean;

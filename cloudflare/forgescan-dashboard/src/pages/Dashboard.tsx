@@ -7,7 +7,28 @@ import {
   TrendingUp,
   ExternalLink,
   Activity,
+  Clock,
+  ShieldCheck,
+  ShieldAlert,
+  Timer,
+  CheckCircle2,
+  XCircle,
+  Target,
 } from 'lucide-react';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  Legend,
+  BarChart,
+  Bar,
+  Cell,
+} from 'recharts';
+import { format, parseISO } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,7 +41,16 @@ import { useApi } from '@/hooks/useApi';
 import { usePollingApi } from '@/hooks/usePollingApi';
 import { dashboardApi, scansApi } from '@/lib/api';
 import { formatRelativeTime, capitalize } from '@/lib/utils';
-import type { DashboardStats, Severity } from '@/types';
+import type { DashboardStats, ExecutiveMetrics, Severity } from '@/types';
+
+// ── Grade colors and descriptions ──────────────────────────────────────────
+const GRADE_CONFIG: Record<string, { color: string; bg: string; border: string; label: string }> = {
+  A: { color: '#22c55e', bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.3)', label: 'Excellent' },
+  B: { color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', border: 'rgba(59,130,246,0.3)', label: 'Good' },
+  C: { color: '#eab308', bg: 'rgba(234,179,8,0.1)', border: 'rgba(234,179,8,0.3)', label: 'Fair' },
+  D: { color: '#f97316', bg: 'rgba(249,115,22,0.1)', border: 'rgba(249,115,22,0.3)', label: 'Poor' },
+  F: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.3)', label: 'Critical' },
+};
 
 function StatCard({
   title,
@@ -50,9 +80,341 @@ function StatCard({
   );
 }
 
+// ── Executive Scorecard Component ──────────────────────────────────────────
+function ExecutiveScorecard({ metrics }: { metrics: ExecutiveMetrics }) {
+  const gradeInfo = GRADE_CONFIG[metrics.risk_grade.grade] || GRADE_CONFIG.C;
+  const sc = metrics.risk_grade.severity_counts;
+  const sla = metrics.sla_compliance;
+
+  return (
+    <div className="mb-6 space-y-4">
+      {/* Top row: Grade + KPIs */}
+      <div className="grid gap-4 lg:grid-cols-4">
+        {/* Risk Grade — hero card */}
+        <Card
+          className="lg:row-span-1 relative overflow-hidden"
+          style={{ borderColor: gradeInfo.border }}
+        >
+          <div
+            className="absolute inset-0 opacity-[0.03]"
+            style={{ background: `radial-gradient(ellipse at 30% 30%, ${gradeInfo.color}, transparent 70%)` }}
+          />
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <ShieldCheck className="h-4 w-4" />
+              Security Posture
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div
+                className="flex h-20 w-20 items-center justify-center rounded-2xl text-5xl font-black"
+                style={{ background: gradeInfo.bg, color: gradeInfo.color, border: `2px solid ${gradeInfo.border}` }}
+              >
+                {metrics.risk_grade.grade}
+              </div>
+              <div className="flex-1">
+                <div className="text-lg font-semibold" style={{ color: gradeInfo.color }}>
+                  {gradeInfo.label}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Risk Score: {metrics.risk_grade.score}/100
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {metrics.risk_grade.open_findings} open findings
+                </div>
+              </div>
+            </div>
+            {/* Mini severity breakdown */}
+            <div className="mt-3 flex gap-2">
+              {sc.critical > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-red-500/10 px-2 py-0.5 text-[11px] font-medium text-red-400 border border-red-500/20">
+                  {sc.critical} Critical
+                </span>
+              )}
+              {sc.high > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-orange-500/10 px-2 py-0.5 text-[11px] font-medium text-orange-400 border border-orange-500/20">
+                  {sc.high} High
+                </span>
+              )}
+              {sc.medium > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-yellow-500/10 px-2 py-0.5 text-[11px] font-medium text-yellow-400 border border-yellow-500/20">
+                  {sc.medium} Med
+                </span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* MTTR KPI */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <Timer className="h-4 w-4" />
+              Mean Time to Remediate
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">
+              {metrics.mttr.overall_avg_days > 0 ? `${metrics.mttr.overall_avg_days}d` : '--'}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Across {metrics.mttr.overall_sample_size} remediations
+            </p>
+            <div className="mt-3 space-y-1.5">
+              {(['critical', 'high', 'medium', 'low'] as const).map((sev) => {
+                const m = metrics.mttr.by_severity[sev];
+                if (!m) return null;
+                const colors: Record<string, string> = { critical: '#ef4444', high: '#f97316', medium: '#eab308', low: '#22c55e' };
+                return (
+                  <div key={sev} className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colors[sev] }} />
+                      <span className="capitalize text-muted-foreground">{sev}</span>
+                    </span>
+                    <span className="font-medium">{m.avg_days}d avg</span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* SLA Compliance KPI */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <CheckCircle2 className="h-4 w-4" />
+              SLA Compliance
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline gap-1">
+              <span
+                className="text-3xl font-bold"
+                style={{ color: sla.overall_pct >= 80 ? '#22c55e' : sla.overall_pct >= 60 ? '#eab308' : '#ef4444' }}
+              >
+                {sla.overall_pct}%
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              On-time remediation rate
+            </p>
+            <div className="mt-3 space-y-1.5">
+              {(['critical', 'high', 'medium', 'low'] as const).map((sev) => {
+                const s = sla.by_severity[sev];
+                if (!s) return null;
+                return (
+                  <div key={sev} className="flex items-center justify-between text-xs">
+                    <span className="capitalize text-muted-foreground">{sev} ({s.target_days}d)</span>
+                    <span
+                      className="font-medium"
+                      style={{ color: s.compliance_pct >= 80 ? '#22c55e' : s.compliance_pct >= 60 ? '#eab308' : '#ef4444' }}
+                    >
+                      {s.compliance_pct}%
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Overdue + RedOps Coverage */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <ShieldAlert className="h-4 w-4" />
+              Risk Indicators
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {/* Overdue */}
+              <div>
+                <div className="flex items-center gap-2">
+                  <XCircle className="h-4 w-4 text-red-400" />
+                  <span className="text-sm font-medium">Overdue Findings</span>
+                </div>
+                <div className="text-2xl font-bold text-red-400 mt-1">
+                  {sla.overdue.total}
+                </div>
+                {sla.overdue.critical > 0 && (
+                  <p className="text-[11px] text-red-400/80">
+                    {sla.overdue.critical} critical past SLA
+                  </p>
+                )}
+              </div>
+              {/* RedOps Validation */}
+              {metrics.redops_coverage.validated_cves > 0 && (
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Target className="h-4 w-4 text-teal-400" />
+                    <span className="text-sm font-medium">RedOps Validated</span>
+                  </div>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-teal-400">
+                      {metrics.redops_coverage.validated_cves}
+                    </span>
+                    <span className="text-xs text-muted-foreground">CVEs tested</span>
+                  </div>
+                  {metrics.redops_coverage.exploitable > 0 && (
+                    <p className="text-[11px] text-orange-400">
+                      {metrics.redops_coverage.exploitable} confirmed exploitable
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ── Risk Posture Trend Chart ───────────────────────────────────────────────
+function PostureTrendChart({ data }: { data: ExecutiveMetrics['posture_trend'] }) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center text-muted-foreground">
+        No trend data available yet
+      </div>
+    );
+  }
+
+  const formatted = data.map((p) => ({
+    ...p,
+    label: format(parseISO(p.week), 'MMM d'),
+    net: p.new_findings - p.fixed,
+  }));
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={formatted} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+        <defs>
+          <linearGradient id="gradNew" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+          </linearGradient>
+          <linearGradient id="gradFixed" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+        <XAxis
+          dataKey="label"
+          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+        />
+        <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
+        <RechartsTooltip
+          contentStyle={{
+            backgroundColor: 'hsl(var(--popover))',
+            border: '1px solid hsl(var(--border))',
+            borderRadius: '8px',
+            fontSize: 12,
+          }}
+          labelStyle={{ color: 'hsl(var(--foreground))' }}
+        />
+        <Legend />
+        <Area
+          type="monotone"
+          dataKey="new_findings"
+          stroke="#ef4444"
+          fill="url(#gradNew)"
+          strokeWidth={2}
+          name="New Findings"
+        />
+        <Area
+          type="monotone"
+          dataKey="fixed"
+          stroke="#22c55e"
+          fill="url(#gradFixed)"
+          strokeWidth={2}
+          name="Remediated"
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ── MTTR Trend Bar Chart ───────────────────────────────────────────────────
+function MttrBarChart({ mttr }: { mttr: ExecutiveMetrics['mttr'] }) {
+  const sevOrder = ['critical', 'high', 'medium', 'low'];
+  const slaTargets: Record<string, number> = { critical: 7, high: 30, medium: 90, low: 180 };
+  const colors: Record<string, string> = { critical: '#ef4444', high: '#f97316', medium: '#eab308', low: '#22c55e' };
+
+  const data = sevOrder
+    .filter((s) => mttr.by_severity[s])
+    .map((s) => ({
+      severity: capitalize(s),
+      avg: mttr.by_severity[s].avg_days,
+      target: slaTargets[s],
+      fill: colors[s],
+    }));
+
+  if (data.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center text-muted-foreground">
+        No remediation data available yet
+      </div>
+    );
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+        <XAxis
+          dataKey="severity"
+          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+        />
+        <YAxis
+          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+          label={{ value: 'Days', angle: -90, position: 'insideLeft', fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+        />
+        <RechartsTooltip
+          contentStyle={{
+            backgroundColor: 'hsl(var(--popover))',
+            border: '1px solid hsl(var(--border))',
+            borderRadius: '8px',
+            fontSize: 12,
+          }}
+          formatter={(value: number, name: string) => [
+            `${value} days`,
+            name === 'avg' ? 'Actual MTTR' : 'SLA Target',
+          ]}
+        />
+        <Legend />
+        <Bar dataKey="avg" name="Actual MTTR" radius={[4, 4, 0, 0]}>
+          {data.map((entry, i) => (
+            <Cell key={i} fill={entry.fill} />
+          ))}
+        </Bar>
+        <Bar dataKey="target" name="SLA Target" fill="hsl(var(--muted-foreground))" opacity={0.25} radius={[4, 4, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
 function LoadingSkeleton() {
   return (
     <div className="space-y-6">
+      {/* Executive skeleton */}
+      <div className="grid gap-4 lg:grid-cols-4">
+        {[...Array(4)].map((_, i) => (
+          <Card key={i}>
+            <CardHeader className="pb-2">
+              <Skeleton className="h-4 w-28" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-20 w-20 rounded-2xl mb-3" />
+              <Skeleton className="h-3 w-24" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {[...Array(4)].map((_, i) => (
           <Card key={i}>
@@ -67,20 +429,12 @@ function LoadingSkeleton() {
       </div>
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader>
-            <Skeleton className="h-5 w-32" />
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-[300px]" />
-          </CardContent>
+          <CardHeader><Skeleton className="h-5 w-32" /></CardHeader>
+          <CardContent><Skeleton className="h-[300px]" /></CardContent>
         </Card>
         <Card>
-          <CardHeader>
-            <Skeleton className="h-5 w-32" />
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-[300px]" />
-          </CardContent>
+          <CardHeader><Skeleton className="h-5 w-32" /></CardHeader>
+          <CardContent><Skeleton className="h-[300px]" /></CardContent>
         </Card>
       </div>
     </div>
@@ -91,6 +445,9 @@ export function Dashboard() {
   const fetchStats = useCallback(() => dashboardApi.getStats(), []);
   const { data: stats, loading, error, refetch } = useApi<DashboardStats>(fetchStats);
 
+  const fetchExec = useCallback(() => dashboardApi.getExecutiveMetrics(90), []);
+  const { data: execMetrics, loading: execLoading } = useApi<ExecutiveMetrics>(fetchExec);
+
   // Poll for active scans
   const [pollEnabled, setPollEnabled] = useState(true);
   const fetchActiveScans = useCallback(() => scansApi.getActive(), []);
@@ -98,10 +455,9 @@ export function Dashboard() {
     interval: 5000,
     enabled: pollEnabled,
     immediate: true,
-    onDataChange: () => refetch(), // Refresh dashboard stats when scan data changes
+    onDataChange: () => refetch(),
   });
 
-  // Auto-disable polling when no active scans (after initial check)
   useEffect(() => {
     if (activeScansData && !activeScansData.has_active) {
       setPollEnabled(false);
@@ -110,7 +466,7 @@ export function Dashboard() {
     }
   }, [activeScansData]);
 
-  if (loading) {
+  if (loading && execLoading) {
     return (
       <div>
         <h1 className="mb-6 text-3xl font-bold">Dashboard</h1>
@@ -199,56 +555,57 @@ export function Dashboard() {
     ],
   };
 
-  const riskScore = Math.round(
-    (dashboardData.findings_by_severity.critical * 10 +
-      dashboardData.findings_by_severity.high * 7 +
-      dashboardData.findings_by_severity.medium * 4 +
-      dashboardData.findings_by_severity.low * 1) /
-      Math.max(dashboardData.total_findings, 1)
-  );
+  // Fallback executive data when API hasn't responded yet
+  const execData: ExecutiveMetrics = execMetrics || {
+    risk_grade: {
+      grade: (() => {
+        const s = dashboardData.findings_by_severity;
+        const raw = s.critical * 10 + s.high * 5 + s.medium * 2 + s.low * 1;
+        const norm = Math.min(100, Math.round((raw / 1000) * 100));
+        if (norm >= 80) return 'F';
+        if (norm >= 60) return 'D';
+        if (norm >= 40) return 'C';
+        if (norm >= 20) return 'B';
+        return 'A';
+      })(),
+      score: Math.min(100, Math.round(
+        ((dashboardData.findings_by_severity.critical * 10 +
+          dashboardData.findings_by_severity.high * 5 +
+          dashboardData.findings_by_severity.medium * 2 +
+          dashboardData.findings_by_severity.low * 1) / 1000) * 100
+      )),
+      open_findings: dashboardData.findings_by_state.open || 0,
+      severity_counts: dashboardData.findings_by_severity,
+    },
+    mttr: { overall_avg_days: 0, overall_sample_size: 0, by_severity: {} },
+    sla_compliance: {
+      overall_pct: 100,
+      by_severity: {},
+      targets: { critical: 7, high: 30, medium: 90, low: 180 },
+      overdue: { total: 0, critical: 0, high: 0 },
+    },
+    posture_trend: [],
+    redops_coverage: { validated_cves: 0, exploitable: 0 },
+    period_days: 90,
+    generated_at: new Date().toISOString(),
+  };
 
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <div>
+          <h1 className="text-3xl font-bold">Executive Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Security posture overview for the last {execData.period_days} days
+          </p>
+        </div>
         <Button onClick={refetch} variant="outline">
           Refresh
         </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Total Assets"
-          value={dashboardData.total_assets}
-          icon={Server}
-          href="/assets"
-        />
-        <StatCard
-          title="Total Findings"
-          value={dashboardData.total_findings}
-          icon={AlertTriangle}
-          href="/findings"
-        />
-        <StatCard
-          title="Total Scans"
-          value={dashboardData.total_scans}
-          icon={Scan}
-          href="/scans"
-        />
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Risk Score</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{riskScore}/10</div>
-            <p className="text-xs text-muted-foreground">
-              Based on open findings
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Executive Scorecard */}
+      <ExecutiveScorecard metrics={execData} />
 
       {/* Active Scans Banner */}
       {activeScansData?.has_active && activeScansData.items.length > 0 && (
@@ -305,6 +662,62 @@ export function Dashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* Risk Posture Trend + MTTR vs SLA */}
+      <div className="mb-6 grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-teal-400" />
+              Risk Posture Trend
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">New findings vs. remediated — weekly</p>
+          </CardHeader>
+          <CardContent className="h-[300px]">
+            <PostureTrendChart data={execData.posture_trend} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-teal-400" />
+              MTTR vs SLA Targets
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">Actual remediation time vs. SLA by severity</p>
+          </CardHeader>
+          <CardContent className="h-[300px]">
+            <MttrBarChart mttr={execData.mttr} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Operational Stats Cards */}
+      <div className="mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Total Assets"
+          value={dashboardData.total_assets}
+          icon={Server}
+          href="/assets"
+        />
+        <StatCard
+          title="Total Findings"
+          value={dashboardData.total_findings}
+          icon={AlertTriangle}
+          href="/findings"
+        />
+        <StatCard
+          title="Total Scans"
+          value={dashboardData.total_scans}
+          icon={Scan}
+          href="/scans"
+        />
+        <StatCard
+          title="Resolved"
+          value={dashboardData.findings_by_state.resolved || 0}
+          icon={CheckCircle2}
+          href="/findings?state=resolved"
+        />
+      </div>
 
       {/* Charts */}
       <div className="mb-6 grid gap-6 lg:grid-cols-2">
