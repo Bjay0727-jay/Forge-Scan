@@ -647,6 +647,18 @@ export const socApi = {
       method: 'DELETE',
     });
   },
+
+  correlateCampaign: async (campaignId: string): Promise<{
+    campaign_id: string;
+    correlated: number;
+    alert_id: string | null;
+    incident_id: string | null;
+    message: string;
+  }> => {
+    return request(`/soc/correlate/${campaignId}`, {
+      method: 'POST',
+    });
+  },
 };
 
 // Health check

@@ -5,6 +5,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
 import { badRequest } from '../lib/errors';
+import { correlateCampaignFindings } from '../services/forgesoc/alert-handler';
 
 export const soc = new Hono<{ Bindings: Env }>();
 
@@ -617,4 +618,31 @@ soc.delete('/detection-rules/:id', async (c) => {
   }
 
   return c.json({ message: 'Detection rule deleted' });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /soc/correlate/:campaignId — Cross-product correlation
+// ─────────────────────────────────────────────────────────────────────────────
+soc.post('/correlate/:campaignId', async (c) => {
+  const campaignId = c.req.param('campaignId');
+
+  const campaign = await c.env.DB
+    .prepare('SELECT id FROM redops_campaigns WHERE id = ?')
+    .bind(campaignId)
+    .first();
+
+  if (!campaign) {
+    return c.json({ error: { message: 'Campaign not found' } }, 404);
+  }
+
+  const result = await correlateCampaignFindings(c.env.DB, campaignId);
+
+  return c.json({
+    campaign_id: campaignId,
+    correlated: result.correlated,
+    alert_id: result.alert_id,
+    incident_id: result.incident_id,
+    message: `Correlated ${result.correlated} findings. ` +
+      (result.incident_id ? `Auto-escalated to incident ${result.incident_id}.` : 'No auto-escalation needed.'),
+  });
 });

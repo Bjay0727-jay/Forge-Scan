@@ -9,6 +9,9 @@ import '../services/redops/agents/api-auth-bypass';
 import '../services/redops/agents/web-injection';
 import '../services/redops/agents/cloud-iam';
 import '../services/redops/agents/id-credential';
+import '../services/redops/agents/net-segmentation';
+import '../services/redops/agents/net-ssl-tls';
+import '../services/redops/agents/net-dns-security';
 
 export const redops = new Hono<{ Bindings: Env }>();
 
