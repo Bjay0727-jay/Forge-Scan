@@ -16,8 +16,8 @@ pub mod types;
 
 pub use client::ScannerClient;
 pub use rest_client::{
-    ApiTask, AssetPayload, FindingPayload, PortPayload, RestApiClient, RestClientConfig,
-    RestClientError, TaskResultsPayload,
+    ApiTask, AssetPayload, CaptureStatsPayload, FindingPayload, PortPayload, RestApiClient,
+    RestClientConfig, RestClientError, TaskResultsPayload,
 };
 pub use server::ScanServiceServer;
 pub use types::*;

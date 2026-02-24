@@ -1425,12 +1425,15 @@ name = "forgescan-network"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "forgescan-common",
  "forgescan-core",
  "futures",
  "pnet",
  "rayon",
  "regex",
+ "serde",
+ "serde_json",
  "socket2 0.5.10",
  "thiserror",
  "tokio",

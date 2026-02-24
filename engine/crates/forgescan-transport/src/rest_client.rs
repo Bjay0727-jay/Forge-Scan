@@ -90,6 +90,21 @@ pub struct TaskResultsPayload {
     pub result_summary: String,
     pub findings: Vec<FindingPayload>,
     pub assets_discovered: Vec<AssetPayload>,
+    /// Optional packet capture statistics (included when capture was active)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capture_stats: Option<CaptureStatsPayload>,
+}
+
+/// Summary statistics from a packet capture session.
+/// Sent as part of task results — raw PCAPs are stored locally or uploaded to R2 separately.
+#[derive(Debug, Clone, Serialize)]
+pub struct CaptureStatsPayload {
+    pub packets_captured: u64,
+    pub bytes_captured: u64,
+    pub capture_duration_ms: u64,
+    pub protocol_breakdown: std::collections::HashMap<String, u64>,
+    pub top_talkers: Vec<(String, u64)>,
+    pub pcap_available: bool,
 }
 
 /// A finding to submit to the platform
@@ -420,6 +435,7 @@ impl RestApiClient {
             result_summary: error_message.into(),
             findings: vec![],
             assets_discovered: vec![],
+            capture_stats: None,
         };
         self.submit_results(task_id, payload).await
     }
