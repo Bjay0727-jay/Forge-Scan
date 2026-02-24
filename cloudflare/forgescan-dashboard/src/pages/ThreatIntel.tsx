@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Globe, RefreshCw, Plus, Rss, Target, AlertTriangle, Database, Link2, Zap } from 'lucide-react';
+import { EmptyState } from '@/components/EmptyState';
+import { ErrorState } from '@/components/ErrorState';
 
 function sevBadge(s: string) {
   const map: Record<string, string> = { critical: 'bg-red-500/20 text-red-400 border-red-500/30', high: 'bg-orange-500/20 text-orange-400 border-orange-500/30', medium: 'bg-amber-500/20 text-amber-400 border-amber-500/30', low: 'bg-sky-500/20 text-sky-400 border-sky-500/30' };
@@ -16,6 +18,7 @@ export function ThreatIntel() {
   const [overview, setOverview] = useState<ThreatIntelOverview | null>(null);
   const [feeds, setFeeds] = useState<ThreatIntelFeed[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showBuiltin, setShowBuiltin] = useState(false);
   const [builtinFeeds, setBuiltinFeeds] = useState<Array<{ name: string; feed_type: string; format: string; description: string }>>([]);
   const [syncing, setSyncing] = useState<string | null>(null);
@@ -29,7 +32,7 @@ export function ThreatIntel() {
       const [ov, f] = await Promise.all([threatIntelApi.getOverview(), threatIntelApi.listFeeds()]);
       setOverview(ov);
       setFeeds(f.items || []);
-    } catch (e) { console.error(e); } finally { setLoading(false); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load threat intelligence'); } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -61,6 +64,8 @@ export function ThreatIntel() {
   };
 
   if (loading && !overview) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-500 border-t-transparent" /></div>;
+  if (error) return <ErrorState message={error} onRetry={load} />;
+  if (!loading && feeds.length === 0 && !overview) return <EmptyState icon={Globe} title="No Threat Intelligence Feeds" description="Subscribe to threat intelligence feeds to correlate indicators against your assets." actionLabel="Add Feed" onAction={openBuiltin} />;
 
   return (
     <div className="space-y-6">

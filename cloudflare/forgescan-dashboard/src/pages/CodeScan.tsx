@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Code, Search, Plus, RefreshCw, Play, AlertTriangle, FileCode, Bug } from 'lucide-react';
+import { EmptyState } from '@/components/EmptyState';
+import { ErrorState } from '@/components/ErrorState';
 
 function sevBadge(s: string) {
   const map: Record<string, string> = { critical: 'bg-red-500/20 text-red-400 border-red-500/30', high: 'bg-orange-500/20 text-orange-400 border-orange-500/30', medium: 'bg-amber-500/20 text-amber-400 border-amber-500/30', low: 'bg-sky-500/20 text-sky-400 border-sky-500/30' };
@@ -17,6 +19,7 @@ export function CodeScan() {
   const [overview, setOverview] = useState<SASTOverview | null>(null);
   const [projects, setProjects] = useState<SASTProject[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [newProject, setNewProject] = useState({ name: '', repository_url: '', branch: 'main', language: 'typescript' });
@@ -29,7 +32,7 @@ export function CodeScan() {
       const [ov, projs] = await Promise.all([sastApi.getOverview(), sastApi.listProjects({ page_size: 50, search: search || undefined })]);
       setOverview(ov);
       setProjects((projs.items || []) as SASTProject[]);
-    } catch (e) { console.error(e); } finally { setLoading(false); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load projects'); } finally { setLoading(false); }
   }, [search]);
 
   useEffect(() => { load(); }, [load]);
@@ -52,6 +55,8 @@ export function CodeScan() {
   };
 
   if (loading && !overview) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-500 border-t-transparent" /></div>;
+  if (error) return <ErrorState message={error} onRetry={load} />;
+  if (!loading && projects.length === 0 && !overview) return <EmptyState icon={Code} title="No Code Projects" description="Add a code project to scan for security vulnerabilities using static analysis." actionLabel="Add Project" onAction={() => setShowAdd(true)} />;
 
   return (
     <div className="space-y-6">

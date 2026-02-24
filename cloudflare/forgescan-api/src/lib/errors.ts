@@ -36,6 +36,9 @@ export const ErrorCode = {
   DUPLICATE_ENTRY: 'DUPLICATE_ENTRY',
   INVALID_STATE_TRANSITION: 'INVALID_STATE_TRANSITION',
 
+  // 429 – Rate Limited
+  RATE_LIMITED: 'RATE_LIMITED',
+
   // 500 – Internal
   INTERNAL_ERROR: 'INTERNAL_ERROR',
   DATABASE_ERROR: 'DATABASE_ERROR',
@@ -129,6 +132,11 @@ export function conflict(message: string) {
 /** 409 – invalid state transition */
 export function invalidStateTransition(current: string, attempted: string) {
   return new ApiError(409, ErrorCode.INVALID_STATE_TRANSITION, `Cannot transition from '${current}' to '${attempted}'`);
+}
+
+/** 429 – rate limited */
+export function rateLimited(retryAfter?: number) {
+  return new ApiError(429, ErrorCode.RATE_LIMITED, 'Too many requests. Please try again later.', retryAfter ? { retry_after: retryAfter } : undefined);
 }
 
 /** 500 – internal / database error */

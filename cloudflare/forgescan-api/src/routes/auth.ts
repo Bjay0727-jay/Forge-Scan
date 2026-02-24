@@ -9,6 +9,7 @@ import {
 } from '../lib/crypto';
 import { requireRole } from '../middleware/auth';
 import { seedFrameworks } from '../services/compliance';
+import { auditLog, getClientIP } from '../services/audit';
 
 interface Env {
   DB: D1Database;
@@ -88,6 +89,9 @@ auth.post('/register', async (c) => {
       }
     }
 
+    // Audit: registration
+    auditLog(c.env.DB, { action: 'auth.register', actor_email: email.toLowerCase(), resource_type: 'user', resource_id: id, details: { role, is_bootstrap: isBootstrap }, ip_address: getClientIP(c) });
+
     return c.json({
       id,
       email: email.toLowerCase(),
@@ -126,15 +130,18 @@ auth.post('/login', async (c) => {
     }>();
 
     if (!user) {
+      auditLog(c.env.DB, { action: 'auth.login_failed', actor_email: email.toLowerCase(), details: { reason: 'user_not_found' }, ip_address: getClientIP(c) });
       return c.json({ error: 'Invalid email or password' }, 401);
     }
 
     if (!user.is_active) {
+      auditLog(c.env.DB, { action: 'auth.login_failed', actor_id: user.id, actor_email: user.email, details: { reason: 'account_deactivated' }, ip_address: getClientIP(c) });
       return c.json({ error: 'Account is deactivated' }, 403);
     }
 
     const valid = await verifyPassword(password, user.salt, user.password_hash);
     if (!valid) {
+      auditLog(c.env.DB, { action: 'auth.login_failed', actor_id: user.id, actor_email: user.email, details: { reason: 'invalid_password' }, ip_address: getClientIP(c) });
       return c.json({ error: 'Invalid email or password' }, 401);
     }
 
@@ -163,6 +170,9 @@ auth.post('/login', async (c) => {
     await c.env.DB.prepare(
       'UPDATE users SET last_login_at = datetime(\'now\') WHERE id = ?'
     ).bind(user.id).run();
+
+    // Audit: successful login
+    auditLog(c.env.DB, { action: 'auth.login', actor_id: user.id, actor_email: user.email, details: { role: user.role }, ip_address: getClientIP(c) });
 
     return c.json({
       token,

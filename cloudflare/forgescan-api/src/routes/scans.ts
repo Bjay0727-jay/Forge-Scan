@@ -3,6 +3,7 @@ import type { Env } from '../index';
 import { createTasksForScan, getTasksForScan, cancelScanTasks } from '../services/scan-orchestrator';
 import { ApiError, notFound, badRequest, invalidStateTransition, databaseError } from '../lib/errors';
 import { parsePagination, requireEnum, validateSort, validateSortOrder } from '../lib/validate';
+import { auditLog } from '../services/audit';
 
 export const scans = new Hono<{ Bindings: Env }>();
 
@@ -174,6 +175,9 @@ scans.post('/', async (c) => {
       JSON.stringify(targets),
       JSON.stringify(config),
     ).run();
+
+    // Audit: scan created
+    auditLog(c.env.DB, { action: 'scan.created', resource_type: 'scan', resource_id: id, details: { scan_type: scanType, targets } });
 
     // Return the created scan in the format frontend expects
     return c.json({
@@ -351,6 +355,10 @@ scans.delete('/:id', async (c) => {
     }
 
     await c.env.DB.prepare('DELETE FROM scans WHERE id = ?').bind(id).run();
+
+    // Audit: scan deleted
+    auditLog(c.env.DB, { action: 'scan.deleted', resource_type: 'scan', resource_id: id });
+
     return c.json({ message: 'Scan deleted' });
   } catch (err) {
     if (err instanceof ApiError) throw err;

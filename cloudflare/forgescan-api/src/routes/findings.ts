@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../index';
 import { notFound, badRequest, databaseError } from '../lib/errors';
 import { parsePagination, requireEnum, validateSort, validateSortOrder } from '../lib/validate';
+import { auditLog } from '../services/audit';
 
 export const findings = new Hono<{ Bindings: Env }>();
 
@@ -255,6 +256,9 @@ findings.patch('/:id/state', async (c) => {
     await c.env.DB.prepare(`
       UPDATE findings SET ${updates.join(', ')} WHERE id = ?
     `).bind(...params, id).run();
+
+    // Audit: finding state change
+    auditLog(c.env.DB, { action: 'finding.status_changed', resource_type: 'finding', resource_id: id, details: { new_state: state } });
 
     return c.json({ message: 'Finding state updated' });
   } catch (err) {

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Bell, RefreshCw, Plus, Trash2, TestTube2, Activity } from 'lucide-react';
+import { EmptyState } from '@/components/EmptyState';
+import { ErrorState } from '@/components/ErrorState';
 import { useAuth, hasRole } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -68,6 +70,7 @@ export function Notifications() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [testing, setTesting] = useState<string | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -86,7 +89,7 @@ export function Notifications() {
       if (statsRes.ok) { const d = await statsRes.json(); setStats(d); }
       if (logsRes.ok) { const d = await logsRes.json(); setLogs(d.logs || []); }
       if (intRes.ok) { const d = await intRes.json(); setIntegrations(d.integrations || []); }
-    } catch { /* ignore */ } finally { setLoading(false); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load notifications'); } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -144,6 +147,8 @@ export function Notifications() {
   if (loading) {
     return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>;
   }
+  if (error) return <ErrorState message={error} onRetry={loadData} />;
+  if (!loading && rules.length === 0 && logs.length === 0) return <EmptyState icon={Bell} title="No Notification Rules" description="Create notification rules to get alerted when scans complete, critical findings are detected, or other events occur." actionLabel="Create Rule" onAction={() => setCreateOpen(true)} />;
 
   return (
     <div className="space-y-6 p-6">

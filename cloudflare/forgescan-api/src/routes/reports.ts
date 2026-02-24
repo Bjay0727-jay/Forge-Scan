@@ -4,6 +4,7 @@ import { requireRole } from '../middleware/auth';
 import { generateExecutivePDF, generateFindingsPDF, generateCompliancePDF, generateAssetsPDF } from '../services/reporting/pdf-generator';
 import { generateFindingsCSV, generateAssetsCSV, generateComplianceCSV } from '../services/reporting/csv-generator';
 import { getFrameworkCompliance, getGapAnalysis } from '../services/compliance';
+import { auditLog } from '../services/audit';
 
 interface AuthUser {
   id: string;
@@ -486,6 +487,9 @@ reports.post('/generate', requireRole('platform_admin', 'scan_admin', 'vuln_mana
       JSON.stringify(body.filters || {}), storageKey, fileSize,
       user?.id || null,
     ).run();
+
+    // Audit: report generated
+    auditLog(c.env.DB, { action: 'export.generated', actor_id: user?.id, actor_email: user?.email, resource_type: 'report', resource_id: reportId, details: { report_type: body.report_type, format: extension } });
 
     return c.json({
       id: reportId,

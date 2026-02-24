@@ -6,11 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Workflow, Play, Pause, Plus, RefreshCw, CheckCircle, XCircle, Clock, Zap, BookOpen } from 'lucide-react';
+import { EmptyState } from '@/components/EmptyState';
+import { ErrorState } from '@/components/ErrorState';
 
 export function Playbooks() {
   const [overview, setOverview] = useState<SOAROverview | null>(null);
   const [playbooks, setPlaybooks] = useState<SOARPlaybook[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Array<{ name: string; description: string; trigger_type: string; trigger_config: unknown; steps: unknown[] }>>([]);
   const [showTemplates, setShowTemplates] = useState(false);
   const [executing, setExecuting] = useState<string | null>(null);
@@ -22,7 +25,7 @@ export function Playbooks() {
       const [ov, pbs] = await Promise.all([soarApi.getOverview(), soarApi.listPlaybooks()]);
       setOverview(ov);
       setPlaybooks((pbs.items || []) as SOARPlaybook[]);
-    } catch (e) { console.error(e); } finally { setLoading(false); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load playbooks'); } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -54,6 +57,8 @@ export function Playbooks() {
   };
 
   if (loading && !overview) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-500 border-t-transparent" /></div>;
+  if (error) return <ErrorState message={error} onRetry={load} />;
+  if (!loading && playbooks.length === 0 && !overview) return <EmptyState icon={Workflow} title="No Playbooks" description="Create automated response playbooks for incident handling, asset isolation, and ticket creation." actionLabel="Browse Templates" onAction={loadTemplates} />;
 
   return (
     <div className="space-y-6">

@@ -43,6 +43,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { EmptyState } from '@/components/EmptyState';
+import { ErrorState } from '@/components/ErrorState';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -97,6 +99,7 @@ export function Integrations() {
   const [items, setItems] = useState<Integration[]>([]);
   const [logs, setLogs] = useState<IntegrationLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [testing, setTesting] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ id: string; success: boolean; message: string } | null>(null);
 
@@ -138,7 +141,7 @@ export function Integrations() {
         const data = await logRes.json();
         setLogs(data.logs || []);
       }
-    } catch { /* ignore */ } finally {
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load integrations'); } finally {
       setLoading(false);
     }
   }, []);
@@ -226,6 +229,8 @@ export function Integrations() {
   if (loading) {
     return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>;
   }
+  if (error) return <ErrorState message={error} onRetry={loadData} />;
+  if (!loading && items.length === 0 && logs.length === 0) return <EmptyState icon={Plug} title="No Integrations" description="Connect email (SendGrid, Mailgun) or webhook integrations to receive alerts and forward events." actionLabel="Add Integration" onAction={() => setCreateOpen(true)} />;
 
   return (
     <div className="space-y-6 p-6">
