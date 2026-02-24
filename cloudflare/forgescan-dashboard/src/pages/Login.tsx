@@ -71,7 +71,7 @@ export function Login() {
         <CardHeader className="text-center pb-2 pt-4">
           <ForgeLoginLogo />
           <CardTitle className="text-xl text-white" style={{ fontFamily: 'Sora, Inter, system-ui, sans-serif' }}>
-            ForgeScan 360
+            ForgeScan
           </CardTitle>
           <CardDescription className="text-navy-300 text-sm">
             {mode === 'login'

@@ -1,13 +1,13 @@
-# ForgeScan 360
+# ForgeScan
 
 Enterprise Vulnerability Management Platform by Forge Cyber Defense.
 
 ## Overview
 
-ForgeScan 360 is a comprehensive vulnerability management platform that combines:
+ForgeScan is a comprehensive vulnerability management platform that combines:
 
 - **ForgeScan Engine** - Native Rust-based vulnerability scanner (agentless + agent)
-- **ForgeScan 360** - Vulnerability management, asset discovery, risk scoring (FRS)
+- **ForgeScan** - Vulnerability management, asset discovery, risk scoring (FRS)
 - **ForgeSOC** - 24/7 threat monitoring, detection, incident response
 - **ForgeRedOps** - AI-powered penetration testing (24 autonomous agents)
 

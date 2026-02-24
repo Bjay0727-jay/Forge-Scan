@@ -1,5 +1,5 @@
 /**
- * CSV Parser for ForgeScan 360
+ * CSV Parser for ForgeScan
  *
  * Handles parsing of vulnerability scan exports from various vendors
  * (Nessus, Qualys, Rapid7, generic) into normalised finding/asset records.

@@ -37,7 +37,7 @@ export async function dispatchToIntegration(
   if (integration.type === 'email') {
     const emailConfig: EmailConfig = {
       from_address: config.from_address || 'alerts@forgescan.com',
-      from_name: config.from_name || 'ForgeScan 360',
+      from_name: config.from_name || 'ForgeScan',
       to_addresses: config.to_addresses || [],
       api_key: sendgridApiKey || config.api_key || '',
     };
@@ -106,7 +106,7 @@ export async function testIntegration(
   if (integration.type === 'email') {
     const emailConfig: EmailConfig = {
       from_address: config.from_address || 'alerts@forgescan.com',
-      from_name: config.from_name || 'ForgeScan 360',
+      from_name: config.from_name || 'ForgeScan',
       to_addresses: config.to_addresses || [],
       api_key: sendgridApiKey || config.api_key || '',
     };
@@ -176,7 +176,7 @@ export async function dispatchEvent(
 // Helper: Build plain text email from event data
 function buildTextEmail(eventType: string, data: Record<string, unknown>): string {
   const lines = [
-    `ForgeScan 360 Alert`,
+    `ForgeScan Alert`,
     `Event: ${eventType}`,
     `Time: ${new Date().toISOString()}`,
     `---`,
@@ -190,7 +190,7 @@ function buildTextEmail(eventType: string, data: Record<string, unknown>): strin
   if (data.cve_id) lines.push(`CVE: ${data.cve_id}`);
   if (data.asset) lines.push(`Asset: ${data.asset}`);
 
-  lines.push('', '---', 'ForgeScan 360 - Enterprise Vulnerability Management');
+  lines.push('', '---', 'ForgeScan - Enterprise Vulnerability Management');
   return lines.join('\n');
 }
 
@@ -218,7 +218,7 @@ function buildHtmlEmail(eventType: string, data: Record<string, unknown>): strin
   return `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
       <div style="background:#1e293b;color:white;padding:16px 24px;border-radius:8px 8px 0 0;">
-        <h2 style="margin:0;">ForgeScan 360</h2>
+        <h2 style="margin:0;">ForgeScan</h2>
         <p style="margin:4px 0 0;opacity:0.8;">${eventType}</p>
       </div>
       <div style="border:1px solid #e2e8f0;padding:24px;border-radius:0 0 8px 8px;">

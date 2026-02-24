@@ -32,7 +32,7 @@ export async function sendEmail(
       }],
       from: {
         email: config.from_address,
-        name: config.from_name || 'ForgeScan 360',
+        name: config.from_name || 'ForgeScan',
       },
       subject: message.subject,
       content: [
@@ -74,8 +74,8 @@ export async function sendEmail(
 // Test the email configuration by sending a test message
 export async function testEmailConfig(config: EmailConfig): Promise<EmailResult> {
   return sendEmail(config, {
-    subject: 'ForgeScan 360 - Integration Test',
-    text_body: 'This is a test email from ForgeScan 360. If you received this, your email integration is configured correctly.',
-    html_body: '<h2>ForgeScan 360 - Integration Test</h2><p>This is a test email from ForgeScan 360.</p><p>If you received this, your email integration is configured correctly.</p><hr><p style="color: #666; font-size: 12px;">Sent at: ' + new Date().toISOString() + '</p>',
+    subject: 'ForgeScan - Integration Test',
+    text_body: 'This is a test email from ForgeScan. If you received this, your email integration is configured correctly.',
+    html_body: '<h2>ForgeScan - Integration Test</h2><p>This is a test email from ForgeScan.</p><p>If you received this, your email integration is configured correctly.</p><hr><p style="color: #666; font-size: 12px;">Sent at: ' + new Date().toISOString() + '</p>',
   });
 }

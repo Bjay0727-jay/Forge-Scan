@@ -1,6 +1,6 @@
 apiVersion: v2
 name: forgescan
-description: ForgeScan 360 - Enterprise Vulnerability Management Platform
+description: ForgeScan - Enterprise Vulnerability Management Platform
 
 type: application
 version: 0.1.0

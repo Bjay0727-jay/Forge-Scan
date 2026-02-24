@@ -1,4 +1,4 @@
-//! REST API client for connecting to the ForgeScan 360 platform
+//! REST API client for connecting to the ForgeScan platform
 //!
 //! This module provides an HTTP/JSON bridge for the scanner to communicate
 //! with the Cloudflare Workers API backend. It replaces the gRPC transport

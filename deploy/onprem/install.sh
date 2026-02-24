@@ -47,7 +47,7 @@ err()  { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 banner() {
     echo -e "${CYAN}"
     echo "  ╔═══════════════════════════════════════════════════╗"
-    echo "  ║  ForgeScan 360 — Internal Scanner Installer       ║"
+    echo "  ║  ForgeScan — Internal Scanner Installer            ║"
     echo "  ║  On-Premises Edition (Native Binary)              ║"
     echo "  ╚═══════════════════════════════════════════════════╝"
     echo -e "${NC}"

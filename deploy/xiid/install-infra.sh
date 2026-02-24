@@ -46,7 +46,7 @@ err()  { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 banner() {
     echo -e "${CYAN}"
     echo "  ╔═══════════════════════════════════════════════════╗"
-    echo "  ║  ForgeScan 360 — Xiid SealedTunnel Infra Setup   ║"
+    echo "  ║  ForgeScan — Xiid SealedTunnel Infra Setup        ║"
     echo "  ║  Commander + STLink Exitpoint + Caddy             ║"
     echo "  ╚═══════════════════════════════════════════════════╝"
     echo -e "${NC}"

@@ -45,7 +45,7 @@ function newPage(ctx: PageContext): PageContext {
   const page = ctx.doc.addPage([612, 792]); // Letter size
   ctx.pageNum++;
   // Footer
-  page.drawText(`ForgeScan 360 Report | Page ${ctx.pageNum}`, {
+  page.drawText(`ForgeScan Report | Page ${ctx.pageNum}`, {
     x: ctx.margin,
     y: 20,
     size: 8,
@@ -161,7 +161,7 @@ function drawCoverPage(ctx: PageContext, reportTitle: string, reportType: string
   });
 
   // Logo text
-  ctx.page.drawText('FORGESCAN 360', {
+  ctx.page.drawText('FORGESCAN', {
     x: ctx.margin, y: 792 - 80, size: 32, font: ctx.boldFont, color: COLORS.white,
   });
   ctx.page.drawText('Vulnerability Management Platform', {

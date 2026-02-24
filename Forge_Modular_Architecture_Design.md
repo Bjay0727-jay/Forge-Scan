@@ -6,7 +6,7 @@ The Forge ecosystem consists of three products that share significant overlappin
 
 | Product | Purpose |
 |---------|---------|
-| **ForgeScan 360** | Continuous vulnerability scanning, asset discovery, risk scoring (FRS) |
+| **ForgeScan** | Continuous vulnerability scanning, asset discovery, risk scoring (FRS) |
 | **ForgeSOC** | 24/7 threat monitoring, detection, incident response, compliance-aware SIEM |
 | **ForgeRedOps** | Offensive security -- AI pen testing (24 agents), exploit validation, automated remediation |
 
@@ -20,7 +20,7 @@ All three products share: a compliance integration layer (ForgeComply 360), over
 
 ### 2.1 Shared Components Across Products
 
-| Capability | ForgeScan 360 | ForgeSOC | ForgeRedOps |
+| Capability | ForgeScan | ForgeSOC | ForgeRedOps |
 |------------|:---:|:---:|:---:|
 | Asset Inventory | Yes | Yes (via sync) | Yes (847+ assets) |
 | Vulnerability Data | Yes (primary) | Yes (consumes) | Yes (extends with pen test) |
@@ -70,7 +70,7 @@ All three products share: a compliance integration layer (ForgeComply 360), over
 +================================================================+
          |                      |                      |
 +================+  +==================+  +==================+
-| FORGESCAN 360  |  |    FORGE SOC     |  |  FORGE REDOPS    |
+| FORGESCAN  |  |    FORGE SOC     |  |  FORGE REDOPS    |
 | MODULE         |  |    MODULE        |  |  MODULE          |
 |                |  |                  |  |                  |
 | - Scan Orch.   |  | - Detection Eng. |  | - AI Pen Test    |
@@ -227,7 +227,7 @@ Shared frontend application shell.
 
 ### 3.3 Product-Specific Modules
 
-#### ForgeScan 360 Module (`@forge/forgescan`)
+#### ForgeScan Module (`@forge/forgescan`)
 | Sub-Module | Responsibility |
 |---|---|
 | Scan Orchestrator | Job scheduling, Nessus/Tenable API integration, scan policies |
@@ -485,7 +485,7 @@ Permission {
 6. `@forge/integration-hub` -- Start with Jira + Slack connectors
 7. `@forge/ui-shell` -- Design system, layout, auth UI
 
-### Phase 3: First Product (ForgeScan 360)
+### Phase 3: First Product (ForgeScan)
 8. `@forge/forgescan` -- Scan orchestrator, ingestion, FRS engine, discovery, ASM
 9. ForgeScan UI views (dashboard, vulns, assets, scans, reports)
 
@@ -597,6 +597,6 @@ bind(AIProvider).to(OllamaAIProvider)
 
 6. **Abstract AI and infrastructure providers** -- Interface-based design enables both cloud (Claude API, Cloudflare) and air-gapped (Ollama, MinIO) deployments from the same codebase.
 
-7. **Build ForgeScan 360 first** -- It provides the asset and vulnerability data that both ForgeSOC and ForgeRedOps consume. It is the foundational data source.
+7. **Build ForgeScan first** -- It provides the asset and vulnerability data that both ForgeSOC and ForgeRedOps consume. It is the foundational data source.
 
 8. **Unified RBAC with ABAC extensions** -- Platform-wide roles for cross-product access, product-specific roles for domain operations, attribute conditions for site/classification filtering.

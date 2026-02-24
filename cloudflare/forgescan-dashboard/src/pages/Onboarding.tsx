@@ -22,7 +22,7 @@ import { useApi } from '@/hooks/useApi';
 import { onboardingApi } from '@/lib/api';
 
 const STEPS = [
-  { id: 'welcome', title: 'Welcome', icon: Rocket, description: 'Get started with ForgeScan 360' },
+  { id: 'welcome', title: 'Welcome', icon: Rocket, description: 'Get started with ForgeScan' },
   { id: 'compliance', title: 'Compliance', icon: ShieldCheck, description: 'Initialize compliance frameworks' },
   { id: 'scanner', title: 'Scanner', icon: Cpu, description: 'Connect your first scanner' },
   { id: 'scan', title: 'Quick Scan', icon: Zap, description: 'Run your first vulnerability scan' },
@@ -93,7 +93,7 @@ export function Onboarding() {
         {/* Header */}
         <div className="text-center mb-8">
           <img src="/forge-logo-400.png" alt="Forge Cyber Defense" className="mx-auto w-40 h-auto mb-2" draggable={false} />
-          <h1 className="text-2xl font-bold text-white">Welcome to ForgeScan 360</h1>
+          <h1 className="text-2xl font-bold text-white">Welcome to ForgeScan</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Let's get your security platform up and running in under 30 minutes
           </p>
@@ -144,7 +144,7 @@ export function Onboarding() {
                 <div>
                   <h2 className="text-xl font-bold text-white">Let's Set Up Your Security Platform</h2>
                   <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
-                    This wizard will guide you through four quick steps to get ForgeScan 360 operational:
+                    This wizard will guide you through four quick steps to get ForgeScan operational:
                     compliance frameworks, scanner deployment, and your first vulnerability scan.
                   </p>
                 </div>
@@ -398,7 +398,7 @@ export function Onboarding() {
                 <div>
                   <h2 className="text-xl font-bold text-white">You're All Set!</h2>
                   <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
-                    ForgeScan 360 is ready. Your Executive Dashboard will show risk grades, MTTR metrics, and SLA compliance as findings flow in.
+                    ForgeScan is ready. Your Executive Dashboard will show risk grades, MTTR metrics, and SLA compliance as findings flow in.
                   </p>
                 </div>
 

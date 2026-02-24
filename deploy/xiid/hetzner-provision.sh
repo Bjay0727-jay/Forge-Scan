@@ -57,7 +57,7 @@ fi
 
 echo -e "${CYAN}"
 echo "  ╔═══════════════════════════════════════════════════╗"
-echo "  ║  ForgeScan 360 — Hetzner Cloud Provisioning       ║"
+echo "  ║  ForgeScan — Hetzner Cloud Provisioning            ║"
 echo "  ║  SealedTunnel Infrastructure                      ║"
 echo "  ╚═══════════════════════════════════════════════════╝"
 echo -e "${NC}"
