@@ -32,7 +32,7 @@ interface VulnerabilityRecord {
   modified_at: string | null;
   cwe_ids: string | null;
   affected_products: string | null;
-  references: string | null;
+  references_list: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -302,16 +302,15 @@ vulnerabilities.get('/:cve', async (c) => {
 
   try {
     if (vulnerability.cwe_ids) cweIds = JSON.parse(vulnerability.cwe_ids);
-    if ((vulnerability as any).affected_products) affectedProducts = JSON.parse((vulnerability as any).affected_products);
-    // Check both column names for references (schema migration)
-    const refsRaw = (vulnerability as any).references_list || (vulnerability as any).refs || vulnerability.references;
-    if (refsRaw) references = JSON.parse(refsRaw);
+    if (vulnerability.affected_products) affectedProducts = JSON.parse(vulnerability.affected_products);
+    if (vulnerability.references_list) references = JSON.parse(vulnerability.references_list);
   } catch {
     // Keep as strings if parsing fails
   }
 
+  const { references_list: _rawRefs, cwe_ids: _rawCwe, affected_products: _rawProducts, ...rest } = vulnerability;
   return c.json({
-    ...vulnerability,
+    ...rest,
     cwe_ids: cweIds,
     affected_products: affectedProducts,
     references: references,
