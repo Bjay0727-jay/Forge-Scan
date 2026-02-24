@@ -24,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { ErrorState } from '@/components/ErrorState';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -126,6 +127,7 @@ export function Reports() {
 
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState<string | null>(null);
 
   const loadReports = useCallback(async () => {
@@ -135,7 +137,7 @@ export function Reports() {
         const data = await res.json();
         setReports(data.data || []);
       }
-    } catch { /* ignore */ } finally {
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load reports'); } finally {
       setLoading(false);
     }
   }, []);
@@ -211,6 +213,7 @@ export function Reports() {
   if (loading) {
     return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>;
   }
+  if (error) return <ErrorState message={error} onRetry={loadReports} />;
 
   return (
     <div className="space-y-6 p-6">

@@ -6,6 +6,7 @@ import {
   testIntegration,
   type Integration,
 } from '../services/integrations/manager';
+import { auditLog } from '../services/audit';
 
 interface AuthUser {
   id: string;
@@ -92,6 +93,9 @@ integrations.post('/', requireRole('platform_admin'), async (c) => {
     VALUES (?, ?, ?, ?, ?, 1, ?)
   `).bind(id, name, type, provider, JSON.stringify(parsedConfig), user?.id || null).run();
 
+  // Audit: integration created
+  auditLog(c.env.DB, { action: 'integration.created', actor_id: user?.id, actor_email: user?.email, resource_type: 'integration', resource_id: id, details: { type, provider } });
+
   return c.json({ id, name, type, provider, message: 'Integration created' }, 201);
 });
 
@@ -146,6 +150,9 @@ integrations.delete('/:id', requireRole('platform_admin'), async (c) => {
   if (result.meta.changes === 0) {
     return c.json({ error: 'Integration not found' }, 404);
   }
+
+  // Audit: integration deleted
+  auditLog(c.env.DB, { action: 'integration.deleted', resource_type: 'integration', resource_id: id });
 
   return c.json({ message: 'Integration deleted' });
 });

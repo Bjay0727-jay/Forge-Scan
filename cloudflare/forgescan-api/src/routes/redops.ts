@@ -3,6 +3,7 @@ import type { Env } from '../index';
 import { notFound, badRequest, databaseError } from '../lib/errors';
 import { requireField, parsePagination, validateSortOrder } from '../lib/validate';
 import { executeCampaign } from '../services/redops/controller';
+import { auditLog } from '../services/audit';
 // Register agent implementations (side-effect imports)
 import '../services/redops/agents/web-misconfig';
 import '../services/redops/agents/api-auth-bypass';
@@ -135,6 +136,9 @@ redops.post('/campaigns', async (c) => {
     const campaign = await c.env.DB.prepare(
       'SELECT * FROM redops_campaigns WHERE id = ?'
     ).bind(id).first();
+
+    // Audit: campaign created
+    auditLog(c.env.DB, { action: 'redops.campaign_created', resource_type: 'campaign', resource_id: id, details: { exploitation_level: exploitationLevel, campaign_type: campaignType } });
 
     return c.json(campaign, 201);
   } catch (err) {

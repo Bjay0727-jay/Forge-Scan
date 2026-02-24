@@ -24,9 +24,11 @@ import { Containers } from '@/pages/Containers';
 import { CodeScan } from '@/pages/CodeScan';
 import { Playbooks } from '@/pages/Playbooks';
 import { ThreatIntel } from '@/pages/ThreatIntel';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 function App() {
   return (
+    <ErrorBoundary>
     <BrowserRouter>
       <AuthProvider>
         <Routes>
@@ -97,6 +99,7 @@ function App() {
         </Routes>
       </AuthProvider>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

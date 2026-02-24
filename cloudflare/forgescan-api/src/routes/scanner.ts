@@ -3,6 +3,7 @@ import type { Env } from '../index';
 import { requireRole } from '../middleware/auth';
 import { updateScanFromTasks } from '../services/scan-orchestrator';
 import { publish } from '../services/event-bus';
+import { auditLog } from '../services/audit';
 
 // ---------- Types ----------
 
@@ -107,6 +108,9 @@ scanner.post('/register', requireRole('platform_admin'), async (c) => {
       keyHash,
       keyPrefix,
     ).run();
+
+    // Audit: scanner registered
+    auditLog(c.env.DB, { action: 'scanner.registered', resource_type: 'scanner', resource_id: id, details: { scanner_id, hostname } });
 
     return c.json({
       id,

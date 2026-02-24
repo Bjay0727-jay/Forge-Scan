@@ -3,6 +3,10 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { authMiddleware } from './middleware/auth';
 import { errorHandler } from './middleware/error-handler';
+import { rateLimitMiddleware } from './middleware/rate-limit';
+import { metricsMiddleware } from './middleware/metrics';
+import { metrics } from './routes/metrics';
+import { audit } from './routes/audit';
 import { auth } from './routes/auth';
 import { assets } from './routes/assets';
 import { findings } from './routes/findings';
@@ -55,6 +59,14 @@ app.use('*', cors({
   allowHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Scanner-Key'],
 }));
 
+// Request metrics collection
+app.use('*', metricsMiddleware);
+
+// Rate limiting – stricter for auth, relaxed for scanners, general for everything else
+app.use('/api/v1/auth/*', rateLimitMiddleware({ limit: 10, windowMs: 60_000, keyPrefix: 'auth' }));
+app.use('/api/v1/scanner/*', rateLimitMiddleware({ limit: 300, windowMs: 60_000, keyPrefix: 'scanner' }));
+app.use('/api/*', rateLimitMiddleware({ limit: 100, windowMs: 60_000, keyPrefix: 'api' }));
+
 // Health check (public)
 app.get('/', (c) => {
   return c.json({
@@ -65,8 +77,20 @@ app.get('/', (c) => {
   });
 });
 
-app.get('/health', (c) => {
-  return c.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/health', async (c) => {
+  let dbStatus = 'ok';
+  try {
+    await c.env.DB.prepare('SELECT 1').first();
+  } catch {
+    dbStatus = 'error';
+  }
+
+  return c.json({
+    status: dbStatus === 'ok' ? 'ok' : 'degraded',
+    timestamp: new Date().toISOString(),
+    version: c.env.API_VERSION,
+    db_status: dbStatus,
+  });
 });
 
 // API Documentation (public – no auth required)
@@ -101,6 +125,8 @@ app.route('/api/v1/containers', containers);
 app.route('/api/v1/sast', sast);
 app.route('/api/v1/soar', soar);
 app.route('/api/v1/threat-intel', threatIntel);
+app.route('/api/v1/metrics', metrics);
+app.route('/api/v1/audit', audit);
 
 // 404 handler
 app.notFound((c) => {

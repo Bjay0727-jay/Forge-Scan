@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Box, Search, Plus, RefreshCw, Play, AlertTriangle, Shield, Layers } from 'lucide-react';
+import { EmptyState } from '@/components/EmptyState';
+import { ErrorState } from '@/components/ErrorState';
 
 function sevBadge(s: string) {
   const map: Record<string, string> = { critical: 'bg-red-500/20 text-red-400 border-red-500/30', high: 'bg-orange-500/20 text-orange-400 border-orange-500/30', medium: 'bg-amber-500/20 text-amber-400 border-amber-500/30', low: 'bg-sky-500/20 text-sky-400 border-sky-500/30' };
@@ -17,6 +19,7 @@ export function Containers() {
   const [overview, setOverview] = useState<ContainerOverview | null>(null);
   const [images, setImages] = useState<ContainerImage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [newImage, setNewImage] = useState({ registry: 'docker.io', repository: '', tag: 'latest' });
@@ -29,7 +32,7 @@ export function Containers() {
       const [ov, imgs] = await Promise.all([containersApi.getOverview(), containersApi.listImages({ page_size: 50, search: search || undefined })]);
       setOverview(ov);
       setImages((imgs.items || []) as ContainerImage[]);
-    } catch (e) { console.error(e); } finally { setLoading(false); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load containers'); } finally { setLoading(false); }
   }, [search]);
 
   useEffect(() => { load(); }, [load]);
@@ -52,6 +55,8 @@ export function Containers() {
   };
 
   if (loading && !overview) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-500 border-t-transparent" /></div>;
+  if (error) return <ErrorState message={error} onRetry={load} />;
+  if (!loading && images.length === 0 && !overview) return <EmptyState icon={Box} title="No Container Images" description="Add container images to scan for vulnerabilities, misconfigurations, and embedded secrets." actionLabel="Add Image" onAction={() => setShowAdd(true)} />;
 
   return (
     <div className="space-y-6">
