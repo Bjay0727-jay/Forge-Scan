@@ -69,7 +69,7 @@ if ($UseSealedTunnel) {
 # ── Banner ────────────────────────────────────────────────────
 Write-Host ""
 Write-Host "  ======================================================" -ForegroundColor Cyan
-Write-Host "    ForgeScan 360 — Internal Scanner Installer" -ForegroundColor Cyan
+Write-Host "    ForgeScan — Internal Scanner Installer" -ForegroundColor Cyan
 Write-Host "    Windows Edition" -ForegroundColor Cyan
 Write-Host "  ======================================================" -ForegroundColor Cyan
 Write-Host ""

@@ -43,7 +43,7 @@ err()  { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 banner() {
     echo -e "${CYAN}"
     echo "  ╔═══════════════════════════════════════════════════╗"
-    echo "  ║  ForgeScan 360 — External Scanner Installer       ║"
+    echo "  ║  ForgeScan — External Scanner Installer            ║"
     echo "  ║  Hetzner Cloud Edition                            ║"
     echo "  ╚═══════════════════════════════════════════════════╝"
     echo -e "${NC}"

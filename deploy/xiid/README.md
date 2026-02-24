@@ -1,4 +1,4 @@
-# ForgeScan 360 — Xiid SealedTunnel Deployment Guide
+# ForgeScan — Xiid SealedTunnel Deployment Guide
 
 > Quantum-resistant, zero-inbound-port secure tunnel for all scanner-to-platform communication.
 

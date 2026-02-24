@@ -1,10 +1,10 @@
-# ForgeScan 360 — Hybrid Scanning Architecture
+# ForgeScan — Hybrid Scanning Architecture
 
 > Cloudflare Edge + Xiid SealedTunnel + Hetzner External Scanner + On-Prem Internal Scanner
 
 ## Overview
 
-ForgeScan 360 uses a **hybrid deployment model** with cloud-hosted management (Cloudflare), distributed scanner nodes, and **Xiid SealedTunnel** for quantum-resistant, zero-inbound-port secure communication between all components.
+ForgeScan uses a **hybrid deployment model** with cloud-hosted management (Cloudflare), distributed scanner nodes, and **Xiid SealedTunnel** for quantum-resistant, zero-inbound-port secure communication between all components.
 
 **Key design principles:**
 - **Zero inbound ports** — all connections outbound-only on port 443

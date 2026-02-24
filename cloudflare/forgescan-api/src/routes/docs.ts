@@ -16,7 +16,7 @@ docs.get('/', (c) => {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ForgeScan 360 API Documentation</title>
+  <title>ForgeScan API Documentation</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css" />
   <style>
     body { margin: 0; background: #fafafa; }
@@ -48,7 +48,7 @@ docs.get('/', (c) => {
 <body>
   <div class="custom-header">
     <div>
-      <h1>ForgeScan 360 <span class="badge">API</span></h1>
+      <h1>ForgeScan <span class="badge">API</span></h1>
       <p>Vulnerability Management Platform &mdash; 121 endpoints across 15 modules</p>
     </div>
   </div>

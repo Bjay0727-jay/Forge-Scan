@@ -58,7 +58,7 @@ app.use('*', cors({
 // Health check (public)
 app.get('/', (c) => {
   return c.json({
-    name: 'ForgeScan 360 API',
+    name: 'ForgeScan API',
     version: c.env.API_VERSION,
     status: 'healthy',
     environment: c.env.ENVIRONMENT,

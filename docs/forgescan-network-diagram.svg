@@ -56,7 +56,7 @@
   <rect width="1100" height="1050" fill="url(#dots)"/>
 
   <!-- TITLE -->
-  <text x="550" y="32" text-anchor="middle" fill="#f8fafc" font-size="18" font-weight="700" letter-spacing="0.5">ForgeScan 360 — Hybrid Scanning Architecture</text>
+  <text x="550" y="32" text-anchor="middle" fill="#f8fafc" font-size="18" font-weight="700" letter-spacing="0.5">ForgeScan — Hybrid Scanning Architecture</text>
   <text x="550" y="52" text-anchor="middle" fill="#64748b" font-size="11">Forge Cyber Defense • Xiid SealedTunnel • Cloudflare + Hetzner + On-Prem • ~$8/mo</text>
 
   <!-- ═══════════════════════════════════════════════════════ -->

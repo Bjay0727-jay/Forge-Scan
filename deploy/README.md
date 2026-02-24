@@ -1,6 +1,6 @@
 # ForgeScan Deployment Guide
 
-This directory contains deployment configurations for ForgeScan 360.
+This directory contains deployment configurations for ForgeScan.
 
 ## Directory Structure
 

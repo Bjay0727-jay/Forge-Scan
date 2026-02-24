@@ -1,7 +1,7 @@
 //! ForgeScan Scanner - Agentless vulnerability scanner
 //!
 //! This is the main entry point for the agentless scanner binary.
-//! It connects to the ForgeScan 360 platform via REST API, polls for
+//! It connects to the ForgeScan platform via REST API, polls for
 //! scan tasks, executes them using the scanning engine crates, and
 //! submits results back to the platform.
 

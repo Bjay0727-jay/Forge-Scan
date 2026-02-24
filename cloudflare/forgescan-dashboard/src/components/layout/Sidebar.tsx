@@ -87,7 +87,7 @@ export function Sidebar() {
           draggable={false}
         />
         <span className="text-[11px] font-semibold tracking-[0.35em] uppercase -mt-1" style={{ color: '#14b8a6', fontFamily: 'Sora, Inter, system-ui, sans-serif' }}>
-          ForgeScan 360
+          ForgeScan
         </span>
       </div>
 

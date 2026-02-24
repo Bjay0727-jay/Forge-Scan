@@ -1,5 +1,5 @@
 /**
- * OpenAPI 3.1 specification for the ForgeScan 360 API.
+ * OpenAPI 3.1 specification for the ForgeScan API.
  *
  * Served at GET /api/docs/openapi.json and rendered by the Swagger UI
  * page at GET /api/docs.
@@ -8,7 +8,7 @@
 export const openApiSpec = {
   openapi: '3.1.0',
   info: {
-    title: 'ForgeScan 360 API',
+    title: 'ForgeScan API',
     version: '1.0.0',
     description:
       'Vulnerability management platform API — scan, ingest, analyse, and remediate security findings across your infrastructure.',

@@ -87,7 +87,7 @@ export async function testWebhookConfig(config: WebhookConfig): Promise<WebhookR
     event_type: 'test',
     timestamp: new Date().toISOString(),
     data: {
-      message: 'This is a test webhook from ForgeScan 360',
+      message: 'This is a test webhook from ForgeScan',
       source: 'integration_test',
     },
   });

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ForgeScan 360 - Architecture Diagrams</title>
+  <title>ForgeScan - Architecture Diagrams</title>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -151,8 +151,8 @@
 </head>
 <body>
   <div class="header">
-    <img src="Forge_360-Scan.png" alt="ForgeScan 360" style="height:80px; margin-bottom:20px; border-radius:12px; box-shadow: 0 8px 32px rgba(16, 185, 129, 0.4);">
-    <h1>ForgeScan 360 Architecture</h1>
+    <img src="Forge_360-Scan.png" alt="ForgeScan" style="height:80px; margin-bottom:20px; border-radius:12px; box-shadow: 0 8px 32px rgba(16, 185, 129, 0.4);">
+    <h1>ForgeScan Architecture</h1>
     <p>Enhanced Enterprise Vulnerability Management Platform</p>
   </div>
   
@@ -170,7 +170,7 @@
   <section class="diagram-section" id="high-level">
     <div class="diagram-header">
       <h2>1. High-Level Architecture</h2>
-      <p>Overview of ForgeScan 360 platform components and external integrations</p>
+      <p>Overview of ForgeScan platform components and external integrations</p>
     </div>
     <div class="diagram-content">
       <pre class="mermaid">
@@ -188,7 +188,7 @@ flowchart TB
         VulnView["Vulnerabilities"]
     end
 
-    subgraph Platform["⚙️ ForgeScan 360 Platform"]
+    subgraph Platform["⚙️ ForgeScan Platform"]
         API["API Gateway"]
         
         subgraph Services["Core Services"]
@@ -419,7 +419,7 @@ sequenceDiagram
     <div class="diagram-content">
       <pre class="mermaid">
 flowchart TB
-    subgraph FS["🛡️ ForgeScan 360"]
+    subgraph FS["🛡️ ForgeScan"]
         API["Integration API"]
         Webhooks["Webhook Dispatcher"]
     end
