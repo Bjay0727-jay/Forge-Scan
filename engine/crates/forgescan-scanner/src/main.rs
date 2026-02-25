@@ -783,7 +783,10 @@ async fn execute_capture_task(
     payload: &Option<serde_json::Value>,
 ) -> Result<TaskResultsPayload> {
     let start = Instant::now();
-    info!("Starting packet capture task for {} target(s)", targets.len());
+    info!(
+        "Starting packet capture task for {} target(s)",
+        targets.len()
+    );
 
     // Parse capture parameters from payload
     let interface = payload
@@ -849,7 +852,9 @@ async fn execute_capture_task(
             let elapsed = start.elapsed();
             let result_summary = format!(
                 "Capture complete: {} packets, {} bytes in {:.1}s",
-                stats.packets_captured, stats.bytes_captured, elapsed.as_secs_f64()
+                stats.packets_captured,
+                stats.bytes_captured,
+                elapsed.as_secs_f64()
             );
             info!("{}", result_summary);
 

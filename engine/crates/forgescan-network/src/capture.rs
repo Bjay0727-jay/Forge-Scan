@@ -404,7 +404,8 @@ impl CaptureSession {
         let interface = self.resolve_interface()?;
         info!(
             "Starting packet capture on interface '{}' (duration: {:?})",
-            interface.name, Duration::from_secs(self.config.duration_secs)
+            interface.name,
+            Duration::from_secs(self.config.duration_secs)
         );
 
         // Open datalink channel
@@ -415,9 +416,7 @@ impl CaptureSession {
         let (_tx, mut rx) = match datalink::channel(&interface, pnet_config) {
             Ok(Ethernet(tx, rx)) => (tx, rx),
             Ok(_) => {
-                return Err(CaptureError::ChannelOpen(
-                    "Unsupported channel type".into(),
-                ));
+                return Err(CaptureError::ChannelOpen("Unsupported channel type".into()));
             }
             Err(e) => {
                 return Err(CaptureError::ChannelOpen(e.to_string()));
@@ -482,9 +481,7 @@ impl CaptureSession {
                     let ts_usec = now.timestamp_subsec_micros();
 
                     // Parse the ethernet frame
-                    if let Some(summary) =
-                        self.parse_packet(packet_data, now)
-                    {
+                    if let Some(summary) = self.parse_packet(packet_data, now) {
                         // Apply software filter
                         if !self.filter.matches(&summary) {
                             continue;
@@ -504,12 +501,10 @@ impl CaptureSession {
                         *protocol_counts.entry(summary.protocol.clone()).or_default() += 1;
 
                         // Update host bytes
-                        *host_bytes
-                            .entry(summary.src_ip.to_string())
-                            .or_default() += summary.length as u64;
-                        *host_bytes
-                            .entry(summary.dst_ip.to_string())
-                            .or_default() += summary.length as u64;
+                        *host_bytes.entry(summary.src_ip.to_string()).or_default() +=
+                            summary.length as u64;
+                        *host_bytes.entry(summary.dst_ip.to_string()).or_default() +=
+                            summary.length as u64;
 
                         summaries.push(summary);
                     }
@@ -547,9 +542,7 @@ impl CaptureSession {
 
         info!(
             "Capture complete: {} packets, {} bytes, PCAP at {:?}",
-            stats.packets_captured,
-            stats.bytes_captured,
-            stats.pcap_path
+            stats.packets_captured, stats.bytes_captured, stats.pcap_path
         );
 
         Ok((stats, summaries))
@@ -801,11 +794,7 @@ pub fn build_evidence_summary(summaries: &[PacketSummary], target: IpAddr) -> St
     ));
 
     for pkt in &relevant {
-        let direction = if pkt.src_ip == target {
-            "->"
-        } else {
-            "<-"
-        };
+        let direction = if pkt.src_ip == target { "->" } else { "<-" };
         let flags = pkt.tcp_flags.as_deref().unwrap_or("");
         lines.push(format!(
             "  {} {}:{} {} {}:{} {} len={}{}",
@@ -1013,7 +1002,9 @@ mod tests {
         {
             let mut writer = PcapWriter::new(&mut buf).unwrap();
             // Write a fake packet
-            writer.write_packet(1000, 500000, &[0xDE, 0xAD, 0xBE, 0xEF]).unwrap();
+            writer
+                .write_packet(1000, 500000, &[0xDE, 0xAD, 0xBE, 0xEF])
+                .unwrap();
             writer.flush().unwrap();
         }
         // Global header (24) + packet header (16) + packet data (4) = 44 bytes
