@@ -781,3 +781,30 @@ export interface SOCOverview {
   active_incidents: SOCIncident[];
   generated_at: string;
 }
+
+// ─── Capture Types ────────────────────────────────────────────────────────
+
+export type CaptureStatus = 'running' | 'completed' | 'failed' | 'cancelled';
+export type CaptureMode = 'targeted' | 'scan_correlated' | 'passive';
+
+export interface CaptureSession {
+  id: string;
+  task_id: string;
+  scan_id: string | null;
+  scanner_id: string;
+  interface: string | null;
+  filter: string | null;
+  capture_mode: CaptureMode;
+  status: CaptureStatus;
+  packets_captured: number;
+  bytes_captured: number;
+  capture_duration_ms: number;
+  protocol_breakdown: string | null;
+  top_talkers: string | null;
+  pcap_r2_key: string | null;
+  pcap_size_bytes: number;
+  started_at: string;
+  ended_at: string | null;
+  created_at: string;
+  updated_at: string;
+}

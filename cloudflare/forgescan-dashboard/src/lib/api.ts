@@ -44,6 +44,7 @@ import type {
   SOAROverview,
   ThreatIntelFeed,
   ThreatIntelOverview,
+  CaptureSession,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
@@ -875,6 +876,32 @@ export const threatIntelApi = {
   },
   getBuiltinFeeds: async (): Promise<{ feeds: unknown[]; total: number }> => request('/threat-intel/builtin-feeds'),
   addBuiltinFeed: async (index: number): Promise<ThreatIntelFeed> => request(`/threat-intel/builtin-feeds/${index}`, { method: 'POST' }),
+};
+
+// Captures API (Packet Capture sessions)
+export const capturesApi = {
+  list: async (params: {
+    status?: string;
+    scanner_id?: string;
+    scan_id?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<{ captures: CaptureSession[]; total: number; limit: number; offset: number }> => {
+    const query = buildQueryString(params as Record<string, string | number | boolean | undefined>);
+    return request(`/captures${query}`);
+  },
+
+  get: async (id: string): Promise<CaptureSession> => {
+    return request<CaptureSession>(`/captures/${id}`);
+  },
+
+  getDownloadUrl: (id: string): string => {
+    return `${API_BASE_URL}/captures/${id}/download`;
+  },
+
+  delete: async (id: string): Promise<{ message: string }> => {
+    return request(`/captures/${id}`, { method: 'DELETE' });
+  },
 };
 
 // Health check

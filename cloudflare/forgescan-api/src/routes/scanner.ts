@@ -517,6 +517,76 @@ scanner.post('/tasks/:id/results', authenticateScanner, async (c) => {
   }
 });
 
+// POST /captures/:id/upload - Upload PCAP binary to R2
+scanner.post('/captures/:id/upload', authenticateScanner, async (c) => {
+  try {
+    const captureId = c.req.param('id');
+    const scannerInfo = c.get('scanner')!;
+
+    // Verify capture session exists and belongs to this scanner
+    const session = await c.env.DB.prepare(
+      'SELECT id, scanner_id, status, pcap_r2_key FROM capture_sessions WHERE id = ?'
+    ).bind(captureId).first<{
+      id: string;
+      scanner_id: string;
+      status: string;
+      pcap_r2_key: string | null;
+    }>();
+
+    if (!session) {
+      return c.json({ error: 'Capture session not found' }, 404);
+    }
+
+    if (session.scanner_id !== scannerInfo.scanner_id) {
+      return c.json({ error: 'Capture session does not belong to this scanner' }, 403);
+    }
+
+    if (session.pcap_r2_key) {
+      return c.json({ error: 'PCAP already uploaded for this capture session' }, 409);
+    }
+
+    // Read raw binary body
+    const body = await c.req.arrayBuffer();
+    if (!body || body.byteLength === 0) {
+      return c.json({ error: 'Empty request body' }, 400);
+    }
+
+    // 100 MB limit
+    const MAX_PCAP_SIZE = 100 * 1024 * 1024;
+    if (body.byteLength > MAX_PCAP_SIZE) {
+      return c.json({ error: `PCAP exceeds maximum size of ${MAX_PCAP_SIZE} bytes` }, 413);
+    }
+
+    // Store in R2
+    const r2Key = `captures/${captureId}/${captureId}.pcap`;
+    await c.env.STORAGE.put(r2Key, body, {
+      customMetadata: {
+        capture_id: captureId,
+        scanner_id: scannerInfo.scanner_id,
+        uploaded_at: new Date().toISOString(),
+      },
+    });
+
+    // Update capture session with R2 key and file size
+    await c.env.DB.prepare(`
+      UPDATE capture_sessions
+      SET pcap_r2_key = ?, pcap_size_bytes = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(r2Key, body.byteLength, captureId).run();
+
+    return c.json({
+      message: 'PCAP uploaded',
+      capture_id: captureId,
+      r2_key: r2Key,
+      size_bytes: body.byteLength,
+    });
+  } catch (error: unknown) {
+    console.error('PCAP upload error:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: 'Failed to upload PCAP', message }, 500);
+  }
+});
+
 // POST /heartbeat - Scanner heartbeat
 scanner.post('/heartbeat', authenticateScanner, async (c) => {
   try {

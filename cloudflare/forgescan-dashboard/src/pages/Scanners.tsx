@@ -9,9 +9,12 @@ import {
   Wifi,
   WifiOff,
   Activity,
+  Download,
+  Radio,
 } from 'lucide-react';
 import { ConfirmBanner } from '@/components/ConfirmBanner';
 import { useAuth, hasRole } from '@/lib/auth';
+import { capturesApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -41,6 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import type { CaptureSession } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -97,6 +101,13 @@ function timeAgo(dateStr: string | null): string {
   return `${days}d ago`;
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
+}
+
 const statusColor = (status: string) => {
   switch (status) {
     case 'active': return 'default' as const;
@@ -119,17 +130,30 @@ const taskStatusColor = (status: string) => {
   }
 };
 
+const captureStatusColor = (status: string) => {
+  switch (status) {
+    case 'completed': return 'default' as const;
+    case 'running': return 'default' as const;
+    case 'failed': return 'destructive' as const;
+    case 'cancelled': return 'destructive' as const;
+    default: return 'secondary' as const;
+  }
+};
+
 export function Scanners() {
   const { user } = useAuth();
   const isAdmin = hasRole(user, 'platform_admin');
 
   const [scanners, setScanners] = useState<Scanner[]>([]);
   const [tasks, setTasks] = useState<ScanTask[]>([]);
+  const [captures, setCaptures] = useState<CaptureSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [taskFilter, setTaskFilter] = useState('all');
+  const [captureFilter, setCaptureFilter] = useState('all');
   const [newKey, setNewKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [deactivateConfirm, setDeactivateConfirm] = useState<{ id: string; scannerId: string } | null>(null);
+  const [deleteCapture, setDeleteCapture] = useState<{ id: string } | null>(null);
 
   // Register dialog state
   const [registerOpen, setRegisterOpen] = useState(false);
@@ -141,11 +165,27 @@ export function Scanners() {
   });
   const [registering, setRegistering] = useState(false);
 
+  // Create capture task dialog state
+  const [captureOpen, setCaptureOpen] = useState(false);
+  const [captureForm, setCaptureForm] = useState({
+    target: '',
+    scan_name: '',
+    interface_name: '',
+    duration_secs: '30',
+    filter: '',
+    capture_mode: 'targeted',
+  });
+  const [creatingCapture, setCreatingCapture] = useState(false);
+
   const loadData = useCallback(async () => {
     try {
-      const [scannersRes, tasksRes] = await Promise.all([
+      const captureParams: Record<string, string> = { limit: '50' };
+      if (captureFilter !== 'all') captureParams.status = captureFilter;
+
+      const [scannersRes, tasksRes, capturesData] = await Promise.all([
         fetch(`${API_BASE_URL}/scanner`, { headers: getAuthHeaders() }),
         fetch(`${API_BASE_URL}/scanner/tasks?limit=50${taskFilter !== 'all' ? `&status=${taskFilter}` : ''}`, { headers: getAuthHeaders() }),
+        capturesApi.list(captureParams).catch(() => ({ captures: [], total: 0, limit: 50, offset: 0 })),
       ]);
 
       if (scannersRes.ok) {
@@ -156,10 +196,11 @@ export function Scanners() {
         const data = await tasksRes.json();
         setTasks(data.tasks || []);
       }
+      setCaptures(capturesData.captures || []);
     } catch { /* ignore */ } finally {
       setLoading(false);
     }
-  }, [taskFilter]);
+  }, [taskFilter, captureFilter]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -200,6 +241,76 @@ export function Scanners() {
     } catch { /* ignore */ }
   }
 
+  async function createCaptureTask() {
+    setCreatingCapture(true);
+    try {
+      const scanName = captureForm.scan_name || `Capture - ${captureForm.target}`;
+      // Create a scan with a capture task
+      const scanRes = await fetch(`${API_BASE_URL}/scans`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          name: scanName,
+          type: 'network',
+          target: captureForm.target,
+          configuration: {
+            task_type: 'capture',
+            interface: captureForm.interface_name || undefined,
+            duration_secs: parseInt(captureForm.duration_secs) || 30,
+            filter: captureForm.filter || undefined,
+            capture_mode: captureForm.capture_mode,
+          },
+        }),
+      });
+
+      if (scanRes.ok) {
+        setCaptureOpen(false);
+        setCaptureForm({
+          target: '',
+          scan_name: '',
+          interface_name: '',
+          duration_secs: '30',
+          filter: '',
+          capture_mode: 'targeted',
+        });
+        loadData();
+      }
+    } catch { /* ignore */ } finally {
+      setCreatingCapture(false);
+    }
+  }
+
+  async function handleDeleteCapture(id: string) {
+    try {
+      await capturesApi.delete(id);
+      setDeleteCapture(null);
+      loadData();
+    } catch { /* ignore */ }
+  }
+
+  function downloadPcap(id: string) {
+    const token = localStorage.getItem('forgescan_token');
+    const url = capturesApi.getDownloadUrl(id);
+    // Use a temporary link with auth header via fetch + blob
+    fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Download failed');
+        return res.blob();
+      })
+      .then(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `capture_${id}.pcap`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+      })
+      .catch(err => console.error('PCAP download error:', err));
+  }
+
   function copyKey() {
     if (newKey) {
       navigator.clipboard.writeText(newKey);
@@ -228,72 +339,155 @@ export function Scanners() {
             <RefreshCw className="mr-2 h-4 w-4" /> Refresh
           </Button>
           {isAdmin && (
-            <Dialog open={registerOpen} onOpenChange={setRegisterOpen}>
-              <DialogTrigger asChild>
-                <Button><Plus className="mr-2 h-4 w-4" /> Register Scanner</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Register New Scanner</DialogTitle>
-                  <DialogDescription>
-                    Register a scanner engine to process scan tasks.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label>Scanner ID</Label>
-                    <Input
-                      value={registerForm.scanner_id}
-                      onChange={(e) => setRegisterForm({ ...registerForm, scanner_id: e.target.value })}
-                      placeholder="scanner-prod-01"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Hostname</Label>
-                    <Input
-                      value={registerForm.hostname}
-                      onChange={(e) => setRegisterForm({ ...registerForm, hostname: e.target.value })}
-                      placeholder="scanner.example.com"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Version (optional)</Label>
-                    <Input
-                      value={registerForm.version}
-                      onChange={(e) => setRegisterForm({ ...registerForm, version: e.target.value })}
-                      placeholder="1.0.0"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Capabilities</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {capabilities.map(cap => (
-                        <Badge
-                          key={cap}
-                          variant={registerForm.capabilities.includes(cap) ? 'default' : 'outline'}
-                          className="cursor-pointer"
-                          onClick={() => {
-                            const caps = registerForm.capabilities.includes(cap)
-                              ? registerForm.capabilities.filter(c => c !== cap)
-                              : [...registerForm.capabilities, cap];
-                            setRegisterForm({ ...registerForm, capabilities: caps });
-                          }}
-                        >
-                          {cap}
-                        </Badge>
-                      ))}
+            <>
+              <Dialog open={captureOpen} onOpenChange={setCaptureOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline"><Radio className="mr-2 h-4 w-4" /> New Capture</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create Capture Task</DialogTitle>
+                    <DialogDescription>
+                      Create a packet capture task for a scanner to execute.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label>Target</Label>
+                      <Input
+                        value={captureForm.target}
+                        onChange={(e) => setCaptureForm({ ...captureForm, target: e.target.value })}
+                        placeholder="192.168.1.0/24 or hostname"
+                      />
                     </div>
-                    <p className="text-xs text-muted-foreground">Click to toggle scan types this scanner supports</p>
+                    <div className="grid gap-2">
+                      <Label>Scan Name (optional)</Label>
+                      <Input
+                        value={captureForm.scan_name}
+                        onChange={(e) => setCaptureForm({ ...captureForm, scan_name: e.target.value })}
+                        placeholder="Capture - prod-server"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Network Interface (optional)</Label>
+                      <Input
+                        value={captureForm.interface_name}
+                        onChange={(e) => setCaptureForm({ ...captureForm, interface_name: e.target.value })}
+                        placeholder="eth0"
+                      />
+                      <p className="text-xs text-muted-foreground">Leave empty to auto-detect</p>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Duration (seconds)</Label>
+                      <Input
+                        type="number"
+                        min="5"
+                        max="600"
+                        value={captureForm.duration_secs}
+                        onChange={(e) => setCaptureForm({ ...captureForm, duration_secs: e.target.value })}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>BPF Filter (optional)</Label>
+                      <Input
+                        value={captureForm.filter}
+                        onChange={(e) => setCaptureForm({ ...captureForm, filter: e.target.value })}
+                        placeholder="tcp port 80 or tcp port 443"
+                      />
+                      <p className="text-xs text-muted-foreground">Berkeley Packet Filter expression</p>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Capture Mode</Label>
+                      <Select
+                        value={captureForm.capture_mode}
+                        onValueChange={(v) => setCaptureForm({ ...captureForm, capture_mode: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="targeted">Targeted</SelectItem>
+                          <SelectItem value="scan_correlated">Scan Correlated</SelectItem>
+                          <SelectItem value="passive">Passive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setRegisterOpen(false)}>Cancel</Button>
-                  <Button onClick={registerScanner} disabled={registering || !registerForm.scanner_id || !registerForm.hostname}>
-                    {registering ? 'Registering...' : 'Register'}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setCaptureOpen(false)}>Cancel</Button>
+                    <Button onClick={createCaptureTask} disabled={creatingCapture || !captureForm.target}>
+                      {creatingCapture ? 'Creating...' : 'Create Capture'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+              <Dialog open={registerOpen} onOpenChange={setRegisterOpen}>
+                <DialogTrigger asChild>
+                  <Button><Plus className="mr-2 h-4 w-4" /> Register Scanner</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Register New Scanner</DialogTitle>
+                    <DialogDescription>
+                      Register a scanner engine to process scan tasks.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label>Scanner ID</Label>
+                      <Input
+                        value={registerForm.scanner_id}
+                        onChange={(e) => setRegisterForm({ ...registerForm, scanner_id: e.target.value })}
+                        placeholder="scanner-prod-01"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Hostname</Label>
+                      <Input
+                        value={registerForm.hostname}
+                        onChange={(e) => setRegisterForm({ ...registerForm, hostname: e.target.value })}
+                        placeholder="scanner.example.com"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Version (optional)</Label>
+                      <Input
+                        value={registerForm.version}
+                        onChange={(e) => setRegisterForm({ ...registerForm, version: e.target.value })}
+                        placeholder="1.0.0"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Capabilities</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {capabilities.map(cap => (
+                          <Badge
+                            key={cap}
+                            variant={registerForm.capabilities.includes(cap) ? 'default' : 'outline'}
+                            className="cursor-pointer"
+                            onClick={() => {
+                              const caps = registerForm.capabilities.includes(cap)
+                                ? registerForm.capabilities.filter(c => c !== cap)
+                                : [...registerForm.capabilities, cap];
+                              setRegisterForm({ ...registerForm, capabilities: caps });
+                            }}
+                          >
+                            {cap}
+                          </Badge>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">Click to toggle scan types this scanner supports</p>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setRegisterOpen(false)}>Cancel</Button>
+                    <Button onClick={registerScanner} disabled={registering || !registerForm.scanner_id || !registerForm.hostname}>
+                      {registering ? 'Registering...' : 'Register'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </>
           )}
         </div>
       </div>
@@ -326,6 +520,18 @@ export function Scanners() {
           confirmLabel="Deactivate"
           onConfirm={() => deactivateScanner(deactivateConfirm.id)}
           onCancel={() => setDeactivateConfirm(null)}
+          variant="destructive"
+        />
+      )}
+
+      {/* Delete Capture Confirm */}
+      {deleteCapture && (
+        <ConfirmBanner
+          title="Delete Capture"
+          description="Are you sure you want to delete this capture session and its PCAP file? This cannot be undone."
+          confirmLabel="Delete"
+          onConfirm={() => handleDeleteCapture(deleteCapture.id)}
+          onCancel={() => setDeleteCapture(null)}
           variant="destructive"
         />
       )}
@@ -396,6 +602,107 @@ export function Scanners() {
                     </TableRow>
                   );
                 })
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Packet Captures */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Radio className="h-5 w-5" /> Packet Captures
+              </CardTitle>
+              <CardDescription>Capture sessions with downloadable PCAP files</CardDescription>
+            </div>
+            <Select value={captureFilter} onValueChange={setCaptureFilter}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="running">Running</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="failed">Failed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Capture ID</TableHead>
+                <TableHead>Mode</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Scanner</TableHead>
+                <TableHead>Packets</TableHead>
+                <TableHead>Size</TableHead>
+                <TableHead>Duration</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {captures.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                    No capture sessions found. Create a capture task to start collecting packets.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                captures.map(cap => (
+                  <TableRow key={cap.id}>
+                    <TableCell className="font-mono text-xs">{cap.id.substring(0, 8)}...</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{cap.capture_mode}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={captureStatusColor(cap.status)}>
+                        {cap.status === 'running' && (
+                          <span className="mr-1 inline-block h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                        )}
+                        {cap.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">{cap.scanner_id}</TableCell>
+                    <TableCell>{cap.packets_captured.toLocaleString()}</TableCell>
+                    <TableCell>{formatBytes(cap.pcap_size_bytes || cap.bytes_captured)}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {cap.capture_duration_ms > 0
+                        ? `${(cap.capture_duration_ms / 1000).toFixed(1)}s`
+                        : '-'}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{timeAgo(cap.created_at)}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        {cap.pcap_r2_key && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Download PCAP"
+                            onClick={() => downloadPcap(cap.id)}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {isAdmin && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Delete capture"
+                            onClick={() => setDeleteCapture({ id: cap.id })}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
               )}
             </TableBody>
           </Table>
