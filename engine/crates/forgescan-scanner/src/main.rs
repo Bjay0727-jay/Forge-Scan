@@ -14,12 +14,14 @@ use clap::Parser;
 use tokio::sync::Semaphore;
 use tracing::{debug, error, info, warn};
 
+use forgescan_network::capture::{build_host_filter, CaptureConfig, CaptureSession, CaptureStats};
 use forgescan_network::discovery::{self, HostDiscovery};
 use forgescan_network::port_scan::{
     self, PortResult, PortScanConfig, PortScanner, PortState, ScanSummary,
 };
 use forgescan_transport::{
-    AssetPayload, FindingPayload, PortPayload, RestApiClient, RestClientConfig, TaskResultsPayload,
+    AssetPayload, CaptureStatsPayload, FindingPayload, PortPayload, RestApiClient,
+    RestClientConfig, TaskResultsPayload,
 };
 use forgescan_vuln::{DetectedService, VulnDetector};
 use forgescan_webapp::{ScanConfig as WebScanConfig, WebScanner};
@@ -162,6 +164,7 @@ async fn run_daemon_mode(
             "vulnerability".into(),
             "webapp".into(),
             "discovery".into(),
+            "capture".into(),
         ],
         ..Default::default()
     };
@@ -300,6 +303,7 @@ async fn execute_task(
         "webapp" | "webapp_scan" | "web" => execute_webapp_scan(&targets, &payload).await,
         "discovery" | "host_discovery" => execute_discovery_scan(&targets, &payload).await,
         "full" | "full_scan" => execute_full_scan(&targets, &payload).await,
+        "capture" | "packet_capture" => execute_capture_task(&targets, &payload).await,
         other => {
             warn!("Unknown scan type '{}', attempting network scan", other);
             execute_network_scan(&targets, &payload).await
@@ -452,6 +456,7 @@ async fn execute_network_scan(
         result_summary,
         findings: all_findings,
         assets_discovered: all_assets,
+        capture_stats: None,
     })
 }
 
@@ -563,6 +568,7 @@ async fn execute_vulnerability_scan(
         result_summary,
         findings: all_findings,
         assets_discovered: all_assets,
+        capture_stats: None,
     })
 }
 
@@ -667,6 +673,7 @@ async fn execute_webapp_scan(
         result_summary,
         findings: all_findings,
         assets_discovered: all_assets,
+        capture_stats: None,
     })
 }
 
@@ -718,6 +725,7 @@ async fn execute_discovery_scan(
         result_summary,
         findings: vec![],
         assets_discovered: all_assets,
+        capture_stats: None,
     })
 }
 
@@ -743,6 +751,7 @@ async fn execute_full_scan(
             result_summary: "Full scan complete: no live hosts found".into(),
             findings: vec![],
             assets_discovered: vec![],
+            capture_stats: None,
         });
     }
 
@@ -764,7 +773,110 @@ async fn execute_full_scan(
         result_summary,
         findings: vuln_results.findings,
         assets_discovered: vuln_results.assets_discovered,
+        capture_stats: None,
     })
+}
+
+/// Targeted packet capture task
+async fn execute_capture_task(
+    targets: &[String],
+    payload: &Option<serde_json::Value>,
+) -> Result<TaskResultsPayload> {
+    let start = Instant::now();
+    info!("Starting packet capture task for {} target(s)", targets.len());
+
+    // Parse capture parameters from payload
+    let interface = payload
+        .as_ref()
+        .and_then(|p| p.get("interface"))
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let filter_expr = payload
+        .as_ref()
+        .and_then(|p| p.get("filter"))
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let duration_secs = payload
+        .as_ref()
+        .and_then(|p| p.get("duration_seconds"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(120)
+        .min(300); // Hard cap at 5 minutes
+
+    let max_bytes = payload
+        .as_ref()
+        .and_then(|p| p.get("max_bytes"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(50 * 1024 * 1024); // Default 50MB
+
+    // Build BPF filter from targets if no explicit filter provided
+    let filter = if let Some(expr) = filter_expr {
+        Some(expr)
+    } else {
+        // Resolve targets to IPs and build a host filter
+        let mut ips = Vec::new();
+        for target in targets {
+            match resolve_target(target).await {
+                Ok(resolved) => ips.extend(resolved),
+                Err(e) => warn!("Failed to resolve target '{}': {}", target, e),
+            }
+        }
+        build_host_filter(&ips)
+    };
+
+    let capture_config = CaptureConfig {
+        interface,
+        filter,
+        max_packets: 0,
+        max_bytes,
+        duration_secs,
+        promiscuous: false,
+        ..Default::default()
+    };
+
+    // Run capture in a blocking thread (packet capture is synchronous I/O)
+    let result = tokio::task::spawn_blocking(move || {
+        let session = CaptureSession::new(capture_config)?;
+        session.run()
+    })
+    .await
+    .map_err(|e| anyhow::anyhow!("Capture task panicked: {}", e))?;
+
+    match result {
+        Ok((stats, _summaries)) => {
+            let elapsed = start.elapsed();
+            let result_summary = format!(
+                "Capture complete: {} packets, {} bytes in {:.1}s",
+                stats.packets_captured, stats.bytes_captured, elapsed.as_secs_f64()
+            );
+            info!("{}", result_summary);
+
+            Ok(TaskResultsPayload {
+                status: "completed".into(),
+                result_summary,
+                findings: vec![],
+                assets_discovered: vec![],
+                capture_stats: Some(stats_to_payload(&stats)),
+            })
+        }
+        Err(e) => {
+            anyhow::bail!("Packet capture failed: {}", e);
+        }
+    }
+}
+
+/// Convert internal CaptureStats to the transport payload.
+fn stats_to_payload(stats: &CaptureStats) -> CaptureStatsPayload {
+    CaptureStatsPayload {
+        packets_captured: stats.packets_captured,
+        bytes_captured: stats.bytes_captured,
+        capture_duration_ms: stats.capture_duration_ms,
+        protocol_breakdown: stats.protocol_breakdown.clone(),
+        top_talkers: stats.top_talkers.clone(),
+        pcap_available: stats.pcap_path.is_some(),
+    }
 }
 
 // ── One-Shot Mode ───────────────────────────────────────────────────────────

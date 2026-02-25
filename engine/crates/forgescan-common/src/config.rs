@@ -30,6 +30,10 @@ pub struct Config {
     /// TLS/mTLS settings
     #[serde(default)]
     pub tls: TlsConfig,
+
+    /// Packet capture settings
+    #[serde(default)]
+    pub capture: CaptureSettings,
 }
 
 impl Config {
@@ -76,6 +80,17 @@ impl Config {
         // Agent settings
         if let Ok(val) = std::env::var("FORGESCAN_AGENT_ID") {
             self.agent.agent_id = Some(val);
+        }
+
+        // Capture settings
+        if let Ok(val) = std::env::var("FORGESCAN_CAPTURE_ENABLED") {
+            self.capture.enabled = val == "true" || val == "1";
+        }
+        if let Ok(val) = std::env::var("FORGESCAN_CAPTURE_INTERFACE") {
+            self.capture.default_interface = Some(val);
+        }
+        if let Ok(val) = std::env::var("FORGESCAN_CAPTURE_DIR") {
+            self.capture.capture_dir = val;
         }
 
         // Logging
@@ -295,6 +310,72 @@ impl Default for LoggingConfig {
             level: String::from("info"),
             format: String::from("pretty"),
             file: None,
+        }
+    }
+}
+
+/// Packet capture configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CaptureSettings {
+    /// Enable capture features
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Default network interface for capture (None = auto-detect)
+    pub default_interface: Option<String>,
+
+    /// Directory for PCAP file storage
+    #[serde(default = "default_capture_dir")]
+    pub capture_dir: String,
+
+    /// Maximum capture file size in megabytes
+    #[serde(default = "default_max_capture_size_mb")]
+    pub max_capture_size_mb: u32,
+
+    /// Maximum capture duration in seconds
+    #[serde(default = "default_max_capture_duration_sec")]
+    pub max_capture_duration_sec: u32,
+
+    /// PCAP file retention in days
+    #[serde(default = "default_capture_retention_days")]
+    pub retention_days: u32,
+
+    /// Enable passive monitoring mode (requires explicit opt-in)
+    #[serde(default)]
+    pub passive_mode_enabled: bool,
+
+    /// Automatically capture packets during active scans
+    #[serde(default)]
+    pub correlate_with_scans: bool,
+}
+
+fn default_capture_dir() -> String {
+    String::from("/var/lib/forgescan/captures")
+}
+
+fn default_max_capture_size_mb() -> u32 {
+    50
+}
+
+fn default_max_capture_duration_sec() -> u32 {
+    300
+}
+
+fn default_capture_retention_days() -> u32 {
+    7
+}
+
+impl Default for CaptureSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            default_interface: None,
+            capture_dir: default_capture_dir(),
+            max_capture_size_mb: 50,
+            max_capture_duration_sec: 300,
+            retention_days: 7,
+            passive_mode_enabled: false,
+            correlate_with_scans: false,
         }
     }
 }

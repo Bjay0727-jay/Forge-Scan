@@ -26,6 +26,9 @@ export type ForgeEventType =
   | 'forge.vulnerability.status_changed'
   | 'forge.asset.discovered'
   | 'forge.asset.classification_changed'
+  | 'forge.capture.started'
+  | 'forge.capture.completed'
+  | 'forge.capture.anomaly_detected'
   // ForgeRedOps events
   | 'forge.redops.campaign.created'
   | 'forge.redops.campaign.launched'

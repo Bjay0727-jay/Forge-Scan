@@ -105,6 +105,7 @@ message ScanEvent {
         PortDiscovered port_discovered = 5;
         ScanError error = 6;
         ScanComplete complete = 7;
+        CaptureEvent capture_event = 8;
     }
 }
 
@@ -211,6 +212,18 @@ message ScannerConfig {
     uint32 default_timeout_seconds = 4;
     repeated string enabled_check_categories = 5;
     map<string, string> custom_settings = 6;
+}
+
+// Packet capture event (streamed during capture sessions)
+message CaptureEvent {
+    string session_id = 1;
+    string task_id = 2;
+    uint64 packets_captured = 3;
+    uint64 bytes_captured = 4;
+    map<string, uint64> protocol_breakdown = 5;
+    string status = 6;  // "running", "completed", "failed", "cancelled"
+    uint64 capture_duration_ms = 7;
+    string pcap_path = 8;
 }
 
 // Upload response
