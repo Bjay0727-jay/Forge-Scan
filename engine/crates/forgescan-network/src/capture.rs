@@ -409,9 +409,11 @@ impl CaptureSession {
         );
 
         // Open datalink channel
-        let mut pnet_config = PnetConfig::default();
-        pnet_config.promiscuous = self.config.promiscuous;
-        pnet_config.read_timeout = Some(Duration::from_millis(100));
+        let pnet_config = PnetConfig {
+            promiscuous: self.config.promiscuous,
+            read_timeout: Some(Duration::from_millis(100)),
+            ..PnetConfig::default()
+        };
 
         let (_tx, mut rx) = match datalink::channel(&interface, pnet_config) {
             Ok(Ethernet(tx, rx)) => (tx, rx),
@@ -735,7 +737,7 @@ pub fn extract_packet_evidence(
     let syn_ack = summaries.iter().find(|p| {
         p.src_ip == target
             && p.tcp_flags.as_deref() == Some("SA")
-            && port.map_or(true, |pt| p.src_port == Some(pt))
+            && port.is_none_or(|pt| p.src_port == Some(pt))
     });
 
     if let Some(pkt) = syn_ack {
@@ -746,7 +748,7 @@ pub fn extract_packet_evidence(
     let data_pkt = summaries.iter().find(|p| {
         p.src_ip == target
             && !p.payload_preview.is_empty()
-            && port.map_or(true, |pt| p.src_port == Some(pt))
+            && port.is_none_or(|pt| p.src_port == Some(pt))
     });
 
     data_pkt.map(|pkt| build_evidence_blob(pkt, max_bytes))
@@ -839,11 +841,9 @@ pub fn cleanup_old_captures(capture_dir: &str, retention_days: u32) -> std::io::
 
         if let Ok(metadata) = entry.metadata() {
             if let Ok(modified) = metadata.modified() {
-                if modified < cutoff {
-                    if std::fs::remove_file(&path).is_ok() {
-                        info!("Removed old capture: {:?}", path);
-                        removed += 1;
-                    }
+                if modified < cutoff && std::fs::remove_file(&path).is_ok() {
+                    info!("Removed old capture: {:?}", path);
+                    removed += 1;
                 }
             }
         }
