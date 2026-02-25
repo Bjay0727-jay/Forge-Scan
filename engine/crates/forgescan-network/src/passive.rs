@@ -289,7 +289,7 @@ impl RingPcapWriter {
         let mut rw = Self {
             dir: dir_path,
             file_count: file_count.max(1),
-            max_bytes: max_bytes.max(1024), // minimum 1 KB
+            max_bytes,
             current_index: 0,
             current_bytes: 0,
             writer: None,
