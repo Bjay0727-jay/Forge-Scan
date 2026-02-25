@@ -1340,13 +1340,16 @@ mod tests {
         let dir = std::env::temp_dir().join("forgescan_test_ring_pcap");
         let _ = std::fs::remove_dir_all(&dir);
 
-        let mut writer = RingPcapWriter::new(dir.to_str().unwrap(), 3, 200).unwrap();
+        // Note: RingPcapWriter enforces a minimum max_bytes of 1024, so use
+        // large enough packets (200 bytes each → 216 with record header) to
+        // trigger rotation within that limit.
+        let mut writer = RingPcapWriter::new(dir.to_str().unwrap(), 3, 1024).unwrap();
 
-        // Write packets until rotation occurs
+        // Write packets until rotation occurs (each record is 216 bytes,
+        // so ~5 packets fill 1024 bytes and trigger rotation)
+        let big_packet = [0xAB; 200];
         for _ in 0..20 {
-            writer
-                .write_packet(1000, 0, &[0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02])
-                .unwrap();
+            writer.write_packet(1000, 0, &big_packet).unwrap();
         }
         writer.flush().unwrap();
 
