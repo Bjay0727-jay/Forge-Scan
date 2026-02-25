@@ -10,6 +10,7 @@ pub mod banner;
 pub mod capture;
 pub mod discovery;
 pub mod fingerprint;
+pub mod passive;
 pub mod port_scan;
 pub mod service_detect;
 
@@ -20,5 +21,9 @@ pub use capture::{
 };
 pub use discovery::{DiscoveryMethod, DiscoveryResult, HostDiscovery};
 pub use fingerprint::{Fingerprinter, HostFingerprint, OsFamily, OsFingerprint};
+pub use passive::{
+    EventBuffer, EventCategory, EventSeverity, PassiveConfig, PassiveMonitor, PassiveStats,
+    ProtocolAnalyzer, RingPcapWriter, SecurityEvent,
+};
 pub use port_scan::{PortResult, PortScanner, PortState, ScanType};
 pub use service_detect::{ServiceDetector, ServiceInfo};

@@ -16,6 +16,7 @@ use tracing::{debug, error, info, warn};
 
 use forgescan_network::capture::{build_host_filter, CaptureConfig, CaptureSession, CaptureStats};
 use forgescan_network::discovery::{self, HostDiscovery};
+use forgescan_network::passive::{PassiveConfig, PassiveMonitor};
 use forgescan_network::port_scan::{
     self, PortResult, PortScanConfig, PortScanner, PortState, ScanSummary,
 };
@@ -68,6 +69,14 @@ struct Args {
     /// Scan type for one-shot (network, webapp, vulnerability, discovery)
     #[arg(long, default_value = "network")]
     scan_type: String,
+
+    /// Enable passive network monitoring in daemon mode
+    #[arg(long)]
+    passive: bool,
+
+    /// Network interface for passive monitoring (auto-detect if omitted)
+    #[arg(long)]
+    passive_interface: Option<String>,
 }
 
 #[tokio::main]
@@ -121,7 +130,7 @@ async fn main() -> Result<()> {
     if args.one_shot {
         run_one_shot_scan(&args, &api_base_url).await
     } else {
-        run_daemon_mode(&config, &api_base_url, &api_key, &scanner_id).await
+        run_daemon_mode(&config, &api_base_url, &api_key, &scanner_id, &args).await
     }
 }
 
@@ -132,6 +141,7 @@ async fn run_daemon_mode(
     api_base_url: &str,
     api_key: &str,
     scanner_id: &str,
+    args: &Args,
 ) -> Result<()> {
     info!("Starting scanner daemon...");
     info!("Platform: {}", api_base_url);
@@ -182,6 +192,31 @@ async fn run_daemon_mode(
 
     // Start background heartbeat loop
     let _heartbeat_handle = client.start_heartbeat_loop();
+
+    // Start passive network monitor if enabled
+    let _passive_monitor = if args.passive {
+        let passive_config = PassiveConfig {
+            interface: args.passive_interface.clone(),
+            promiscuous: true,
+            ..Default::default()
+        };
+        let mut monitor = PassiveMonitor::new(passive_config);
+        match monitor.start() {
+            Ok(_handle) => {
+                info!("Passive network monitor started");
+                Some(monitor)
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to start passive monitor: {}. Continuing without it.",
+                    e
+                );
+                None
+            }
+        }
+    } else {
+        None
+    };
 
     // Concurrency limiter for scan tasks
     let semaphore = Arc::new(Semaphore::new(config.scanner.max_concurrent_scans as usize));
@@ -240,6 +275,16 @@ async fn run_daemon_mode(
                 }
             }
         }
+    }
+
+    // Stop passive monitor if running
+    if let Some(ref monitor) = _passive_monitor {
+        let stats = monitor.stats();
+        info!(
+            "Stopping passive monitor (packets: {}, events: {})",
+            stats.packets_seen, stats.events_detected
+        );
+        monitor.stop();
     }
 
     info!("Scanner daemon shutting down gracefully");
