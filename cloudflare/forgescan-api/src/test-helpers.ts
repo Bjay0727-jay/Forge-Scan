@@ -105,7 +105,7 @@ export function createTestApp(
   prefix: string,
   db?: any,
 ) {
-  const app = new Hono<{ Bindings: Env }>();
+  const app = new Hono<{ Bindings: Env; Variables: { user: any; orgId: string | null } }>();
   // Auth bypass middleware — injects mock env and user context
   app.use('*', async (c, next) => {
     (c.env as any) = {
@@ -114,7 +114,7 @@ export function createTestApp(
       CACHE: { put: vi.fn(), get: vi.fn().mockResolvedValue(null), delete: vi.fn() },
     };
     // Provide org context for org-scoped routes
-    c.set('user' as any, {
+    c.set('user', {
       id: 'user-001',
       email: 'test@example.com',
       role: 'scan_admin',
@@ -122,7 +122,7 @@ export function createTestApp(
       organization_id: 'org-test-001',
       org_role: 'admin',
     });
-    c.set('orgId' as any, 'org-test-001');
+    c.set('orgId', 'org-test-001');
     await next();
   });
   app.route(prefix, route);

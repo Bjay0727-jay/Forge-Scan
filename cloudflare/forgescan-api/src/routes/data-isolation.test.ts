@@ -24,7 +24,7 @@ function createTestAppWithOrgScope(
   db: any,
   userOverrides: Record<string, unknown> = {},
 ) {
-  const app = new Hono<{ Bindings: Env }>();
+  const app = new Hono<{ Bindings: Env; Variables: { user: any; orgId: string | null } }>();
   app.use('*', async (c, next) => {
     (c.env as any) = {
       DB: db,
@@ -32,7 +32,7 @@ function createTestAppWithOrgScope(
       CACHE: { put: vi.fn(), get: vi.fn().mockResolvedValue(null), delete: vi.fn() },
     };
     // Inject authenticated user with org context
-    c.set('user' as any, {
+    c.set('user', {
       id: 'user-001',
       email: 'test@example.com',
       role: 'scan_admin',
@@ -247,7 +247,7 @@ describe('Cross-Tenant Data Isolation', () => {
       const res = await app.request('/assets');
       expect(res.status).toBe(403);
 
-      const body = await res.json();
+      const body = (await res.json()) as any;
       expect(body.error).toBe('Forbidden');
     });
   });
