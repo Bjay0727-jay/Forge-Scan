@@ -36,6 +36,8 @@ import { sast } from './routes/sast';
 import { soar } from './routes/soar';
 import { threatIntel } from './routes/threat-intel';
 import { docs } from './routes/docs';
+import { evidence } from './routes/evidence';
+import { poam } from './routes/poam';
 import { registerSOCHandlers } from './services/forgesoc/alert-handler';
 
 export interface Env {
@@ -147,6 +149,8 @@ app.route('/api/v1/containers', containers);
 app.route('/api/v1/sast', sast);
 app.route('/api/v1/soar', soar);
 app.route('/api/v1/threat-intel', threatIntel);
+app.route('/api/v1/evidence', evidence);
+app.route('/api/v1/poam', poam);
 app.route('/api/v1/metrics', metrics);
 app.route('/api/v1/audit', audit);
 

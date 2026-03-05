@@ -3,6 +3,12 @@ import type { Env } from '../index';
 import { requireRole } from '../middleware/auth';
 import { seedFrameworks, getFrameworkCompliance, getGapAnalysis } from '../services/compliance';
 import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
+import {
+  generateSSP,
+  generateAssessmentResults,
+  generatePOAMDocument,
+  oscalJsonToXml,
+} from '../services/oscal-generator';
 
 interface AuthUser {
   id: string;
@@ -228,4 +234,151 @@ compliance.post('/assess', requireRole('platform_admin', 'scan_admin'), async (c
   `).bind(id, framework_id, control_id, status, finding_id || null, vulnerability_id || null, evidence || null, user.id, orgIdForInsert).run();
 
   return c.json({ id, message: 'Compliance mapping created' }, 201);
+});
+
+// ─── OSCAL Exports ──────────────────────────────────────────────────────────
+
+// GET /api/v1/compliance/:id/oscal/ssp - Generate OSCAL SSP
+compliance.get('/:id/oscal/ssp', async (c) => {
+  const { orgId } = getOrgFilter(c);
+  const id = c.req.param('id');
+  const format = c.req.query('format') || 'json'; // 'json' or 'xml'
+
+  const framework = await c.env.DB.prepare(
+    'SELECT * FROM compliance_frameworks WHERE id = ?'
+  ).bind(id).first<{ id: string; name: string; version: string; description: string }>();
+
+  if (!framework) {
+    return c.json({ error: 'Framework not found' }, 404);
+  }
+
+  // Get controls with compliance status
+  let controlsQuery = `
+    SELECT cc.*, cm.status as compliance_status, cm.evidence, cm.assessed_at, cm.assessed_by
+    FROM compliance_controls cc
+    LEFT JOIN compliance_mappings cm ON cc.id = cm.control_id AND cm.framework_id = ?`;
+  const controlsParams: any[] = [id];
+  if (orgId) {
+    controlsQuery += ' AND cm.org_id = ?';
+    controlsParams.push(orgId);
+  }
+  controlsQuery += ' WHERE cc.framework_id = ? ORDER BY cc.family, cc.control_id';
+  controlsParams.push(id);
+
+  const controls = await c.env.DB.prepare(controlsQuery).bind(...controlsParams).all();
+
+  // Get org name
+  let orgName = 'Organization';
+  if (orgId) {
+    const org = await c.env.DB.prepare('SELECT name FROM organizations WHERE id = ?').bind(orgId).first<{ name: string }>();
+    if (org) orgName = org.name;
+  }
+
+  const ssp = generateSSP(framework, controls.results as any[], orgName);
+
+  if (format === 'xml') {
+    return new Response(oscalJsonToXml(ssp), {
+      headers: {
+        'Content-Type': 'application/xml',
+        'Content-Disposition': `attachment; filename="ssp-${framework.name}.xml"`,
+      },
+    });
+  }
+
+  return c.json(ssp);
+});
+
+// GET /api/v1/compliance/:id/oscal/assessment - Generate OSCAL Assessment Results
+compliance.get('/:id/oscal/assessment', async (c) => {
+  const { orgId } = getOrgFilter(c);
+  const id = c.req.param('id');
+  const format = c.req.query('format') || 'json';
+
+  const framework = await c.env.DB.prepare(
+    'SELECT * FROM compliance_frameworks WHERE id = ?'
+  ).bind(id).first<{ id: string; name: string; version: string; description: string }>();
+
+  if (!framework) {
+    return c.json({ error: 'Framework not found' }, 404);
+  }
+
+  // Get controls
+  let controlsQuery = `
+    SELECT cc.*, cm.status as compliance_status, cm.evidence, cm.assessed_at, cm.assessed_by
+    FROM compliance_controls cc
+    LEFT JOIN compliance_mappings cm ON cc.id = cm.control_id AND cm.framework_id = ?`;
+  const controlsParams: any[] = [id];
+  if (orgId) {
+    controlsQuery += ' AND cm.org_id = ?';
+    controlsParams.push(orgId);
+  }
+  controlsQuery += ' WHERE cc.framework_id = ?';
+  controlsParams.push(id);
+  const controls = await c.env.DB.prepare(controlsQuery).bind(...controlsParams).all();
+
+  // Get open findings for this org
+  let findingsQuery = "SELECT id, title, description, severity, state, cve_id FROM findings WHERE state = 'open'";
+  const findingsParams: any[] = [];
+  if (orgId) {
+    findingsQuery += ' AND org_id = ?';
+    findingsParams.push(orgId);
+  }
+  findingsQuery += ' LIMIT 500';
+  const findings = await c.env.DB.prepare(findingsQuery).bind(...findingsParams).all();
+
+  let orgName = 'Organization';
+  if (orgId) {
+    const org = await c.env.DB.prepare('SELECT name FROM organizations WHERE id = ?').bind(orgId).first<{ name: string }>();
+    if (org) orgName = org.name;
+  }
+
+  const assessment = generateAssessmentResults(
+    framework, controls.results as any[], findings.results as any[], orgName,
+  );
+
+  if (format === 'xml') {
+    return new Response(oscalJsonToXml(assessment), {
+      headers: {
+        'Content-Type': 'application/xml',
+        'Content-Disposition': `attachment; filename="assessment-${framework.name}.xml"`,
+      },
+    });
+  }
+
+  return c.json(assessment);
+});
+
+// GET /api/v1/compliance/oscal/poam - Generate OSCAL POA&M document
+compliance.get('/oscal/poam', async (c) => {
+  const { orgId } = getOrgFilter(c);
+  const format = c.req.query('format') || 'json';
+
+  let query = "SELECT * FROM poam_items WHERE status != 'completed'";
+  const params: any[] = [];
+  if (orgId) {
+    query += ' AND org_id = ?';
+    params.push(orgId);
+  }
+  query += ' ORDER BY created_at DESC';
+
+  const poamItems = await c.env.DB.prepare(query).bind(...params).all();
+
+  let orgName = 'Organization';
+  if (orgId) {
+    const org = await c.env.DB.prepare('SELECT name FROM organizations WHERE id = ?').bind(orgId).first<{ name: string }>();
+    if (org) orgName = org.name;
+  }
+
+  const poamDoc = generatePOAMDocument(poamItems.results as any[], orgName);
+
+  if (format === 'xml') {
+    return new Response(oscalJsonToXml(poamDoc), {
+      headers: {
+        'Content-Type': 'application/xml',
+        'Content-Disposition': `attachment; filename="poam.xml"`,
+      },
+    });
+  }
+
+  return c.json(poamDoc);
 });
