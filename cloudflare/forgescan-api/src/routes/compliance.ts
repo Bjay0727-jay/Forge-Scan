@@ -274,7 +274,38 @@ compliance.get('/:id/oscal/ssp', async (c) => {
     if (org) orgName = org.name;
   }
 
-  const ssp = generateSSP(framework, controls.results as any[], orgName);
+  // Enrich controls with auto-generated evidence from scan events
+  const enrichedControls = controls.results as any[];
+  if (orgId) {
+    try {
+      const autoEvidence = await c.env.DB.prepare(`
+        SELECT cel.control_id, cel.description, cel.created_at, fe.event_type
+        FROM compliance_evidence_links cel
+        LEFT JOIN forge_events fe ON cel.event_id = fe.id
+        WHERE cel.org_id = ? AND cel.control_id IS NOT NULL
+        ORDER BY cel.created_at DESC
+      `).bind(orgId).all<{ control_id: string; description: string; created_at: string; event_type: string }>();
+
+      // Group evidence by control_id
+      const evidenceByControl = new Map<string, string[]>();
+      for (const ev of autoEvidence.results || []) {
+        if (!ev.control_id) continue;
+        const list = evidenceByControl.get(ev.control_id) || [];
+        list.push(`[${ev.created_at}] ${ev.description}`);
+        evidenceByControl.set(ev.control_id, list);
+      }
+
+      // Merge into controls that lack manual evidence
+      for (const ctrl of enrichedControls) {
+        const autoEv = evidenceByControl.get(ctrl.control_id);
+        if (autoEv && !ctrl.evidence) {
+          ctrl.evidence = `Auto-generated scan evidence:\n${autoEv.slice(0, 5).join('\n')}`;
+        }
+      }
+    } catch { /* compliance_evidence_links table may not exist yet */ }
+  }
+
+  const ssp = generateSSP(framework, enrichedControls, orgName);
 
   if (format === 'xml') {
     return new Response(oscalJsonToXml(ssp), {
@@ -381,4 +412,39 @@ compliance.get('/oscal/poam', async (c) => {
   }
 
   return c.json(poamDoc);
+});
+
+// GET /api/v1/compliance/evidence/auto - List auto-generated compliance evidence links
+compliance.get('/evidence/auto', async (c) => {
+  const { orgId } = getOrgFilter(c);
+  const { limit = '50', offset = '0', control_id } = c.req.query();
+
+  let query = `
+    SELECT cel.*, fe.event_type, fe.source, fe.payload
+    FROM compliance_evidence_links cel
+    LEFT JOIN forge_events fe ON cel.event_id = fe.id
+    WHERE 1=1`;
+  const params: any[] = [];
+
+  if (orgId) {
+    query += ' AND cel.org_id = ?';
+    params.push(orgId);
+  }
+  if (control_id) {
+    query += ' AND cel.control_id = ?';
+    params.push(control_id);
+  }
+
+  query += ' ORDER BY cel.created_at DESC LIMIT ? OFFSET ?';
+  params.push(parseInt(limit), parseInt(offset));
+
+  const result = await c.env.DB.prepare(query).bind(...params).all();
+
+  return c.json({
+    data: (result.results || []).map((r: any) => ({
+      ...r,
+      payload: r.payload ? (typeof r.payload === 'string' ? JSON.parse(r.payload) : r.payload) : null,
+    })),
+    pagination: { limit: parseInt(limit), offset: parseInt(offset) },
+  });
 });

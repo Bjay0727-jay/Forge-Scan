@@ -11,6 +11,7 @@ import {
 } from '../lib/csv-parser';
 import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 import { parseNessusXML, mapNessusSeverity } from '../services/nessus-parser';
+import { publish } from '../services/event-bus';
 
 export const ingest = new Hono<{ Bindings: Env }>();
 
@@ -508,6 +509,22 @@ ingest.post('/nessus', async (c) => {
       importErrors.length > 0 ? JSON.stringify(importErrors.slice(0, 50)) : null,
       importId,
     ).run();
+
+    // Publish scan completion event for ForgeComply 360 bridge
+    try {
+      await publish(c.env.DB, 'forge.scan.completed', 'forgescan', {
+        scan_id: importId,
+        vendor: 'nessus',
+        report_name: parseResult.reportName,
+        hosts_total: parseResult.hosts.length,
+        findings_created: findingsCreated,
+        findings_updated: findingsUpdated,
+        org_id: orgId,
+      }, {
+        correlation_id: importId,
+        metadata: { org_id: orgId, import_type: 'nessus' },
+      });
+    } catch { /* best-effort event publish */ }
 
     return c.json({
       import_id: importId,
