@@ -4,10 +4,14 @@ import {
   hashPassword,
   verifyPassword,
   signJWT,
+  verifyJWT,
   hashApiKey,
   generateApiKey,
+  generateRefreshToken,
+  hashRefreshToken,
 } from '../lib/crypto';
 import { requireRole } from '../middleware/auth';
+import { sanitizeLikeInput, requireMaxLength } from '../lib/validate';
 import { seedFrameworks } from '../services/compliance';
 import { auditLog, getClientIP } from '../services/audit';
 
@@ -41,6 +45,10 @@ auth.post('/register', async (c) => {
     if (!email || !password || !display_name) {
       return c.json({ error: 'email, password, and display_name are required' }, 400);
     }
+
+    requireMaxLength(email, 'email', 254);
+    requireMaxLength(display_name, 'display_name', 100);
+    requireMaxLength(password, 'password', 128);
 
     if (password.length < 8) {
       return c.json({ error: 'Password must be at least 8 characters' }, 400);
@@ -118,7 +126,7 @@ auth.post('/login', async (c) => {
     }
 
     const user = await c.env.DB.prepare(
-      'SELECT id, email, password_hash, salt, display_name, role, is_active FROM users WHERE email = ?'
+      'SELECT id, email, password_hash, salt, display_name, role, is_active, failed_login_attempts, locked_until FROM users WHERE email = ?'
     ).bind(email.toLowerCase()).first<{
       id: string;
       email: string;
@@ -127,6 +135,8 @@ auth.post('/login', async (c) => {
       display_name: string;
       role: string;
       is_active: number;
+      failed_login_attempts: number;
+      locked_until: string | null;
     }>();
 
     if (!user) {
@@ -139,10 +149,33 @@ auth.post('/login', async (c) => {
       return c.json({ error: 'Account is deactivated' }, 403);
     }
 
+    // Account lockout check
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      auditLog(c.env.DB, { action: 'auth.login_failed', actor_id: user.id, actor_email: user.email, details: { reason: 'account_locked' }, ip_address: getClientIP(c) });
+      return c.json({ error: 'Account is temporarily locked due to too many failed attempts. Try again later.' }, 429);
+    }
+
     const valid = await verifyPassword(password, user.salt, user.password_hash);
     if (!valid) {
-      auditLog(c.env.DB, { action: 'auth.login_failed', actor_id: user.id, actor_email: user.email, details: { reason: 'invalid_password' }, ip_address: getClientIP(c) });
+      // Increment failed attempts
+      const attempts = (user.failed_login_attempts || 0) + 1;
+      const lockUntil = attempts >= 5
+        ? new Date(Date.now() + 30 * 60 * 1000).toISOString()  // Lock for 30 minutes
+        : null;
+
+      await c.env.DB.prepare(
+        'UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?'
+      ).bind(attempts, lockUntil, user.id).run();
+
+      auditLog(c.env.DB, { action: 'auth.login_failed', actor_id: user.id, actor_email: user.email, details: { reason: 'invalid_password', attempts }, ip_address: getClientIP(c) });
       return c.json({ error: 'Invalid email or password' }, 401);
+    }
+
+    // Reset failed login attempts on success
+    if (user.failed_login_attempts > 0) {
+      await c.env.DB.prepare(
+        'UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?'
+      ).bind(user.id).run();
     }
 
     // Generate JWT
@@ -156,15 +189,20 @@ auth.post('/login', async (c) => {
       c.env.JWT_SECRET
     );
 
+    // Generate refresh token (7-day sliding window)
+    const refreshToken = generateRefreshToken();
+    const refreshTokenHash = await hashRefreshToken(refreshToken);
+    const refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
     // Store session (using jti as token_hash for session lookup)
     const sessionId = crypto.randomUUID();
     const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
     const ua = c.req.header('User-Agent') || 'unknown';
 
     await c.env.DB.prepare(`
-      INSERT INTO sessions (id, user_id, token_hash, expires_at, ip_address, user_agent)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(sessionId, user.id, jti, expiresAt, ip, ua).run();
+      INSERT INTO sessions (id, user_id, token_hash, refresh_token_hash, expires_at, refresh_expires_at, ip_address, user_agent)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(sessionId, user.id, jti, refreshTokenHash, expiresAt, refreshExpiresAt, ip, ua).run();
 
     // Update last_login_at
     await c.env.DB.prepare(
@@ -176,7 +214,9 @@ auth.post('/login', async (c) => {
 
     return c.json({
       token,
+      refresh_token: refreshToken,
       expires_at: expiresAt,
+      refresh_expires_at: refreshExpiresAt,
       user: {
         id: user.id,
         email: user.email,
@@ -187,6 +227,79 @@ auth.post('/login', async (c) => {
   } catch (err) {
     console.error('Login error:', err);
     return c.json({ error: 'Login failed', message: err instanceof Error ? err.message : 'Unknown error' }, 500);
+  }
+});
+
+// --- Refresh Token ---
+
+// Refresh access token using a valid refresh token
+auth.post('/refresh', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { refresh_token } = body;
+
+    if (!refresh_token) {
+      return c.json({ error: 'refresh_token is required' }, 400);
+    }
+
+    const tokenHash = await hashRefreshToken(refresh_token);
+
+    // Find session with this refresh token
+    const session = await c.env.DB.prepare(`
+      SELECT s.id, s.user_id, s.refresh_expires_at, u.email, u.role, u.display_name, u.is_active
+      FROM sessions s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.refresh_token_hash = ?
+        AND s.refresh_expires_at > datetime('now')
+    `).bind(tokenHash).first<{
+      id: string;
+      user_id: string;
+      refresh_expires_at: string;
+      email: string;
+      role: string;
+      display_name: string;
+      is_active: number;
+    }>();
+
+    if (!session) {
+      return c.json({ error: 'Invalid or expired refresh token' }, 401);
+    }
+
+    if (!session.is_active) {
+      return c.json({ error: 'Account is deactivated' }, 403);
+    }
+
+    // Issue new access token
+    const { token, jti, expiresAt } = await signJWT(
+      {
+        sub: session.user_id,
+        email: session.email,
+        role: session.role,
+        display_name: session.display_name,
+      },
+      c.env.JWT_SECRET
+    );
+
+    // Generate new refresh token (rotate)
+    const newRefreshToken = generateRefreshToken();
+    const newRefreshHash = await hashRefreshToken(newRefreshToken);
+    const newRefreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Update session with new tokens
+    await c.env.DB.prepare(`
+      UPDATE sessions SET token_hash = ?, refresh_token_hash = ?, expires_at = ?, refresh_expires_at = ?
+      WHERE id = ?
+    `).bind(jti, newRefreshHash, expiresAt, newRefreshExpiresAt, session.id).run();
+
+    return c.json({
+      token,
+      refresh_token: newRefreshToken,
+      expires_at: expiresAt,
+      refresh_expires_at: newRefreshExpiresAt,
+    });
+  } catch (err) {
+    console.error('Refresh token error:', err);
+    return c.json({ error: 'Token refresh failed' }, 500);
   }
 });
 
@@ -383,8 +496,10 @@ auth.get('/users', requireRole('platform_admin'), async (c) => {
   const params: string[] = [];
 
   if (search) {
-    whereClause = 'WHERE (email LIKE ? OR display_name LIKE ?)';
-    params.push(`%${search}%`, `%${search}%`);
+    requireMaxLength(search, 'search', 200);
+    const sanitized = sanitizeLikeInput(search);
+    whereClause = "WHERE (email LIKE ? ESCAPE '\\' OR display_name LIKE ? ESCAPE '\\')";
+    params.push(`%${sanitized}%`, `%${sanitized}%`);
   }
 
   const countResult = await c.env.DB.prepare(

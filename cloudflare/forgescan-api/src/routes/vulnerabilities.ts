@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
 import { requireRole } from '../middleware/auth';
+import { getOrgFilter } from '../middleware/org-scope';
 import {
   startFullSync,
   startIncrementalSync,
@@ -280,7 +281,10 @@ vulnerabilities.get('/:cve', async (c) => {
     return c.json({ error: 'CVE not found', cve_id: cve }, 404);
   }
 
-  // Get related findings
+  // Get related findings (org-scoped)
+  const { orgId } = getOrgFilter(c);
+  const orgFilterFindings = orgId ? ' AND f.org_id = ?' : '';
+  const orgParamsFindings = orgId ? [orgId] : [];
   const relatedFindings = await c.env.DB.prepare(`
     SELECT
       f.id,
@@ -291,9 +295,9 @@ vulnerabilities.get('/:cve', async (c) => {
       a.ip_addresses
     FROM findings f
     LEFT JOIN assets a ON f.asset_id = a.id
-    WHERE f.vulnerability_id = ?
+    WHERE f.vulnerability_id = ?${orgFilterFindings}
     LIMIT 20
-  `).bind(vulnerability.id).all();
+  `).bind(vulnerability.id, ...orgParamsFindings).all();
 
   // Parse JSON fields
   let cweIds = [];

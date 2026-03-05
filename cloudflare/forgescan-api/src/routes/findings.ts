@@ -3,6 +3,7 @@ import type { Env } from '../index';
 import { notFound, badRequest, databaseError } from '../lib/errors';
 import { parsePagination, requireEnum, validateSort, validateSortOrder } from '../lib/validate';
 import { auditLog } from '../services/audit';
+import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 
 export const findings = new Hono<{ Bindings: Env }>();
 
@@ -11,6 +12,7 @@ const VALID_SEVERITIES = ['critical', 'high', 'medium', 'low', 'info'] as const;
 
 // List findings with filtering
 findings.get('/', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const {
     severity,
     state,
@@ -66,6 +68,13 @@ findings.get('/', async (c) => {
     countParams.push(searchPattern, searchPattern, searchPattern);
   }
 
+  if (orgId) {
+    query += ' AND f.org_id = ?';
+    countQuery += ' AND f.org_id = ?';
+    params.push(orgId);
+    countParams.push(orgId);
+  }
+
   // Dynamic sort
   if (sortField === 'severity') {
     query += ` ORDER BY CASE f.severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END ${sortDir}, f.frs_score DESC NULLS LAST, f.last_seen DESC LIMIT ? OFFSET ?`;
@@ -115,15 +124,20 @@ findings.get('/', async (c) => {
 // Get finding by ID
 findings.get('/:id', async (c) => {
   const id = c.req.param('id');
+  const { orgId } = getOrgFilter(c);
 
   try {
-    const finding = await c.env.DB.prepare(`
-      SELECT f.*, a.hostname, a.ip_addresses, a.os, v.cve_id, v.cvss_score, v.cvss_vector, v.epss_score, v.in_kev
+    let findingQuery = `SELECT f.*, a.hostname, a.ip_addresses, a.os, v.cve_id, v.cvss_score, v.cvss_vector, v.epss_score, v.in_kev
       FROM findings f
       LEFT JOIN assets a ON f.asset_id = a.id
       LEFT JOIN vulnerabilities v ON f.vulnerability_id = v.id
-      WHERE f.id = ?
-    `).bind(id).first();
+      WHERE f.id = ?`;
+    const findingParams: string[] = [id];
+    if (orgId) {
+      findingQuery += ' AND f.org_id = ?';
+      findingParams.push(orgId);
+    }
+    const finding = await c.env.DB.prepare(findingQuery).bind(...findingParams).first();
 
     if (!finding) {
       throw notFound('Finding', id);
@@ -140,13 +154,14 @@ findings.get('/:id', async (c) => {
 findings.post('/', async (c) => {
   const body = await c.req.json();
   const id = crypto.randomUUID();
+  const orgId = getOrgIdForInsert(c);
 
   try {
     await c.env.DB.prepare(`
       INSERT INTO findings (
         id, asset_id, vulnerability_id, vendor, vendor_id, title, description,
-        severity, frs_score, port, protocol, service, state, solution, evidence, metadata
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        severity, frs_score, port, protocol, service, state, solution, evidence, metadata, org_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id,
       body.asset_id,
@@ -164,6 +179,7 @@ findings.post('/', async (c) => {
       body.solution || null,
       body.evidence || null,
       JSON.stringify(body.metadata || {}),
+      orgId,
     ).run();
 
     return c.json({ id, message: 'Finding created' }, 201);
@@ -176,11 +192,16 @@ findings.post('/', async (c) => {
 findings.put('/:id', async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json();
+  const { orgId } = getOrgFilter(c);
 
   try {
-    const existing = await c.env.DB.prepare(
-      'SELECT id FROM findings WHERE id = ?'
-    ).bind(id).first();
+    let existQuery = 'SELECT id FROM findings WHERE id = ?';
+    const existParams: string[] = [id];
+    if (orgId) {
+      existQuery += ' AND org_id = ?';
+      existParams.push(orgId);
+    }
+    const existing = await c.env.DB.prepare(existQuery).bind(...existParams).first();
 
     if (!existing) {
       throw notFound('Finding', id);
@@ -221,14 +242,22 @@ findings.put('/:id', async (c) => {
     updates.push("updated_at = datetime('now')");
     params.push(id);
 
-    await c.env.DB.prepare(
-      `UPDATE findings SET ${updates.join(', ')} WHERE id = ?`
-    ).bind(...params).run();
+    let updateQuery = `UPDATE findings SET ${updates.join(', ')} WHERE id = ?`;
+    if (orgId) {
+      updateQuery += ' AND org_id = ?';
+      params.push(orgId);
+    }
+
+    await c.env.DB.prepare(updateQuery).bind(...params).run();
 
     // Return updated finding
-    const updated = await c.env.DB.prepare(
-      'SELECT f.*, a.hostname, a.ip_addresses FROM findings f LEFT JOIN assets a ON f.asset_id = a.id WHERE f.id = ?'
-    ).bind(id).first();
+    let refetchQuery = 'SELECT f.*, a.hostname, a.ip_addresses FROM findings f LEFT JOIN assets a ON f.asset_id = a.id WHERE f.id = ?';
+    const refetchParams: string[] = [id];
+    if (orgId) {
+      refetchQuery += ' AND f.org_id = ?';
+      refetchParams.push(orgId);
+    }
+    const updated = await c.env.DB.prepare(refetchQuery).bind(...refetchParams).first();
 
     return c.json(updated);
   } catch (err) {
@@ -241,6 +270,7 @@ findings.put('/:id', async (c) => {
 findings.patch('/:id/state', async (c) => {
   const id = c.req.param('id');
   const { state } = await c.req.json();
+  const { orgId } = getOrgFilter(c);
 
   const validStates = ['open', 'fixed', 'accepted', 'false_positive', 'reopened'] as const;
   requireEnum(state, 'state', validStates);
@@ -253,9 +283,14 @@ findings.patch('/:id/state', async (c) => {
       updates.push('fixed_at = datetime(\'now\')');
     }
 
-    await c.env.DB.prepare(`
-      UPDATE findings SET ${updates.join(', ')} WHERE id = ?
-    `).bind(...params, id).run();
+    let patchQuery = `UPDATE findings SET ${updates.join(', ')} WHERE id = ?`;
+    const patchParams: any[] = [...params, id];
+    if (orgId) {
+      patchQuery += ' AND org_id = ?';
+      patchParams.push(orgId);
+    }
+
+    await c.env.DB.prepare(patchQuery).bind(...patchParams).run();
 
     // Audit: finding state change
     auditLog(c.env.DB, { action: 'finding.status_changed', resource_type: 'finding', resource_id: id, details: { new_state: state } });
@@ -270,6 +305,7 @@ findings.patch('/:id/state', async (c) => {
 // Bulk update findings
 findings.post('/bulk/state', async (c) => {
   const { ids, state } = await c.req.json();
+  const { orgId } = getOrgFilter(c);
 
   if (!Array.isArray(ids) || ids.length === 0) {
     throw badRequest('No finding IDs provided');
@@ -280,11 +316,17 @@ findings.post('/bulk/state', async (c) => {
   try {
     const placeholders = ids.map(() => '?').join(',');
 
-    await c.env.DB.prepare(`
+    let bulkQuery = `
       UPDATE findings
       SET state = ?, updated_at = datetime('now')
-      WHERE id IN (${placeholders})
-    `).bind(state, ...ids).run();
+      WHERE id IN (${placeholders})`;
+    const bulkParams: any[] = [state, ...ids];
+    if (orgId) {
+      bulkQuery += ' AND org_id = ?';
+      bulkParams.push(orgId);
+    }
+
+    await c.env.DB.prepare(bulkQuery).bind(...bulkParams).run();
 
     return c.json({ message: `Updated ${ids.length} findings` });
   } catch (err) {
@@ -296,12 +338,19 @@ findings.post('/bulk/state', async (c) => {
 // Get severity distribution
 findings.get('/stats/severity', async (c) => {
   const { state = 'open' } = c.req.query();
+  const { orgId } = getOrgFilter(c);
 
   try {
-    const result = await c.env.DB.prepare(`
+    let sevQuery = `
       SELECT severity, COUNT(*) as count
       FROM findings
-      WHERE state = ?
+      WHERE state = ?`;
+    const sevParams: string[] = [state];
+    if (orgId) {
+      sevQuery += ' AND org_id = ?';
+      sevParams.push(orgId);
+    }
+    sevQuery += `
       GROUP BY severity
       ORDER BY
         CASE severity
@@ -310,8 +359,8 @@ findings.get('/stats/severity', async (c) => {
           WHEN 'medium' THEN 3
           WHEN 'low' THEN 4
           ELSE 5
-        END
-    `).bind(state).all();
+        END`;
+    const result = await c.env.DB.prepare(sevQuery).bind(...sevParams).all();
 
     return c.json(result.results);
   } catch (err) {
@@ -321,14 +370,22 @@ findings.get('/stats/severity', async (c) => {
 
 // Get vendor distribution
 findings.get('/stats/vendors', async (c) => {
+  const { orgId } = getOrgFilter(c);
+
   try {
-    const result = await c.env.DB.prepare(`
+    let vendorQuery = `
       SELECT vendor, COUNT(*) as count
       FROM findings
-      WHERE state = 'open'
+      WHERE state = 'open'`;
+    const vendorParams: string[] = [];
+    if (orgId) {
+      vendorQuery += ' AND org_id = ?';
+      vendorParams.push(orgId);
+    }
+    vendorQuery += `
       GROUP BY vendor
-      ORDER BY count DESC
-    `).all();
+      ORDER BY count DESC`;
+    const result = await c.env.DB.prepare(vendorQuery).bind(...vendorParams).all();
 
     return c.json(result.results);
   } catch (err) {

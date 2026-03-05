@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 
 interface Env { DB: D1Database; STORAGE: R2Bucket; CACHE: KVNamespace; JWT_SECRET: string }
 interface AuthUser { id: string; email: string; role: string; display_name: string }
@@ -24,8 +25,13 @@ const BUILTIN_FEEDS = [
 
 threatIntel.get('/feeds', async (c) => {
   const { enabled } = c.req.query();
-  const where = enabled !== undefined ? `WHERE enabled = ${enabled === 'true' ? 1 : 0}` : '';
-  const feeds = await c.env.DB.prepare(`SELECT * FROM threat_intel_feeds ${where} ORDER BY updated_at DESC`).all();
+  const { orgId } = getOrgFilter(c);
+  const conditions: string[] = [];
+  const params: any[] = [];
+  if (orgId) { conditions.push('org_id = ?'); params.push(orgId); }
+  if (enabled !== undefined) { conditions.push(`enabled = ${enabled === 'true' ? 1 : 0}`); }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const feeds = await c.env.DB.prepare(`SELECT * FROM threat_intel_feeds ${where} ORDER BY updated_at DESC`).bind(...params).all();
   return c.json({ items: feeds.results || [], total: (feeds.results || []).length });
 });
 
@@ -38,10 +44,11 @@ threatIntel.post('/feeds', async (c) => {
     const user = c.get('user');
     const id = crypto.randomUUID();
 
+    const orgIdForInsertVal = getOrgIdForInsert(c);
     await c.env.DB.prepare(`
-      INSERT INTO threat_intel_feeds (id, name, feed_type, source_url, format, auth_config, poll_interval_minutes, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(id, name, feed_type, source_url || null, format || 'json', auth_config ? JSON.stringify(auth_config) : null, poll_interval_minutes || 60, user.id).run();
+      INSERT INTO threat_intel_feeds (id, name, feed_type, source_url, format, auth_config, poll_interval_minutes, created_by, org_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(id, name, feed_type, source_url || null, format || 'json', auth_config ? JSON.stringify(auth_config) : null, poll_interval_minutes || 60, user.id, orgIdForInsertVal).run();
 
     const feed = await c.env.DB.prepare('SELECT * FROM threat_intel_feeds WHERE id = ?').bind(id).first();
     return c.json(feed, 201);
@@ -53,7 +60,10 @@ threatIntel.post('/feeds', async (c) => {
 
 threatIntel.get('/feeds/:id', async (c) => {
   const id = c.req.param('id');
-  const feed = await c.env.DB.prepare('SELECT * FROM threat_intel_feeds WHERE id = ?').bind(id).first();
+  const { orgId } = getOrgFilter(c);
+  const feed = orgId
+    ? await c.env.DB.prepare('SELECT * FROM threat_intel_feeds WHERE id = ? AND org_id = ?').bind(id, orgId).first()
+    : await c.env.DB.prepare('SELECT * FROM threat_intel_feeds WHERE id = ?').bind(id).first();
   if (!feed) return c.json({ error: 'Feed not found' }, 404);
 
   const indicatorCount = await c.env.DB.prepare('SELECT COUNT(*) as count FROM threat_intel_indicators WHERE feed_id = ? AND is_active = 1').bind(id).first<{ count: number }>();
@@ -89,7 +99,10 @@ threatIntel.put('/feeds/:id', async (c) => {
   updates.push("updated_at = datetime('now')");
   values.push(id);
 
-  const result = await c.env.DB.prepare(`UPDATE threat_intel_feeds SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+  const { orgId } = getOrgFilter(c);
+  const result = orgId
+    ? await c.env.DB.prepare(`UPDATE threat_intel_feeds SET ${updates.join(', ')} WHERE id = ? AND org_id = ?`).bind(...values, orgId).run()
+    : await c.env.DB.prepare(`UPDATE threat_intel_feeds SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
   if (!result.meta.changes) return c.json({ error: 'Feed not found' }, 404);
 
   const feed = await c.env.DB.prepare('SELECT * FROM threat_intel_feeds WHERE id = ?').bind(id).first();
@@ -98,9 +111,16 @@ threatIntel.put('/feeds/:id', async (c) => {
 
 threatIntel.delete('/feeds/:id', async (c) => {
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT id FROM threat_intel_feeds WHERE id = ?').bind(id).first();
+  const { orgId } = getOrgFilter(c);
+  const existing = orgId
+    ? await c.env.DB.prepare('SELECT id FROM threat_intel_feeds WHERE id = ? AND org_id = ?').bind(id, orgId).first()
+    : await c.env.DB.prepare('SELECT id FROM threat_intel_feeds WHERE id = ?').bind(id).first();
   if (!existing) return c.json({ error: 'Feed not found' }, 404);
-  await c.env.DB.prepare('DELETE FROM threat_intel_feeds WHERE id = ?').bind(id).run();
+  if (orgId) {
+    await c.env.DB.prepare('DELETE FROM threat_intel_feeds WHERE id = ? AND org_id = ?').bind(id, orgId).run();
+  } else {
+    await c.env.DB.prepare('DELETE FROM threat_intel_feeds WHERE id = ?').bind(id).run();
+  }
   return c.json({ message: 'Feed and associated indicators deleted' });
 });
 
@@ -109,7 +129,10 @@ threatIntel.delete('/feeds/:id', async (c) => {
 // Simulate feed sync — in production, fetches from source_url and parses indicators
 threatIntel.post('/feeds/:id/sync', async (c) => {
   const feedId = c.req.param('id');
-  const feed = await c.env.DB.prepare('SELECT * FROM threat_intel_feeds WHERE id = ?').bind(feedId).first();
+  const { orgId } = getOrgFilter(c);
+  const feed = orgId
+    ? await c.env.DB.prepare('SELECT * FROM threat_intel_feeds WHERE id = ? AND org_id = ?').bind(feedId, orgId).first()
+    : await c.env.DB.prepare('SELECT * FROM threat_intel_feeds WHERE id = ?').bind(feedId).first();
   if (!feed) return c.json({ error: 'Feed not found' }, 404);
 
   // Generate simulated indicators based on feed type
@@ -169,6 +192,7 @@ threatIntel.get('/indicators', async (c) => {
 
 threatIntel.post('/correlate', async (c) => {
   const db = c.env.DB;
+  const { orgId } = getOrgFilter(c);
 
   // Get active indicators
   const indicators = await db.prepare(
@@ -185,9 +209,10 @@ threatIntel.post('/correlate', async (c) => {
 
     // Match IPs against asset ip_addresses
     if (indType === 'ip' || indType === 'cidr') {
-      const assetMatch = await db.prepare(
-        "SELECT id, hostname FROM assets WHERE ip_addresses LIKE ?"
-      ).bind(`%${indValue}%`).first<{ id: string; hostname: string }>();
+      let assetMatchQuery = "SELECT id, hostname FROM assets WHERE ip_addresses LIKE ?";
+      const assetMatchParams: any[] = [`%${indValue}%`];
+      if (orgId) { assetMatchQuery += ' AND org_id = ?'; assetMatchParams.push(orgId); }
+      const assetMatch = await db.prepare(assetMatchQuery).bind(...assetMatchParams).first<{ id: string; hostname: string }>();
 
       if (assetMatch) {
         const existing = await db.prepare(
@@ -207,9 +232,11 @@ threatIntel.post('/correlate', async (c) => {
 
     // Match CVEs against findings
     if (indType === 'cve') {
-      const findingMatch = await db.prepare(
-        "SELECT id, title FROM findings WHERE cve_id = ? AND state NOT IN ('resolved','false_positive') LIMIT 1"
-      ).bind(indValue).first<{ id: string; title: string }>();
+      let findingMatchQuery = "SELECT id, title FROM findings WHERE cve_id = ? AND state NOT IN ('resolved','false_positive')";
+      const findingMatchParams: any[] = [indValue];
+      if (orgId) { findingMatchQuery += ' AND org_id = ?'; findingMatchParams.push(orgId); }
+      findingMatchQuery += ' LIMIT 1';
+      const findingMatch = await db.prepare(findingMatchQuery).bind(...findingMatchParams).first<{ id: string; title: string }>();
 
       if (findingMatch) {
         const existing = await db.prepare(
@@ -229,9 +256,10 @@ threatIntel.post('/correlate', async (c) => {
 
     // Match domains against assets
     if (indType === 'domain') {
-      const domainMatch = await db.prepare(
-        "SELECT id, fqdn FROM assets WHERE fqdn LIKE ?"
-      ).bind(`%${indValue}%`).first<{ id: string; fqdn: string }>();
+      let domainMatchQuery = "SELECT id, fqdn FROM assets WHERE fqdn LIKE ?";
+      const domainMatchParams: any[] = [`%${indValue}%`];
+      if (orgId) { domainMatchQuery += ' AND org_id = ?'; domainMatchParams.push(orgId); }
+      const domainMatch = await db.prepare(domainMatchQuery).bind(...domainMatchParams).first<{ id: string; fqdn: string }>();
 
       if (domainMatch) {
         const existing = await db.prepare(

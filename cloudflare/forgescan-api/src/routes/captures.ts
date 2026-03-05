@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
 import { requireRole } from '../middleware/auth';
+import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 
 type CapturesEnv = {
   Bindings: Env;
@@ -18,10 +19,19 @@ captures.get('/', requireRole('platform_admin', 'scan_admin'), async (c) => {
     const limitNum = Math.min(parseInt(limit) || 50, 200);
     const offsetNum = parseInt(offset) || 0;
 
+    const { orgId } = getOrgFilter(c);
+
     let query = 'SELECT * FROM capture_sessions WHERE 1=1';
     let countQuery = 'SELECT COUNT(*) as total FROM capture_sessions WHERE 1=1';
     const params: string[] = [];
     const countParams: string[] = [];
+
+    if (orgId) {
+      query += ' AND org_id = ?';
+      countQuery += ' AND org_id = ?';
+      params.push(orgId);
+      countParams.push(orgId);
+    }
 
     if (status) {
       query += ' AND status = ?';
@@ -66,9 +76,12 @@ captures.get('/', requireRole('platform_admin', 'scan_admin'), async (c) => {
 captures.get('/:id', requireRole('platform_admin', 'scan_admin'), async (c) => {
   try {
     const id = c.req.param('id');
+    const { orgId } = getOrgFilter(c);
+    const orgFilter = orgId ? ' AND org_id = ?' : '';
+    const orgParams = orgId ? [orgId] : [];
     const session = await c.env.DB.prepare(
-      'SELECT * FROM capture_sessions WHERE id = ?'
-    ).bind(id).first();
+      `SELECT * FROM capture_sessions WHERE id = ?${orgFilter}`
+    ).bind(id, ...orgParams).first();
 
     if (!session) {
       return c.json({ error: 'Capture session not found' }, 404);
@@ -87,9 +100,12 @@ captures.get('/:id/download', requireRole('platform_admin', 'scan_admin'), async
   try {
     const id = c.req.param('id');
 
+    const { orgId } = getOrgFilter(c);
+    const orgFilter = orgId ? ' AND org_id = ?' : '';
+    const orgParams = orgId ? [orgId] : [];
     const session = await c.env.DB.prepare(
-      'SELECT id, pcap_r2_key, pcap_size_bytes, scanner_id FROM capture_sessions WHERE id = ?'
-    ).bind(id).first<{
+      `SELECT id, pcap_r2_key, pcap_size_bytes, scanner_id FROM capture_sessions WHERE id = ?${orgFilter}`
+    ).bind(id, ...orgParams).first<{
       id: string;
       pcap_r2_key: string | null;
       pcap_size_bytes: number;
@@ -129,9 +145,12 @@ captures.delete('/:id', requireRole('platform_admin'), async (c) => {
   try {
     const id = c.req.param('id');
 
+    const { orgId } = getOrgFilter(c);
+    const orgFilter = orgId ? ' AND org_id = ?' : '';
+    const orgParams = orgId ? [orgId] : [];
     const session = await c.env.DB.prepare(
-      'SELECT id, pcap_r2_key FROM capture_sessions WHERE id = ?'
-    ).bind(id).first<{ id: string; pcap_r2_key: string | null }>();
+      `SELECT id, pcap_r2_key FROM capture_sessions WHERE id = ?${orgFilter}`
+    ).bind(id, ...orgParams).first<{ id: string; pcap_r2_key: string | null }>();
 
     if (!session) {
       return c.json({ error: 'Capture session not found' }, 404);
@@ -143,7 +162,7 @@ captures.delete('/:id', requireRole('platform_admin'), async (c) => {
     }
 
     // Delete from DB
-    await c.env.DB.prepare('DELETE FROM capture_sessions WHERE id = ?').bind(id).run();
+    await c.env.DB.prepare(`DELETE FROM capture_sessions WHERE id = ?${orgFilter}`).bind(id, ...orgParams).run();
 
     return c.json({ message: 'Capture session deleted' });
   } catch (error: unknown) {

@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 
 interface Env { DB: D1Database; STORAGE: R2Bucket; CACHE: KVNamespace; JWT_SECRET: string }
 interface AuthUser { id: string; email: string; role: string; display_name: string }
@@ -10,6 +11,7 @@ const containers = new Hono<Ctx>();
 
 // List container images
 containers.get('/images', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const { page = '1', page_size = '25', registry, search } = c.req.query();
   const pageNum = parseInt(page);
   const limit = Math.min(parseInt(page_size), 100);
@@ -18,6 +20,7 @@ containers.get('/images', async (c) => {
   const conditions: string[] = [];
   const params: string[] = [];
 
+  if (orgId) { conditions.push('org_id = ?'); params.push(orgId); }
   if (registry) { conditions.push('registry = ?'); params.push(registry); }
   if (search) { conditions.push('(repository LIKE ? OR tag LIKE ? OR digest LIKE ?)'); params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
 
@@ -42,11 +45,12 @@ containers.post('/images', async (c) => {
   const { registry, repository, tag, digest, base_image } = body;
   if (!registry || !repository) return c.json({ error: 'registry and repository are required' }, 400);
 
+  const orgId = getOrgIdForInsert(c);
   const id = crypto.randomUUID();
   await c.env.DB.prepare(`
-    INSERT INTO container_images (id, registry, repository, tag, digest, base_image)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).bind(id, registry, repository, tag || 'latest', digest || null, base_image || null).run();
+    INSERT INTO container_images (id, registry, repository, tag, digest, base_image, org_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).bind(id, registry, repository, tag || 'latest', digest || null, base_image || null, orgId).run();
 
   const image = await c.env.DB.prepare('SELECT * FROM container_images WHERE id = ?').bind(id).first();
   return c.json(image, 201);
@@ -54,8 +58,9 @@ containers.post('/images', async (c) => {
 
 // Get image detail with findings
 containers.get('/images/:id', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
-  const image = await c.env.DB.prepare('SELECT * FROM container_images WHERE id = ?').bind(id).first();
+  const image = await c.env.DB.prepare('SELECT * FROM container_images WHERE id = ?' + (orgId ? ' AND org_id = ?' : '')).bind(...[id, ...(orgId ? [orgId] : [])]).first();
   if (!image) return c.json({ error: 'Image not found' }, 404);
 
   const scans = await c.env.DB.prepare('SELECT * FROM container_scan_results WHERE image_id = ? ORDER BY created_at DESC LIMIT 10').bind(id).all();
@@ -71,10 +76,11 @@ containers.get('/images/:id', async (c) => {
 
 // Delete image
 containers.delete('/images/:id', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT id FROM container_images WHERE id = ?').bind(id).first();
+  const existing = await c.env.DB.prepare('SELECT id FROM container_images WHERE id = ?' + (orgId ? ' AND org_id = ?' : '')).bind(...[id, ...(orgId ? [orgId] : [])]).first();
   if (!existing) return c.json({ error: 'Image not found' }, 404);
-  await c.env.DB.prepare('DELETE FROM container_images WHERE id = ?').bind(id).run();
+  await c.env.DB.prepare('DELETE FROM container_images WHERE id = ?' + (orgId ? ' AND org_id = ?' : '')).bind(...[id, ...(orgId ? [orgId] : [])]).run();
   return c.json({ message: 'Image deleted' });
 });
 
@@ -82,8 +88,9 @@ containers.delete('/images/:id', async (c) => {
 
 // Trigger a container image scan
 containers.post('/images/:id/scan', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const imageId = c.req.param('id');
-  const image = await c.env.DB.prepare('SELECT * FROM container_images WHERE id = ?').bind(imageId).first();
+  const image = await c.env.DB.prepare('SELECT * FROM container_images WHERE id = ?' + (orgId ? ' AND org_id = ?' : '')).bind(...[imageId, ...(orgId ? [orgId] : [])]).first();
   if (!image) return c.json({ error: 'Image not found' }, 404);
 
   const scanResultId = crypto.randomUUID();
@@ -148,21 +155,26 @@ containers.get('/scans/:id', async (c) => {
 // ─── Overview / Dashboard ──────────────────────────────────────────────────
 
 containers.get('/overview', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const db = c.env.DB;
+  const orgFilter = orgId ? ' AND ci.org_id = ?' : '';
+  const orgFilterWhere = orgId ? ' WHERE ci.org_id = ?' : '';
+  const orgParams = orgId ? [orgId] : [];
 
   const [imageCount, scanCount, findingCount, severityBreakdown, topVulnImages, recentScans] = await Promise.all([
-    db.prepare('SELECT COUNT(*) as count FROM container_images').first<{ count: number }>(),
-    db.prepare("SELECT COUNT(*) as count FROM container_scan_results WHERE status = 'completed'").first<{ count: number }>(),
-    db.prepare("SELECT COUNT(*) as count FROM container_findings WHERE state = 'open'").first<{ count: number }>(),
-    db.prepare("SELECT severity, COUNT(*) as count FROM container_findings WHERE state = 'open' GROUP BY severity").all(),
+    db.prepare('SELECT COUNT(*) as count FROM container_images ci' + (orgId ? ' WHERE ci.org_id = ?' : '')).bind(...orgParams).first<{ count: number }>(),
+    db.prepare("SELECT COUNT(*) as count FROM container_scan_results csr" + (orgId ? ' JOIN container_images ci ON ci.id = csr.image_id WHERE csr.status = \'completed\' AND ci.org_id = ?' : " WHERE status = 'completed'")).bind(...orgParams).first<{ count: number }>(),
+    db.prepare("SELECT COUNT(*) as count FROM container_findings cf" + (orgId ? ' JOIN container_images ci ON ci.id = cf.image_id WHERE cf.state = \'open\' AND ci.org_id = ?' : " WHERE state = 'open'")).bind(...orgParams).first<{ count: number }>(),
+    db.prepare("SELECT cf.severity, COUNT(*) as count FROM container_findings cf" + (orgId ? " JOIN container_images ci ON ci.id = cf.image_id WHERE cf.state = 'open' AND ci.org_id = ?" : " WHERE cf.state = 'open'") + " GROUP BY cf.severity").bind(...orgParams).all(),
     db.prepare(`
       SELECT ci.repository, ci.tag, ci.registry,
         SUM(csr.critical_count) as critical, SUM(csr.high_count) as high
       FROM container_images ci
       JOIN container_scan_results csr ON csr.image_id = ci.id AND csr.status = 'completed'
+      ${orgId ? 'WHERE ci.org_id = ?' : ''}
       GROUP BY ci.id ORDER BY critical DESC, high DESC LIMIT 5
-    `).all(),
-    db.prepare("SELECT csr.*, ci.repository, ci.tag FROM container_scan_results csr JOIN container_images ci ON ci.id = csr.image_id ORDER BY csr.created_at DESC LIMIT 5").all(),
+    `).bind(...orgParams).all(),
+    db.prepare("SELECT csr.*, ci.repository, ci.tag FROM container_scan_results csr JOIN container_images ci ON ci.id = csr.image_id" + (orgId ? ' WHERE ci.org_id = ?' : '') + " ORDER BY csr.created_at DESC LIMIT 5").bind(...orgParams).all(),
   ]);
 
   return c.json({

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
 import { requireRole } from '../middleware/auth';
+import { getOrgFilter } from '../middleware/org-scope';
 
 export const metrics = new Hono<{ Bindings: Env }>();
 
@@ -8,15 +9,20 @@ export const metrics = new Hono<{ Bindings: Env }>();
 // GET /metrics — Platform-level API metrics (platform_admin only)
 // ─────────────────────────────────────────────────────────────────────────────
 metrics.get('/', requireRole('platform_admin'), async (c) => {
+  const { orgId } = getOrgFilter(c);
+  const orgFilter = orgId ? ' WHERE org_id = ?' : '';
+  const orgAnd = orgId ? ' AND org_id = ?' : '';
+  const orgParams = orgId ? [orgId] : [];
+
   // Gather database counts in parallel
   const [assetCount, findingCount, scanCount, socAlertCount, activeScanners] = await Promise.all([
-    c.env.DB.prepare('SELECT COUNT(*) as count FROM assets').first<{ count: number }>(),
-    c.env.DB.prepare('SELECT COUNT(*) as count FROM findings').first<{ count: number }>(),
-    c.env.DB.prepare('SELECT COUNT(*) as count FROM scans').first<{ count: number }>(),
-    c.env.DB.prepare('SELECT COUNT(*) as count FROM soc_alerts').first<{ count: number }>().catch(() => ({ count: 0 })),
+    c.env.DB.prepare(`SELECT COUNT(*) as count FROM assets${orgFilter}`).bind(...orgParams).first<{ count: number }>(),
+    c.env.DB.prepare(`SELECT COUNT(*) as count FROM findings${orgFilter}`).bind(...orgParams).first<{ count: number }>(),
+    c.env.DB.prepare(`SELECT COUNT(*) as count FROM scans${orgFilter}`).bind(...orgParams).first<{ count: number }>(),
+    c.env.DB.prepare(`SELECT COUNT(*) as count FROM soc_alerts${orgFilter}`).bind(...orgParams).first<{ count: number }>().catch(() => ({ count: 0 })),
     c.env.DB.prepare(
-      "SELECT COUNT(*) as count FROM scanner_registrations WHERE last_heartbeat_at > datetime('now', '-5 minutes')"
-    ).first<{ count: number }>().catch(() => ({ count: 0 })),
+      `SELECT COUNT(*) as count FROM scanner_registrations WHERE last_heartbeat_at > datetime('now', '-5 minutes')${orgAnd}`
+    ).bind(...orgParams).first<{ count: number }>().catch(() => ({ count: 0 })),
   ]);
 
   // Read recent metrics from KV (last 5 minutes)

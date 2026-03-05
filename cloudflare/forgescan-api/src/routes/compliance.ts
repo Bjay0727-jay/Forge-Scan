@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../index';
 import { requireRole } from '../middleware/auth';
 import { seedFrameworks, getFrameworkCompliance, getGapAnalysis } from '../services/compliance';
+import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 
 interface AuthUser {
   id: string;
@@ -29,6 +30,7 @@ compliance.get('/', async (c) => {
 
 // GET /api/v1/compliance/mappings - List compliance mappings with filtering
 compliance.get('/mappings', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const {
     framework_id,
     status,
@@ -47,6 +49,10 @@ compliance.get('/mappings', async (c) => {
   `;
   const params: any[] = [];
 
+  if (orgId) {
+    query += ' AND cm.org_id = ?';
+    params.push(orgId);
+  }
   if (framework_id) {
     query += ' AND cm.framework_id = ?';
     params.push(framework_id);
@@ -101,19 +107,30 @@ compliance.get('/:id', async (c) => {
 
 // GET /api/v1/compliance/:id/controls - Get controls with compliance status
 compliance.get('/:id/controls', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
 
-  const controls = await c.env.DB.prepare(`
+  let controlsQuery = `
     SELECT cc.*,
       cm.status as compliance_status,
       cm.evidence,
       cm.assessed_at,
       cm.assessed_by
     FROM compliance_controls cc
-    LEFT JOIN compliance_mappings cm ON cc.id = cm.control_id AND cm.framework_id = ?
+    LEFT JOIN compliance_mappings cm ON cc.id = cm.control_id AND cm.framework_id = ?`;
+  const controlsParams: any[] = [id];
+
+  if (orgId) {
+    controlsQuery += ' AND cm.org_id = ?';
+    controlsParams.push(orgId);
+  }
+
+  controlsQuery += `
     WHERE cc.framework_id = ?
-    ORDER BY cc.family, cc.control_id
-  `).bind(id, id).all();
+    ORDER BY cc.family, cc.control_id`;
+  controlsParams.push(id);
+
+  const controls = await c.env.DB.prepare(controlsQuery).bind(...controlsParams).all();
 
   return c.json({ data: controls.results });
 });
@@ -169,14 +186,20 @@ compliance.post('/assess', requireRole('platform_admin', 'scan_admin'), async (c
   }
 
   const user = c.get('user');
+  const { orgId } = getOrgFilter(c);
+  const orgIdForInsert = getOrgIdForInsert(c);
 
   // Check if mapping already exists
-  const existing = await c.env.DB.prepare(
-    'SELECT id FROM compliance_mappings WHERE framework_id = ? AND control_id = ?'
-  ).bind(framework_id, control_id).first<{ id: string }>();
+  let existingQuery = 'SELECT id FROM compliance_mappings WHERE framework_id = ? AND control_id = ?';
+  const existingParams: any[] = [framework_id, control_id];
+  if (orgId) {
+    existingQuery += ' AND org_id = ?';
+    existingParams.push(orgId);
+  }
+  const existing = await c.env.DB.prepare(existingQuery).bind(...existingParams).first<{ id: string }>();
 
   if (existing) {
-    await c.env.DB.prepare(`
+    let updateQuery = `
       UPDATE compliance_mappings SET
         status = ?,
         finding_id = ?,
@@ -185,8 +208,13 @@ compliance.post('/assess', requireRole('platform_admin', 'scan_admin'), async (c
         assessed_by = ?,
         assessed_at = datetime('now'),
         updated_at = datetime('now')
-      WHERE id = ?
-    `).bind(status, finding_id || null, vulnerability_id || null, evidence || null, user.id, existing.id).run();
+      WHERE id = ?`;
+    const updateParams: any[] = [status, finding_id || null, vulnerability_id || null, evidence || null, user.id, existing.id];
+    if (orgId) {
+      updateQuery += ' AND org_id = ?';
+      updateParams.push(orgId);
+    }
+    await c.env.DB.prepare(updateQuery).bind(...updateParams).run();
 
     return c.json({ id: existing.id, message: 'Compliance mapping updated' });
   }
@@ -195,9 +223,9 @@ compliance.post('/assess', requireRole('platform_admin', 'scan_admin'), async (c
   await c.env.DB.prepare(`
     INSERT INTO compliance_mappings (
       id, framework_id, control_id, status, finding_id, vulnerability_id,
-      evidence, assessed_by, assessed_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-  `).bind(id, framework_id, control_id, status, finding_id || null, vulnerability_id || null, evidence || null, user.id).run();
+      evidence, assessed_by, assessed_at, org_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
+  `).bind(id, framework_id, control_id, status, finding_id || null, vulnerability_id || null, evidence || null, user.id, orgIdForInsert).run();
 
   return c.json({ id, message: 'Compliance mapping created' }, 201);
 });

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../index';
 import { requireRole } from '../middleware/auth';
 import { emitEvent, getNotificationStats } from '../services/notifications/engine';
+import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 
 interface AuthUser {
   id: string; email: string; role: string; display_name: string;
@@ -17,12 +18,16 @@ notifications.get('/stats', requireRole('platform_admin', 'scan_admin'), async (
 
 // GET / - List notification rules
 notifications.get('/', requireRole('platform_admin', 'scan_admin'), async (c) => {
-  const result = await c.env.DB.prepare(`
+  const { orgId } = getOrgFilter(c);
+  let query = `
     SELECT nr.*, i.name as integration_name, i.type as integration_type
     FROM notification_rules nr
     LEFT JOIN integrations i ON nr.integration_id = i.id
-    ORDER BY nr.created_at DESC
-  `).all();
+    WHERE 1=1`;
+  const params: any[] = [];
+  if (orgId) { query += ' AND nr.org_id = ?'; params.push(orgId); }
+  query += ' ORDER BY nr.created_at DESC';
+  const result = await c.env.DB.prepare(query).bind(...params).all();
   return c.json({ rules: result.results || [] });
 });
 
@@ -48,10 +53,11 @@ notifications.post('/', requireRole('platform_admin'), async (c) => {
   }
 
   const id = crypto.randomUUID();
+  const orgIdForInsertVal = getOrgIdForInsert(c);
   await c.env.DB.prepare(`
-    INSERT INTO notification_rules (id, name, event_type, conditions, integration_id, template, is_active, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, 1, ?)
-  `).bind(id, name, event_type, JSON.stringify(conditions || {}), integration_id, template || null, user?.id || null).run();
+    INSERT INTO notification_rules (id, name, event_type, conditions, integration_id, template, is_active, created_by, org_id)
+    VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+  `).bind(id, name, event_type, JSON.stringify(conditions || {}), integration_id, template || null, user?.id || null, orgIdForInsertVal).run();
 
   return c.json({ id, name, event_type, message: 'Notification rule created' }, 201);
 });
@@ -74,14 +80,22 @@ notifications.put('/:id', requireRole('platform_admin'), async (c) => {
   if (updates.length === 0) return c.json({ error: 'No updates provided' }, 400);
   updates.push("updated_at = datetime('now')");
 
-  await c.env.DB.prepare(`UPDATE notification_rules SET ${updates.join(', ')} WHERE id = ?`).bind(...params, id).run();
+  const { orgId } = getOrgFilter(c);
+  if (orgId) {
+    await c.env.DB.prepare(`UPDATE notification_rules SET ${updates.join(', ')} WHERE id = ? AND org_id = ?`).bind(...params, id, orgId).run();
+  } else {
+    await c.env.DB.prepare(`UPDATE notification_rules SET ${updates.join(', ')} WHERE id = ?`).bind(...params, id).run();
+  }
   return c.json({ message: 'Rule updated' });
 });
 
 // DELETE /:id - Delete notification rule
 notifications.delete('/:id', requireRole('platform_admin'), async (c) => {
   const id = c.req.param('id');
-  const result = await c.env.DB.prepare('DELETE FROM notification_rules WHERE id = ?').bind(id).run();
+  const { orgId } = getOrgFilter(c);
+  const result = orgId
+    ? await c.env.DB.prepare('DELETE FROM notification_rules WHERE id = ? AND org_id = ?').bind(id, orgId).run()
+    : await c.env.DB.prepare('DELETE FROM notification_rules WHERE id = ?').bind(id).run();
   if (result.meta.changes === 0) return c.json({ error: 'Rule not found' }, 404);
   return c.json({ message: 'Rule deleted' });
 });
@@ -89,7 +103,10 @@ notifications.delete('/:id', requireRole('platform_admin'), async (c) => {
 // POST /:id/test - Test a notification rule by emitting a test event
 notifications.post('/:id/test', requireRole('platform_admin', 'scan_admin'), async (c) => {
   const id = c.req.param('id');
-  const rule = await c.env.DB.prepare('SELECT * FROM notification_rules WHERE id = ?').bind(id).first();
+  const { orgId } = getOrgFilter(c);
+  const rule = orgId
+    ? await c.env.DB.prepare('SELECT * FROM notification_rules WHERE id = ? AND org_id = ?').bind(id, orgId).first()
+    : await c.env.DB.prepare('SELECT * FROM notification_rules WHERE id = ?').bind(id).first();
   if (!rule) return c.json({ error: 'Rule not found' }, 404);
 
   const result = await emitEvent(c.env.DB, {
@@ -110,9 +127,11 @@ notifications.post('/:id/test', requireRole('platform_admin', 'scan_admin'), asy
 // GET /log - View notification log
 notifications.get('/log', requireRole('platform_admin', 'scan_admin'), async (c) => {
   const { limit = '50', offset = '0', rule_id, event_type } = c.req.query();
+  const { orgId } = getOrgFilter(c);
   let query = 'SELECT nl.*, nr.name as rule_name FROM notification_log nl LEFT JOIN notification_rules nr ON nl.rule_id = nr.id WHERE 1=1';
   const params: unknown[] = [];
 
+  if (orgId) { query += ' AND nr.org_id = ?'; params.push(orgId); }
   if (rule_id) { query += ' AND nl.rule_id = ?'; params.push(rule_id); }
   if (event_type) { query += ' AND nl.event_type = ?'; params.push(event_type); }
 

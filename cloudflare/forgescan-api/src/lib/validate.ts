@@ -62,3 +62,15 @@ export function validateSort(sortBy: string | undefined, allowed: readonly strin
 export function validateSortOrder(order: string | undefined): 'ASC' | 'DESC' {
   return order?.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
 }
+
+/** Sanitize a string for use in SQL LIKE patterns by escaping % and _ wildcards. */
+export function sanitizeLikeInput(value: string): string {
+  return value.replace(/[%_]/g, (ch) => `\\${ch}`);
+}
+
+/** Require a string to not exceed a maximum length. */
+export function requireMaxLength(value: string | undefined, name: string, max: number): void {
+  if (value && value.length > max) {
+    throw badRequest(`${name} must not exceed ${max} characters`, { field: name, max });
+  }
+}

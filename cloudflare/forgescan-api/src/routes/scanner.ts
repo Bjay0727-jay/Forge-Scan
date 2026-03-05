@@ -4,6 +4,7 @@ import { requireRole } from '../middleware/auth';
 import { updateScanFromTasks } from '../services/scan-orchestrator';
 import { publish } from '../services/event-bus';
 import { auditLog } from '../services/audit';
+import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 
 // ---------- Types ----------
 
@@ -18,6 +19,7 @@ type ScannerEnv = {
       version: string | null;
       capabilities: string;
       status: string;
+      org_id: string | null;
     };
   };
 };
@@ -41,7 +43,7 @@ const authenticateScanner: MiddlewareHandler<ScannerEnv> = async (c, next) => {
   const keyHash = await hashKey(apiKey);
 
   const registration = await c.env.DB.prepare(
-    'SELECT id, scanner_id, hostname, version, capabilities, status FROM scanner_registrations WHERE api_key_hash = ?'
+    'SELECT id, scanner_id, hostname, version, capabilities, status, org_id FROM scanner_registrations WHERE api_key_hash = ?'
   ).bind(keyHash).first<{
     id: string;
     scanner_id: string;
@@ -49,6 +51,7 @@ const authenticateScanner: MiddlewareHandler<ScannerEnv> = async (c, next) => {
     version: string | null;
     capabilities: string;
     status: string;
+    org_id: string | null;
   }>();
 
   if (!registration) {
@@ -242,15 +245,27 @@ scanner.get('/tasks/next', authenticateScanner, async (c) => {
     let query: string;
     let task: Record<string, unknown> | null;
 
+    const scannerOrgId = scannerInfo.org_id;
+
     if (capabilities.length > 0) {
       // Build a query that matches tasks whose task_type is in the scanner's capabilities
       const placeholders = capabilities.map(() => '?').join(', ');
-      query = `SELECT * FROM scan_tasks WHERE status = 'queued' AND task_type IN (${placeholders}) ORDER BY priority ASC, created_at ASC LIMIT 1`;
-      task = await c.env.DB.prepare(query).bind(...capabilities).first();
+      if (scannerOrgId) {
+        query = `SELECT * FROM scan_tasks WHERE status = 'queued' AND org_id = ? AND task_type IN (${placeholders}) ORDER BY priority ASC, created_at ASC LIMIT 1`;
+        task = await c.env.DB.prepare(query).bind(scannerOrgId, ...capabilities).first();
+      } else {
+        query = `SELECT * FROM scan_tasks WHERE status = 'queued' AND task_type IN (${placeholders}) ORDER BY priority ASC, created_at ASC LIMIT 1`;
+        task = await c.env.DB.prepare(query).bind(...capabilities).first();
+      }
     } else {
       // Scanner has no specific capabilities, pick any queued task
-      query = "SELECT * FROM scan_tasks WHERE status = 'queued' ORDER BY priority ASC, created_at ASC LIMIT 1";
-      task = await c.env.DB.prepare(query).first();
+      if (scannerOrgId) {
+        query = "SELECT * FROM scan_tasks WHERE status = 'queued' AND org_id = ? ORDER BY priority ASC, created_at ASC LIMIT 1";
+        task = await c.env.DB.prepare(query).bind(scannerOrgId).first();
+      } else {
+        query = "SELECT * FROM scan_tasks WHERE status = 'queued' ORDER BY priority ASC, created_at ASC LIMIT 1";
+        task = await c.env.DB.prepare(query).first();
+      }
     }
 
     if (!task) {
@@ -349,6 +364,10 @@ scanner.post('/tasks/:id/results', authenticateScanner, async (c) => {
     let findingsCount = 0;
     let assetsDiscovered = 0;
 
+    // Resolve org_id from the scanner's registration or the parent scan
+    const scanOrgRow = await db.prepare('SELECT org_id FROM scans WHERE id = ?').bind(task.scan_id).first<{ org_id: string | null }>();
+    const orgId = scannerInfo.org_id || scanOrgRow?.org_id || null;
+
     // Map of IP → asset ID for linking findings to assets
     const ipToAssetId: Record<string, string> = {};
 
@@ -370,8 +389,8 @@ scanner.post('/tasks/:id/results', authenticateScanner, async (c) => {
         } else {
           const assetId = crypto.randomUUID();
           await db.prepare(
-            'INSERT INTO assets (id, hostname, ip_addresses, os, asset_type, last_seen) VALUES (?, ?, ?, ?, ?, datetime(\'now\'))'
-          ).bind(assetId, hostname || null, ip, asset.os || null, asset.asset_type || asset.type || 'host').run();
+            'INSERT INTO assets (id, hostname, ip_addresses, os, asset_type, last_seen, org_id) VALUES (?, ?, ?, ?, ?, datetime(\'now\'), ?)'
+          ).bind(assetId, hostname || null, ip, asset.os || null, asset.asset_type || asset.type || 'host', orgId).run();
           ipToAssetId[ip] = assetId;
           assetsDiscovered++;
         }
@@ -399,8 +418,8 @@ scanner.post('/tasks/:id/results', authenticateScanner, async (c) => {
               // Create a generic asset as last resort
               assetId = crypto.randomUUID();
               await db.prepare(
-                'INSERT INTO assets (id, hostname, ip_addresses, asset_type, last_seen) VALUES (?, ?, ?, ?, datetime(\'now\'))'
-              ).bind(assetId, null, 'unknown', 'host').run();
+                'INSERT INTO assets (id, hostname, ip_addresses, asset_type, last_seen, org_id) VALUES (?, ?, ?, ?, datetime(\'now\'), ?)'
+              ).bind(assetId, null, 'unknown', 'host', orgId).run();
               ipToAssetId['unknown'] = assetId;
               assetsDiscovered++;
             }
@@ -408,8 +427,8 @@ scanner.post('/tasks/:id/results', authenticateScanner, async (c) => {
         }
 
         await db.prepare(`
-          INSERT INTO findings (id, asset_id, vendor, vendor_id, title, description, severity, port, protocol, service, state, solution, evidence)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+          INSERT INTO findings (id, asset_id, vendor, vendor_id, title, description, severity, port, protocol, service, state, solution, evidence, org_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)
         `).bind(
           findingId,
           assetId,
@@ -423,6 +442,7 @@ scanner.post('/tasks/:id/results', authenticateScanner, async (c) => {
           finding.service || null,
           finding.solution || null,
           finding.evidence || null,
+          orgId,
         ).run();
 
         findingsCount++;

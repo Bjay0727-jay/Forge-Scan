@@ -4,6 +4,7 @@ import { createTasksForScan, getTasksForScan, cancelScanTasks } from '../service
 import { ApiError, notFound, badRequest, invalidStateTransition, databaseError } from '../lib/errors';
 import { parsePagination, requireEnum, validateSort, validateSortOrder } from '../lib/validate';
 import { auditLog } from '../services/audit';
+import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 
 export const scans = new Hono<{ Bindings: Env }>();
 
@@ -17,11 +18,19 @@ scans.get('/', async (c) => {
 
   const sortField = validateSort(sort_by, ['name', 'status', 'scan_type', 'created_at', 'findings_count'], 'created_at');
   const order = validateSortOrder(sort_order);
+  const { orgId } = getOrgFilter(c);
 
   let query = 'SELECT * FROM scans WHERE 1=1';
   let countQuery = 'SELECT COUNT(*) as total FROM scans WHERE 1=1';
   const params: string[] = [];
   const countParams: string[] = [];
+
+  if (orgId) {
+    query += ' AND org_id = ?';
+    countQuery += ' AND org_id = ?';
+    params.push(orgId);
+    countParams.push(orgId);
+  }
 
   if (status) {
     query += ' AND status = ?';
@@ -75,6 +84,10 @@ scans.get('/', async (c) => {
 
 // Get active scans with task progress (for dashboard polling)
 scans.get('/active', async (c) => {
+  const { orgId } = getOrgFilter(c);
+  const orgFilter = orgId ? 'AND s.org_id = ?' : '';
+  const orgParams = orgId ? [orgId] : [];
+
   try {
     const result = await c.env.DB.prepare(`
       SELECT s.id, s.name, s.scan_type, s.status, s.targets, s.findings_count,
@@ -86,9 +99,9 @@ scans.get('/active', async (c) => {
              (SELECT COUNT(*) FROM scan_tasks t WHERE t.scan_id = s.id AND t.status = 'queued') as queued_tasks,
              (SELECT COUNT(*) FROM scan_tasks t WHERE t.scan_id = s.id AND t.status = 'assigned') as assigned_tasks
       FROM scans s
-      WHERE s.status IN ('running', 'pending', 'queued')
+      WHERE s.status IN ('running', 'pending', 'queued') ${orgFilter}
       ORDER BY s.started_at DESC NULLS LAST, s.created_at DESC
-    `).all();
+    `).bind(...orgParams).all();
 
     const items = (result.results || []).map((s: Record<string, unknown>) => {
       const totalTasks = (s.total_tasks as number) || 0;
@@ -128,11 +141,16 @@ scans.get('/active', async (c) => {
 // Get scan by ID
 scans.get('/:id', async (c) => {
   const id = c.req.param('id');
+  const { orgId } = getOrgFilter(c);
 
   try {
-    const scan = await c.env.DB.prepare(
-      'SELECT * FROM scans WHERE id = ?'
-    ).bind(id).first();
+    let scanQuery = 'SELECT * FROM scans WHERE id = ?';
+    const scanParams: string[] = [id];
+    if (orgId) {
+      scanQuery += ' AND org_id = ?';
+      scanParams.push(orgId);
+    }
+    const scan = await c.env.DB.prepare(scanQuery).bind(...scanParams).first();
 
     if (!scan) {
       throw notFound('Scan', id);
@@ -149,6 +167,7 @@ scans.get('/:id', async (c) => {
 scans.post('/', async (c) => {
   const body = await c.req.json();
   const id = crypto.randomUUID();
+  const orgId = getOrgIdForInsert(c);
 
   // Support both frontend format (type, target, configuration) and API format (scan_type, targets, config)
   const scanType = body.type || body.scan_type;
@@ -166,14 +185,15 @@ scans.post('/', async (c) => {
 
   try {
     await c.env.DB.prepare(`
-      INSERT INTO scans (id, name, scan_type, targets, config, status, created_at)
-      VALUES (?, ?, ?, ?, ?, 'pending', datetime('now'))
+      INSERT INTO scans (id, name, scan_type, targets, config, status, org_id, created_at)
+      VALUES (?, ?, ?, ?, ?, 'pending', ?, datetime('now'))
     `).bind(
       id,
       body.name,
       scanType,
       JSON.stringify(targets),
       JSON.stringify(config),
+      orgId,
     ).run();
 
     // Audit: scan created
@@ -201,6 +221,7 @@ scans.post('/', async (c) => {
 scans.patch('/:id/status', async (c) => {
   const id = c.req.param('id');
   const { status, error_message, findings_count, assets_count } = await c.req.json();
+  const { orgId } = getOrgFilter(c);
 
   requireEnum(status, 'status', VALID_STATUSES);
 
@@ -231,9 +252,16 @@ scans.patch('/:id/status', async (c) => {
       params.push(assets_count);
     }
 
-    await c.env.DB.prepare(`
-      UPDATE scans SET ${updates.join(', ')} WHERE id = ?
-    `).bind(...params, id).run();
+    let whereClause = 'WHERE id = ?';
+    params.push(id);
+    if (orgId) {
+      whereClause += ' AND org_id = ?';
+      params.push(orgId);
+    }
+
+    await c.env.DB.prepare(
+      `UPDATE scans SET ${updates.join(', ')} ${whereClause}`
+    ).bind(...params).run();
 
     return c.json({ message: 'Scan status updated' });
   } catch (err) {
@@ -245,11 +273,17 @@ scans.patch('/:id/status', async (c) => {
 // Start scan - creates scanner tasks for the Rust engine to pick up
 scans.post('/:id/start', async (c) => {
   const id = c.req.param('id');
+  const { orgId } = getOrgFilter(c);
 
   try {
-    const scan = await c.env.DB.prepare(
-      'SELECT * FROM scans WHERE id = ?'
-    ).bind(id).first<{ id: string; status: string; name: string; scan_type: string; targets: string; config: string }>();
+    let scanQuery = 'SELECT * FROM scans WHERE id = ?';
+    const scanParams: string[] = [id];
+    if (orgId) {
+      scanQuery += ' AND org_id = ?';
+      scanParams.push(orgId);
+    }
+    const scan = await c.env.DB.prepare(scanQuery)
+      .bind(...scanParams).first<{ id: string; status: string; name: string; scan_type: string; targets: string; config: string }>();
 
     if (!scan) {
       throw notFound('Scan', id);
@@ -311,11 +345,16 @@ scans.get('/:id/tasks', async (c) => {
 // Cancel scan - also cancels associated scanner tasks
 scans.post('/:id/cancel', async (c) => {
   const id = c.req.param('id');
+  const { orgId } = getOrgFilter(c);
 
   try {
-    const scan = await c.env.DB.prepare(
-      'SELECT status FROM scans WHERE id = ?'
-    ).bind(id).first<{ status: string }>();
+    let scanQuery = 'SELECT status FROM scans WHERE id = ?';
+    const scanParams: string[] = [id];
+    if (orgId) {
+      scanQuery += ' AND org_id = ?';
+      scanParams.push(orgId);
+    }
+    const scan = await c.env.DB.prepare(scanQuery).bind(...scanParams).first<{ status: string }>();
 
     if (!scan) {
       throw notFound('Scan', id);
@@ -344,11 +383,16 @@ scans.post('/:id/cancel', async (c) => {
 // Delete scan
 scans.delete('/:id', async (c) => {
   const id = c.req.param('id');
+  const { orgId } = getOrgFilter(c);
 
   try {
-    const existing = await c.env.DB.prepare(
-      'SELECT id FROM scans WHERE id = ?'
-    ).bind(id).first();
+    let existQuery = 'SELECT id FROM scans WHERE id = ?';
+    const existParams: string[] = [id];
+    if (orgId) {
+      existQuery += ' AND org_id = ?';
+      existParams.push(orgId);
+    }
+    const existing = await c.env.DB.prepare(existQuery).bind(...existParams).first();
 
     if (!existing) {
       throw notFound('Scan', id);
@@ -368,6 +412,10 @@ scans.delete('/:id', async (c) => {
 
 // Get scan statistics
 scans.get('/stats/summary', async (c) => {
+  const { orgId } = getOrgFilter(c);
+  const orgFilter = orgId ? 'WHERE org_id = ?' : '';
+  const orgParams = orgId ? [orgId] : [];
+
   try {
     const result = await c.env.DB.prepare(`
       SELECT
@@ -377,8 +425,8 @@ scans.get('/stats/summary', async (c) => {
         SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
         SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
         SUM(findings_count) as total_findings
-      FROM scans
-    `).first();
+      FROM scans ${orgFilter}
+    `).bind(...orgParams).first();
 
     return c.json(result);
   } catch (err) {

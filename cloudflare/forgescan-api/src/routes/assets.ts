@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../index';
 import { notFound, databaseError } from '../lib/errors';
 import { parsePagination, validateSort, validateSortOrder } from '../lib/validate';
+import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 
 export const assets = new Hono<{ Bindings: Env }>();
 
@@ -39,6 +40,12 @@ assets.get('/', async (c) => {
   if (type) {
     conditions.push('asset_type = ?');
     params.push(type);
+  }
+
+  const { orgId } = getOrgFilter(c);
+  if (orgId) {
+    conditions.push('org_id = ?');
+    params.push(orgId);
   }
 
   if (conditions.length > 0) {
@@ -99,11 +106,16 @@ assets.get('/', async (c) => {
 // Get asset by ID
 assets.get('/:id', async (c) => {
   const id = c.req.param('id');
+  const { orgId } = getOrgFilter(c);
 
   try {
-    const asset = await c.env.DB.prepare(
-      'SELECT * FROM assets WHERE id = ?'
-    ).bind(id).first();
+    let assetQuery = 'SELECT * FROM assets WHERE id = ?';
+    const assetParams: string[] = [id];
+    if (orgId) {
+      assetQuery += ' AND org_id = ?';
+      assetParams.push(orgId);
+    }
+    const asset = await c.env.DB.prepare(assetQuery).bind(...assetParams).first();
 
     if (!asset) {
       throw notFound('Asset', id);
@@ -129,11 +141,12 @@ assets.get('/:id', async (c) => {
 assets.post('/', async (c) => {
   const body = await c.req.json();
   const id = crypto.randomUUID();
+  const orgId = getOrgIdForInsert(c);
 
   try {
     await c.env.DB.prepare(`
-      INSERT INTO assets (id, hostname, fqdn, ip_addresses, mac_addresses, os, os_version, asset_type, network_zone, tags, attributes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO assets (id, hostname, fqdn, ip_addresses, mac_addresses, os, os_version, asset_type, network_zone, tags, attributes, org_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id,
       body.hostname || null,
@@ -146,6 +159,7 @@ assets.post('/', async (c) => {
       body.network_zone || null,
       JSON.stringify(body.tags || []),
       JSON.stringify(body.attributes || {}),
+      orgId,
     ).run();
 
     return c.json({ id, message: 'Asset created' }, 201);
@@ -158,17 +172,22 @@ assets.post('/', async (c) => {
 assets.put('/:id', async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json();
+  const { orgId } = getOrgFilter(c);
 
   try {
-    const existing = await c.env.DB.prepare(
-      'SELECT id FROM assets WHERE id = ?'
-    ).bind(id).first();
+    let existQuery = 'SELECT id FROM assets WHERE id = ?';
+    const existParams: string[] = [id];
+    if (orgId) {
+      existQuery += ' AND org_id = ?';
+      existParams.push(orgId);
+    }
+    const existing = await c.env.DB.prepare(existQuery).bind(...existParams).first();
 
     if (!existing) {
       throw notFound('Asset', id);
     }
 
-    await c.env.DB.prepare(`
+    let updateQuery = `
       UPDATE assets SET
         hostname = COALESCE(?, hostname),
         fqdn = COALESCE(?, fqdn),
@@ -179,8 +198,8 @@ assets.put('/:id', async (c) => {
         tags = COALESCE(?, tags),
         last_seen = datetime('now'),
         updated_at = datetime('now')
-      WHERE id = ?
-    `).bind(
+      WHERE id = ?`;
+    const updateParams: (string | null)[] = [
       body.hostname,
       body.fqdn,
       body.ip_addresses ? JSON.stringify(body.ip_addresses) : null,
@@ -189,7 +208,12 @@ assets.put('/:id', async (c) => {
       body.asset_type,
       body.tags ? JSON.stringify(body.tags) : null,
       id,
-    ).run();
+    ];
+    if (orgId) {
+      updateQuery += ' AND org_id = ?';
+      updateParams.push(orgId);
+    }
+    await c.env.DB.prepare(updateQuery).bind(...updateParams).run();
 
     return c.json({ message: 'Asset updated' });
   } catch (err) {
@@ -201,19 +225,37 @@ assets.put('/:id', async (c) => {
 // Delete asset
 assets.delete('/:id', async (c) => {
   const id = c.req.param('id');
+  const { orgId } = getOrgFilter(c);
 
   try {
     // Verify asset exists before deleting
-    const existing = await c.env.DB.prepare(
-      'SELECT id FROM assets WHERE id = ?'
-    ).bind(id).first();
+    let existQuery = 'SELECT id FROM assets WHERE id = ?';
+    const existParams: string[] = [id];
+    if (orgId) {
+      existQuery += ' AND org_id = ?';
+      existParams.push(orgId);
+    }
+    const existing = await c.env.DB.prepare(existQuery).bind(...existParams).first();
 
     if (!existing) {
       throw notFound('Asset', id);
     }
 
-    await c.env.DB.prepare('DELETE FROM findings WHERE asset_id = ?').bind(id).run();
-    await c.env.DB.prepare('DELETE FROM assets WHERE id = ?').bind(id).run();
+    let deleteFindingsQuery = 'DELETE FROM findings WHERE asset_id = ?';
+    const deleteFindingsParams: string[] = [id];
+    if (orgId) {
+      deleteFindingsQuery += ' AND org_id = ?';
+      deleteFindingsParams.push(orgId);
+    }
+    await c.env.DB.prepare(deleteFindingsQuery).bind(...deleteFindingsParams).run();
+
+    let deleteAssetQuery = 'DELETE FROM assets WHERE id = ?';
+    const deleteAssetParams: string[] = [id];
+    if (orgId) {
+      deleteAssetQuery += ' AND org_id = ?';
+      deleteAssetParams.push(orgId);
+    }
+    await c.env.DB.prepare(deleteAssetQuery).bind(...deleteAssetParams).run();
 
     return c.json({ message: 'Asset deleted' });
   } catch (err) {
@@ -225,16 +267,22 @@ assets.delete('/:id', async (c) => {
 // Get asset findings summary
 assets.get('/:id/summary', async (c) => {
   const id = c.req.param('id');
+  const { orgId } = getOrgFilter(c);
 
   try {
-    const summary = await c.env.DB.prepare(`
+    let summaryQuery = `
       SELECT
         severity,
         COUNT(*) as count
       FROM findings
-      WHERE asset_id = ? AND state = 'open'
-      GROUP BY severity
-    `).bind(id).all();
+      WHERE asset_id = ? AND state = 'open'`;
+    const summaryParams: string[] = [id];
+    if (orgId) {
+      summaryQuery += ' AND org_id = ?';
+      summaryParams.push(orgId);
+    }
+    summaryQuery += ' GROUP BY severity';
+    const summary = await c.env.DB.prepare(summaryQuery).bind(...summaryParams).all();
 
     return c.json({
       asset_id: id,

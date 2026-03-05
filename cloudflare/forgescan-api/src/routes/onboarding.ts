@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
 import { seedFrameworks } from '../services/compliance';
+import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 
 interface AuthUser {
   id: string;
@@ -14,12 +15,16 @@ export const onboarding = new Hono<{ Bindings: Env; Variables: { user: AuthUser 
 // GET /api/v1/onboarding/status — check what's been set up
 onboarding.get('/status', async (c) => {
   try {
+    const { orgId } = getOrgFilter(c);
+    const orgFilter = orgId ? ' WHERE org_id = ?' : '';
+    const orgBindings = orgId ? [orgId] : [];
+
     const [assetCount, scanCount, scannerCount, frameworkCount, findingCount] = await Promise.all([
-      c.env.DB.prepare('SELECT COUNT(*) as cnt FROM assets').first<{ cnt: number }>(),
-      c.env.DB.prepare('SELECT COUNT(*) as cnt FROM scans').first<{ cnt: number }>(),
-      c.env.DB.prepare('SELECT COUNT(*) as cnt FROM scanner_registrations').first<{ cnt: number }>(),
+      c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM assets${orgFilter}`).bind(...orgBindings).first<{ cnt: number }>(),
+      c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM scans${orgFilter}`).bind(...orgBindings).first<{ cnt: number }>(),
+      c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM scanner_registrations${orgFilter}`).bind(...orgBindings).first<{ cnt: number }>(),
       c.env.DB.prepare('SELECT COUNT(*) as cnt FROM compliance_frameworks').first<{ cnt: number }>(),
-      c.env.DB.prepare('SELECT COUNT(*) as cnt FROM findings').first<{ cnt: number }>(),
+      c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM findings${orgFilter}`).bind(...orgBindings).first<{ cnt: number }>(),
     ]);
 
     const hasAssets = (assetCount?.cnt || 0) > 0;
@@ -99,11 +104,12 @@ onboarding.post('/quick-scan', async (c) => {
   const user = c.get('user');
   const scanId = crypto.randomUUID();
   const now = new Date().toISOString();
+  const orgId = getOrgIdForInsert(c);
 
   // Create the scan
   await c.env.DB.prepare(`
-    INSERT INTO scans (id, name, type, status, target, configuration, findings_count, created_by, created_at, updated_at)
-    VALUES (?, ?, 'network', 'pending', ?, ?, 0, ?, ?, ?)
+    INSERT INTO scans (id, name, type, status, target, configuration, findings_count, created_by, created_at, updated_at, org_id)
+    VALUES (?, ?, 'network', 'pending', ?, ?, 0, ?, ?, ?, ?)
   `).bind(
     scanId,
     `Quick Scan: ${target}`,
@@ -116,6 +122,7 @@ onboarding.post('/quick-scan', async (c) => {
     user.id,
     now,
     now,
+    orgId,
   ).run();
 
   // Auto-start the scan: create initial scan tasks
@@ -123,9 +130,9 @@ onboarding.post('/quick-scan', async (c) => {
   for (const taskType of taskTypes) {
     const taskId = crypto.randomUUID();
     await c.env.DB.prepare(`
-      INSERT INTO scan_tasks (id, scan_id, task_type, status, priority, findings_count, assets_discovered, created_at)
-      VALUES (?, ?, ?, 'queued', 5, 0, 0, ?)
-    `).bind(taskId, scanId, taskType, now).run();
+      INSERT INTO scan_tasks (id, scan_id, task_type, status, priority, findings_count, assets_discovered, created_at, org_id)
+      VALUES (?, ?, ?, 'queued', 5, 0, 0, ?, ?)
+    `).bind(taskId, scanId, taskType, now, orgId).run();
   }
 
   // Transition scan to running

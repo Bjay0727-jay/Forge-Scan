@@ -2,9 +2,11 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { authMiddleware } from './middleware/auth';
+import { orgScopeMiddleware } from './middleware/org-scope';
 import { errorHandler } from './middleware/error-handler';
 import { rateLimitMiddleware } from './middleware/rate-limit';
 import { metricsMiddleware } from './middleware/metrics';
+import { requireJsonContentType } from './middleware/content-type';
 import { metrics } from './routes/metrics';
 import { audit } from './routes/audit';
 import { auth } from './routes/auth';
@@ -55,9 +57,15 @@ registerSOCHandlers();
 // Middleware
 app.use('*', logger());
 app.use('*', cors({
-  origin: '*',
+  origin: (origin, c) => {
+    const allowed = c.env.CORS_ORIGIN || '*';
+    if (allowed === '*') return '*';
+    const allowList = allowed.split(',').map((s: string) => s.trim());
+    return allowList.includes(origin) ? origin : allowList[0];
+  },
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Scanner-Key'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Scanner-Key', 'X-Organization-Id'],
+  credentials: true,
 }));
 
 // Request metrics collection
@@ -97,8 +105,14 @@ app.get('/health', async (c) => {
 // API Documentation (public – no auth required)
 app.route('/api/docs', docs);
 
+// Require JSON Content-Type on mutation endpoints
+app.use('/api/v1/*', requireJsonContentType);
+
 // Auth middleware for all /api/v1/* routes (skips public paths internally)
 app.use('/api/v1/*', authMiddleware);
+
+// Organization scoping — enforces tenant boundaries after auth
+app.use('/api/v1/*', orgScopeMiddleware);
 
 // Auth routes (login/register are public, others require auth)
 app.route('/api/v1/auth', auth);

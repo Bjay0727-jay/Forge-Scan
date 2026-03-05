@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 
 interface Env { DB: D1Database; STORAGE: R2Bucket; CACHE: KVNamespace; JWT_SECRET: string }
 interface AuthUser { id: string; email: string; role: string; display_name: string }
@@ -76,6 +77,7 @@ const SAST_RULES: SASTRule[] = [
 // ─── Projects ──────────────────────────────────────────────────────────────
 
 sast.get('/projects', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const { page = '1', page_size = '25', search, language } = c.req.query();
   const pageNum = parseInt(page);
   const limit = Math.min(parseInt(page_size), 100);
@@ -83,6 +85,7 @@ sast.get('/projects', async (c) => {
 
   const conditions: string[] = [];
   const params: string[] = [];
+  if (orgId) { conditions.push('org_id = ?'); params.push(orgId); }
   if (search) { conditions.push('(name LIKE ? OR repository_url LIKE ?)'); params.push(`%${search}%`, `%${search}%`); }
   if (language) { conditions.push('language = ?'); params.push(language); }
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -104,19 +107,21 @@ sast.post('/projects', async (c) => {
   const { name, repository_url, branch, language, framework } = body;
   if (!name) return c.json({ error: 'name is required' }, 400);
 
+  const orgId = getOrgIdForInsert(c);
   const id = crypto.randomUUID();
   await c.env.DB.prepare(`
-    INSERT INTO sast_projects (id, name, repository_url, branch, language, framework)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).bind(id, name, repository_url || null, branch || 'main', language || null, framework || null).run();
+    INSERT INTO sast_projects (id, name, repository_url, branch, language, framework, org_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).bind(id, name, repository_url || null, branch || 'main', language || null, framework || null, orgId).run();
 
   const project = await c.env.DB.prepare('SELECT * FROM sast_projects WHERE id = ?').bind(id).first();
   return c.json(project, 201);
 });
 
 sast.get('/projects/:id', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
-  const project = await c.env.DB.prepare('SELECT * FROM sast_projects WHERE id = ?').bind(id).first();
+  const project = await c.env.DB.prepare('SELECT * FROM sast_projects WHERE id = ?' + (orgId ? ' AND org_id = ?' : '')).bind(...[id, ...(orgId ? [orgId] : [])]).first();
   if (!project) return c.json({ error: 'Project not found' }, 404);
 
   const scans = await c.env.DB.prepare('SELECT * FROM sast_scan_results WHERE project_id = ? ORDER BY created_at DESC LIMIT 10').bind(id).all();
@@ -131,18 +136,20 @@ sast.get('/projects/:id', async (c) => {
 });
 
 sast.delete('/projects/:id', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT id FROM sast_projects WHERE id = ?').bind(id).first();
+  const existing = await c.env.DB.prepare('SELECT id FROM sast_projects WHERE id = ?' + (orgId ? ' AND org_id = ?' : '')).bind(...[id, ...(orgId ? [orgId] : [])]).first();
   if (!existing) return c.json({ error: 'Project not found' }, 404);
-  await c.env.DB.prepare('DELETE FROM sast_projects WHERE id = ?').bind(id).run();
+  await c.env.DB.prepare('DELETE FROM sast_projects WHERE id = ?' + (orgId ? ' AND org_id = ?' : '')).bind(...[id, ...(orgId ? [orgId] : [])]).run();
   return c.json({ message: 'Project deleted' });
 });
 
 // ─── Scan Execution ────────────────────────────────────────────────────────
 
 sast.post('/projects/:id/scan', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const projectId = c.req.param('id');
-  const project = await c.env.DB.prepare('SELECT * FROM sast_projects WHERE id = ?').bind(projectId).first();
+  const project = await c.env.DB.prepare('SELECT * FROM sast_projects WHERE id = ?' + (orgId ? ' AND org_id = ?' : '')).bind(...[projectId, ...(orgId ? [orgId] : [])]).first();
   if (!project) return c.json({ error: 'Project not found' }, 404);
 
   const body = await c.req.json().catch(() => ({}));
@@ -212,18 +219,22 @@ sast.get('/scans/:id', async (c) => {
 // ─── Overview ──────────────────────────────────────────────────────────────
 
 sast.get('/overview', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const db = c.env.DB;
+  const orgParams = orgId ? [orgId] : [];
+
   const [projectCount, scanCount, issueCount, severityBreakdown, categoryBreakdown, topProjects] = await Promise.all([
-    db.prepare('SELECT COUNT(*) as count FROM sast_projects').first<{ count: number }>(),
-    db.prepare("SELECT COUNT(*) as count FROM sast_scan_results WHERE status = 'completed'").first<{ count: number }>(),
-    db.prepare("SELECT COUNT(*) as count FROM sast_findings WHERE state = 'open'").first<{ count: number }>(),
-    db.prepare("SELECT severity, COUNT(*) as count FROM sast_findings WHERE state = 'open' GROUP BY severity").all(),
-    db.prepare("SELECT category, COUNT(*) as count FROM sast_findings WHERE state = 'open' GROUP BY category ORDER BY count DESC").all(),
+    db.prepare('SELECT COUNT(*) as count FROM sast_projects p' + (orgId ? ' WHERE p.org_id = ?' : '')).bind(...orgParams).first<{ count: number }>(),
+    db.prepare("SELECT COUNT(*) as count FROM sast_scan_results sr" + (orgId ? " JOIN sast_projects p ON p.id = sr.project_id WHERE sr.status = 'completed' AND p.org_id = ?" : " WHERE status = 'completed'")).bind(...orgParams).first<{ count: number }>(),
+    db.prepare("SELECT COUNT(*) as count FROM sast_findings sf" + (orgId ? " JOIN sast_projects p ON p.id = sf.project_id WHERE sf.state = 'open' AND p.org_id = ?" : " WHERE state = 'open'")).bind(...orgParams).first<{ count: number }>(),
+    db.prepare("SELECT sf.severity, COUNT(*) as count FROM sast_findings sf" + (orgId ? " JOIN sast_projects p ON p.id = sf.project_id WHERE sf.state = 'open' AND p.org_id = ?" : " WHERE sf.state = 'open'") + " GROUP BY sf.severity").bind(...orgParams).all(),
+    db.prepare("SELECT sf.category, COUNT(*) as count FROM sast_findings sf" + (orgId ? " JOIN sast_projects p ON p.id = sf.project_id WHERE sf.state = 'open' AND p.org_id = ?" : " WHERE sf.state = 'open'") + " GROUP BY sf.category ORDER BY count DESC").bind(...orgParams).all(),
     db.prepare(`
       SELECT p.name, p.language, COUNT(sf.id) as open_issues
       FROM sast_projects p LEFT JOIN sast_findings sf ON sf.project_id = p.id AND sf.state = 'open'
+      ${orgId ? 'WHERE p.org_id = ?' : ''}
       GROUP BY p.id ORDER BY open_issues DESC LIMIT 5
-    `).all(),
+    `).bind(...orgParams).all(),
   ]);
 
   return c.json({
