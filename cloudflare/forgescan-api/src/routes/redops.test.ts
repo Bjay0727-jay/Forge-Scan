@@ -377,7 +377,7 @@ describe('GET /api/v1/redops/campaigns/:id/agents', () => {
       { id: 'agent-001', campaign_id: 'campaign-001', agent_type: 'web_injection', agent_category: 'web', status: 'completed' },
       { id: 'agent-002', campaign_id: 'campaign-001', agent_type: 'api_auth_bypass', agent_category: 'api', status: 'running' },
     ];
-    const db = createMockDB({ allResults: agents });
+    const db = createMockDB({ allResults: agents, firstResult: { id: 'campaign-001' } });
     const app = mkApp(db);
 
     const res = await app.request(`${PREFIX}/campaigns/campaign-001/agents`);
@@ -388,7 +388,7 @@ describe('GET /api/v1/redops/campaigns/:id/agents', () => {
   });
 
   it('filters by status', async () => {
-    const db = createMockDB({ allResults: [] });
+    const db = createMockDB({ allResults: [], firstResult: { id: 'campaign-001' } });
     const app = mkApp(db);
 
     const res = await app.request(`${PREFIX}/campaigns/campaign-001/agents?status=running`);
@@ -396,7 +396,7 @@ describe('GET /api/v1/redops/campaigns/:id/agents', () => {
   });
 
   it('filters by category', async () => {
-    const db = createMockDB({ allResults: [] });
+    const db = createMockDB({ allResults: [], firstResult: { id: 'campaign-001' } });
     const app = mkApp(db);
 
     const res = await app.request(`${PREFIX}/campaigns/campaign-001/agents?category=web`);

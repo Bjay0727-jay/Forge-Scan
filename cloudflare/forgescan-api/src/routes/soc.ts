@@ -13,6 +13,7 @@ import {
   computeAlertConfidence,
   batchComputeConfidence,
 } from '../services/forgesoc/ml-correlation';
+import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 
 export const soc = new Hono<{ Bindings: Env }>();
 
@@ -20,6 +21,11 @@ export const soc = new Hono<{ Bindings: Env }>();
 // GET /soc/overview — SOC dashboard overview
 // ─────────────────────────────────────────────────────────────────────────────
 soc.get('/overview', async (c) => {
+  const { orgId } = getOrgFilter(c);
+  const orgWhere = orgId ? ' WHERE org_id = ?' : '';
+  const orgAnd = orgId ? ' AND org_id = ?' : '';
+  const orgParams = orgId ? [orgId] : [];
+
   const [alertStats, incidentStats, severityBreakdown, recentAlerts, activeIncidents] = await Promise.all([
     c.env.DB
       .prepare(
@@ -29,8 +35,9 @@ soc.get('/overview', async (c) => {
           SUM(CASE WHEN status IN ('triaged', 'investigating', 'escalated') THEN 1 ELSE 0 END) as active_alerts,
           SUM(CASE WHEN status IN ('resolved', 'closed', 'false_positive') THEN 1 ELSE 0 END) as resolved_alerts,
           SUM(CASE WHEN created_at > datetime('now', '-24 hours') THEN 1 ELSE 0 END) as alerts_24h
-        FROM soc_alerts`
+        FROM soc_alerts${orgWhere}`
       )
+      .bind(...orgParams)
       .first<{ total_alerts: number; new_alerts: number; active_alerts: number; resolved_alerts: number; alerts_24h: number }>(),
 
     c.env.DB
@@ -39,40 +46,44 @@ soc.get('/overview', async (c) => {
           COUNT(*) as total_incidents,
           SUM(CASE WHEN status IN ('open', 'investigating', 'containment') THEN 1 ELSE 0 END) as active_incidents,
           SUM(CASE WHEN status IN ('closed', 'post_incident') THEN 1 ELSE 0 END) as closed_incidents
-        FROM soc_incidents`
+        FROM soc_incidents${orgWhere}`
       )
+      .bind(...orgParams)
       .first<{ total_incidents: number; active_incidents: number; closed_incidents: number }>(),
 
     c.env.DB
       .prepare(
         `SELECT severity, COUNT(*) as count
          FROM soc_alerts
-         WHERE status NOT IN ('closed', 'false_positive')
+         WHERE status NOT IN ('closed', 'false_positive')${orgAnd}
          GROUP BY severity
          ORDER BY CASE severity
            WHEN 'critical' THEN 1 WHEN 'high' THEN 2
            WHEN 'medium' THEN 3 WHEN 'low' THEN 4
            WHEN 'info' THEN 5 END`
       )
+      .bind(...orgParams)
       .all<{ severity: string; count: number }>(),
 
     c.env.DB
       .prepare(
         `SELECT id, title, severity, status, source, alert_type, created_at
-         FROM soc_alerts
+         FROM soc_alerts${orgWhere}
          ORDER BY created_at DESC
          LIMIT 10`
       )
+      .bind(...orgParams)
       .all(),
 
     c.env.DB
       .prepare(
         `SELECT id, title, severity, status, priority, alert_count, created_at
          FROM soc_incidents
-         WHERE status NOT IN ('closed', 'post_incident')
+         WHERE status NOT IN ('closed', 'post_incident')${orgAnd}
          ORDER BY priority ASC, created_at DESC
          LIMIT 5`
       )
+      .bind(...orgParams)
       .all(),
   ]);
 
@@ -100,11 +111,17 @@ soc.get('/overview', async (c) => {
 // GET /soc/alerts — List alerts with filtering
 // ─────────────────────────────────────────────────────────────────────────────
 soc.get('/alerts', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const page = parseInt(c.req.query('page') || '1', 10);
   const pageSize = Math.min(parseInt(c.req.query('page_size') || '25', 10), 100);
 
   let where = 'WHERE 1=1';
   const params: unknown[] = [];
+
+  if (orgId) {
+    where += ' AND org_id = ?';
+    params.push(orgId);
+  }
 
   const severity = c.req.query('severity');
   if (severity) {
@@ -164,10 +181,17 @@ soc.get('/alerts', async (c) => {
 // GET /soc/alerts/:id — Get single alert
 // ─────────────────────────────────────────────────────────────────────────────
 soc.get('/alerts/:id', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
+  let alertQuery = 'SELECT * FROM soc_alerts WHERE id = ?';
+  const alertParams: unknown[] = [id];
+  if (orgId) {
+    alertQuery += ' AND org_id = ?';
+    alertParams.push(orgId);
+  }
   const alert = await c.env.DB
-    .prepare('SELECT * FROM soc_alerts WHERE id = ?')
-    .bind(id)
+    .prepare(alertQuery)
+    .bind(...alertParams)
     .first();
 
   if (!alert) return c.json({ error: 'Alert not found' }, 404);
@@ -178,14 +202,15 @@ soc.get('/alerts/:id', async (c) => {
 // POST /soc/alerts — Create manual alert
 // ─────────────────────────────────────────────────────────────────────────────
 soc.post('/alerts', async (c) => {
+  const orgIdForInsert = getOrgIdForInsert(c);
   const body = await c.req.json();
   if (!body.title) throw badRequest('title is required');
 
   const id = crypto.randomUUID();
   await c.env.DB
     .prepare(
-      `INSERT INTO soc_alerts (id, title, description, severity, status, source, alert_type, tags, assigned_to, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'new', 'manual', ?, ?, ?, datetime('now'), datetime('now'))`
+      `INSERT INTO soc_alerts (id, title, description, severity, status, source, alert_type, tags, assigned_to, org_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'new', 'manual', ?, ?, ?, ?, datetime('now'), datetime('now'))`
     )
     .bind(
       id,
@@ -194,7 +219,8 @@ soc.post('/alerts', async (c) => {
       body.severity || 'medium',
       body.alert_type || 'vulnerability',
       body.tags ? JSON.stringify(body.tags) : null,
-      body.assigned_to || null
+      body.assigned_to || null,
+      orgIdForInsert
     )
     .run();
 
@@ -210,12 +236,19 @@ soc.post('/alerts', async (c) => {
 // PUT /soc/alerts/:id — Update alert
 // ─────────────────────────────────────────────────────────────────────────────
 soc.put('/alerts/:id', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
   const body = await c.req.json();
 
+  let existAlertQuery = 'SELECT * FROM soc_alerts WHERE id = ?';
+  const existAlertParams: unknown[] = [id];
+  if (orgId) {
+    existAlertQuery += ' AND org_id = ?';
+    existAlertParams.push(orgId);
+  }
   const existing = await c.env.DB
-    .prepare('SELECT * FROM soc_alerts WHERE id = ?')
-    .bind(id)
+    .prepare(existAlertQuery)
+    .bind(...existAlertParams)
     .first();
 
   if (!existing) return c.json({ error: 'Alert not found' }, 404);
@@ -239,10 +272,15 @@ soc.put('/alerts/:id', async (c) => {
   if (fields.length === 0) throw badRequest('No fields to update');
 
   fields.push("updated_at = datetime('now')");
+  let updateAlertWhere = 'WHERE id = ?';
   values.push(id);
+  if (orgId) {
+    updateAlertWhere += ' AND org_id = ?';
+    values.push(orgId);
+  }
 
   await c.env.DB
-    .prepare(`UPDATE soc_alerts SET ${fields.join(', ')} WHERE id = ?`)
+    .prepare(`UPDATE soc_alerts SET ${fields.join(', ')} ${updateAlertWhere}`)
     .bind(...values)
     .run();
 
@@ -258,11 +296,17 @@ soc.put('/alerts/:id', async (c) => {
 // GET /soc/incidents — List incidents
 // ─────────────────────────────────────────────────────────────────────────────
 soc.get('/incidents', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const page = parseInt(c.req.query('page') || '1', 10);
   const pageSize = Math.min(parseInt(c.req.query('page_size') || '25', 10), 100);
 
   let where = 'WHERE 1=1';
   const params: unknown[] = [];
+
+  if (orgId) {
+    where += ' AND org_id = ?';
+    params.push(orgId);
+  }
 
   const status = c.req.query('status');
   if (status) {
@@ -306,11 +350,18 @@ soc.get('/incidents', async (c) => {
 // GET /soc/incidents/:id — Get single incident with timeline
 // ─────────────────────────────────────────────────────────────────────────────
 soc.get('/incidents/:id', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
 
+  let incQuery = 'SELECT * FROM soc_incidents WHERE id = ?';
+  const incParams: unknown[] = [id];
+  if (orgId) {
+    incQuery += ' AND org_id = ?';
+    incParams.push(orgId);
+  }
   const incident = await c.env.DB
-    .prepare('SELECT * FROM soc_incidents WHERE id = ?')
-    .bind(id)
+    .prepare(incQuery)
+    .bind(...incParams)
     .first();
 
   if (!incident) return c.json({ error: 'Incident not found' }, 404);
@@ -346,6 +397,7 @@ soc.get('/incidents/:id', async (c) => {
 // POST /soc/incidents — Create incident
 // ─────────────────────────────────────────────────────────────────────────────
 soc.post('/incidents', async (c) => {
+  const orgIdForInsert = getOrgIdForInsert(c);
   const body = await c.req.json();
   if (!body.title) throw badRequest('title is required');
 
@@ -354,8 +406,8 @@ soc.post('/incidents', async (c) => {
 
   await c.env.DB
     .prepare(
-      `INSERT INTO soc_incidents (id, title, description, severity, status, priority, incident_type, lead_analyst, started_at, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'open', ?, ?, ?, datetime('now'), datetime('now'), datetime('now'))`
+      `INSERT INTO soc_incidents (id, title, description, severity, status, priority, incident_type, lead_analyst, org_id, started_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'))`
     )
     .bind(
       id,
@@ -364,7 +416,8 @@ soc.post('/incidents', async (c) => {
       body.severity || 'medium',
       priority,
       body.incident_type || 'security',
-      body.lead_analyst || null
+      body.lead_analyst || null,
+      orgIdForInsert
     )
     .run();
 
@@ -389,12 +442,19 @@ soc.post('/incidents', async (c) => {
 // PUT /soc/incidents/:id — Update incident
 // ─────────────────────────────────────────────────────────────────────────────
 soc.put('/incidents/:id', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
   const body = await c.req.json();
 
+  let existIncQuery = 'SELECT * FROM soc_incidents WHERE id = ?';
+  const existIncParams: unknown[] = [id];
+  if (orgId) {
+    existIncQuery += ' AND org_id = ?';
+    existIncParams.push(orgId);
+  }
   const existing = await c.env.DB
-    .prepare('SELECT * FROM soc_incidents WHERE id = ?')
-    .bind(id)
+    .prepare(existIncQuery)
+    .bind(...existIncParams)
     .first();
 
   if (!existing) return c.json({ error: 'Incident not found' }, 404);
@@ -427,10 +487,15 @@ soc.put('/incidents/:id', async (c) => {
   if (fields.length === 0) throw badRequest('No fields to update');
 
   fields.push("updated_at = datetime('now')");
+  let updateIncWhere = 'WHERE id = ?';
   values.push(id);
+  if (orgId) {
+    updateIncWhere += ' AND org_id = ?';
+    values.push(orgId);
+  }
 
   await c.env.DB
-    .prepare(`UPDATE soc_incidents SET ${fields.join(', ')} WHERE id = ?`)
+    .prepare(`UPDATE soc_incidents SET ${fields.join(', ')} ${updateIncWhere}`)
     .bind(...values)
     .run();
 
@@ -463,20 +528,33 @@ soc.put('/incidents/:id', async (c) => {
 // POST /soc/incidents/:id/alerts — Link alert to incident
 // ─────────────────────────────────────────────────────────────────────────────
 soc.post('/incidents/:id/alerts', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const incidentId = c.req.param('id');
   const body = await c.req.json();
 
   if (!body.alert_id) throw badRequest('alert_id is required');
 
+  let linkIncQuery = 'SELECT * FROM soc_incidents WHERE id = ?';
+  const linkIncParams: unknown[] = [incidentId];
+  if (orgId) {
+    linkIncQuery += ' AND org_id = ?';
+    linkIncParams.push(orgId);
+  }
   const incident = await c.env.DB
-    .prepare('SELECT * FROM soc_incidents WHERE id = ?')
-    .bind(incidentId)
+    .prepare(linkIncQuery)
+    .bind(...linkIncParams)
     .first();
   if (!incident) return c.json({ error: 'Incident not found' }, 404);
 
+  let linkAlertQuery = 'SELECT * FROM soc_alerts WHERE id = ?';
+  const linkAlertParams: unknown[] = [body.alert_id];
+  if (orgId) {
+    linkAlertQuery += ' AND org_id = ?';
+    linkAlertParams.push(orgId);
+  }
   const alert = await c.env.DB
-    .prepare('SELECT * FROM soc_alerts WHERE id = ?')
-    .bind(body.alert_id)
+    .prepare(linkAlertQuery)
+    .bind(...linkAlertParams)
     .first();
   if (!alert) return c.json({ error: 'Alert not found' }, 404);
 
@@ -518,8 +596,17 @@ soc.post('/incidents/:id/alerts', async (c) => {
 // GET /soc/detection-rules — List detection rules
 // ─────────────────────────────────────────────────────────────────────────────
 soc.get('/detection-rules', async (c) => {
+  const { orgId } = getOrgFilter(c);
+  let rulesQuery = 'SELECT * FROM soc_detection_rules';
+  const rulesParams: unknown[] = [];
+  if (orgId) {
+    rulesQuery += ' WHERE org_id = ?';
+    rulesParams.push(orgId);
+  }
+  rulesQuery += ' ORDER BY is_active DESC, created_at DESC';
   const rules = await c.env.DB
-    .prepare('SELECT * FROM soc_detection_rules ORDER BY is_active DESC, created_at DESC')
+    .prepare(rulesQuery)
+    .bind(...rulesParams)
     .all();
 
   return c.json({ items: rules.results || [] });
@@ -529,6 +616,7 @@ soc.get('/detection-rules', async (c) => {
 // POST /soc/detection-rules — Create detection rule
 // ─────────────────────────────────────────────────────────────────────────────
 soc.post('/detection-rules', async (c) => {
+  const orgIdForInsert = getOrgIdForInsert(c);
   const body = await c.req.json();
 
   if (!body.name || !body.event_pattern) {
@@ -538,8 +626,8 @@ soc.post('/detection-rules', async (c) => {
   const id = crypto.randomUUID();
   await c.env.DB
     .prepare(
-      `INSERT INTO soc_detection_rules (id, name, description, event_pattern, conditions, alert_severity, alert_type, tags, is_active, auto_escalate, cooldown_seconds, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
+      `INSERT INTO soc_detection_rules (id, name, description, event_pattern, conditions, alert_severity, alert_type, tags, is_active, auto_escalate, cooldown_seconds, created_by, org_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
     )
     .bind(
       id,
@@ -553,7 +641,8 @@ soc.post('/detection-rules', async (c) => {
       body.is_active !== false ? 1 : 0,
       body.auto_escalate ? 1 : 0,
       body.cooldown_seconds || 300,
-      body.created_by || null
+      body.created_by || null,
+      orgIdForInsert
     )
     .run();
 
@@ -569,12 +658,19 @@ soc.post('/detection-rules', async (c) => {
 // PUT /soc/detection-rules/:id — Update detection rule
 // ─────────────────────────────────────────────────────────────────────────────
 soc.put('/detection-rules/:id', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
   const body = await c.req.json();
 
+  let existRuleQuery = 'SELECT * FROM soc_detection_rules WHERE id = ?';
+  const existRuleParams: unknown[] = [id];
+  if (orgId) {
+    existRuleQuery += ' AND org_id = ?';
+    existRuleParams.push(orgId);
+  }
   const existing = await c.env.DB
-    .prepare('SELECT * FROM soc_detection_rules WHERE id = ?')
-    .bind(id)
+    .prepare(existRuleQuery)
+    .bind(...existRuleParams)
     .first();
 
   if (!existing) return c.json({ error: 'Detection rule not found' }, 404);
@@ -594,10 +690,15 @@ soc.put('/detection-rules/:id', async (c) => {
   if (fields.length === 0) throw badRequest('No fields to update');
 
   fields.push("updated_at = datetime('now')");
+  let updateRuleWhere = 'WHERE id = ?';
   values.push(id);
+  if (orgId) {
+    updateRuleWhere += ' AND org_id = ?';
+    values.push(orgId);
+  }
 
   await c.env.DB
-    .prepare(`UPDATE soc_detection_rules SET ${fields.join(', ')} WHERE id = ?`)
+    .prepare(`UPDATE soc_detection_rules SET ${fields.join(', ')} ${updateRuleWhere}`)
     .bind(...values)
     .run();
 
@@ -613,11 +714,18 @@ soc.put('/detection-rules/:id', async (c) => {
 // DELETE /soc/detection-rules/:id — Delete detection rule
 // ─────────────────────────────────────────────────────────────────────────────
 soc.delete('/detection-rules/:id', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
 
+  let delRuleQuery = 'DELETE FROM soc_detection_rules WHERE id = ?';
+  const delRuleParams: unknown[] = [id];
+  if (orgId) {
+    delRuleQuery += ' AND org_id = ?';
+    delRuleParams.push(orgId);
+  }
   const result = await c.env.DB
-    .prepare('DELETE FROM soc_detection_rules WHERE id = ?')
-    .bind(id)
+    .prepare(delRuleQuery)
+    .bind(...delRuleParams)
     .run();
 
   if (!result.meta.changes) {
@@ -631,11 +739,18 @@ soc.delete('/detection-rules/:id', async (c) => {
 // POST /soc/correlate/:campaignId — Cross-product correlation
 // ─────────────────────────────────────────────────────────────────────────────
 soc.post('/correlate/:campaignId', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const campaignId = c.req.param('campaignId');
 
+  let corrCampQuery = 'SELECT id FROM redops_campaigns WHERE id = ?';
+  const corrCampParams: unknown[] = [campaignId];
+  if (orgId) {
+    corrCampQuery += ' AND org_id = ?';
+    corrCampParams.push(orgId);
+  }
   const campaign = await c.env.DB
-    .prepare('SELECT id FROM redops_campaigns WHERE id = ?')
-    .bind(campaignId)
+    .prepare(corrCampQuery)
+    .bind(...corrCampParams)
     .first();
 
   if (!campaign) {
@@ -729,6 +844,10 @@ soc.post('/ml/score', async (c) => {
 // GET /soc/ml/overview — ML correlation dashboard summary
 // ─────────────────────────────────────────────────────────────────────────────
 soc.get('/ml/overview', async (c) => {
+  const { orgId } = getOrgFilter(c);
+  const mlOrgWhere = orgId ? ' WHERE org_id = ?' : '';
+  const mlOrgParams = orgId ? [orgId] : [];
+
   const [anomaly, clusters, confidenceStats] = await Promise.all([
     detectAlertVolumeAnomaly(c.env.DB, 60, 30, 2.0),
     clusterAlerts(c.env.DB, 24, 2, 0.5),
@@ -742,8 +861,9 @@ soc.get('/ml/overview', async (c) => {
           COUNT(CASE WHEN confidence_level = 'low' THEN 1 END) as low_count,
           COUNT(CASE WHEN confidence_score IS NOT NULL THEN 1 END) as scored_count,
           COUNT(CASE WHEN confidence_score IS NULL AND status NOT IN ('closed','false_positive') THEN 1 END) as unscored_count
-        FROM soc_alerts`
+        FROM soc_alerts${mlOrgWhere}`
       )
+      .bind(...mlOrgParams)
       .first<{
         avg_confidence: number | null;
         critical_count: number;

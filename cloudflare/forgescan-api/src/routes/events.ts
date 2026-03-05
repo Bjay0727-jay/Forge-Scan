@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../index';
 import { queryEvents, publish } from '../services/event-bus';
 import { badRequest } from '../lib/errors';
+import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 
 export const events = new Hono<{ Bindings: Env }>();
 
@@ -33,11 +34,11 @@ events.get('/', async (c) => {
 // ─────────────────────────────────────────────────────────────────────────────
 events.get('/:id', async (c) => {
   const id = c.req.param('id');
+  const { orgId } = getOrgFilter(c);
 
-  const event = await c.env.DB
-    .prepare('SELECT * FROM forge_events WHERE id = ?')
-    .bind(id)
-    .first();
+  const event = orgId
+    ? await c.env.DB.prepare('SELECT * FROM forge_events WHERE id = ? AND org_id = ?').bind(id, orgId).first()
+    : await c.env.DB.prepare('SELECT * FROM forge_events WHERE id = ?').bind(id).first();
 
   if (!event) {
     return c.json({ error: 'Event not found' }, 404);
@@ -67,6 +68,11 @@ events.get('/:id', async (c) => {
 // GET /events/stats — Event statistics
 // ─────────────────────────────────────────────────────────────────────────────
 events.get('/stats/summary', async (c) => {
+  const { orgId } = getOrgFilter(c);
+  const orgFilter = orgId ? ' AND org_id = ?' : '';
+  const orgWhere = orgId ? ' WHERE org_id = ?' : '';
+  const orgParams = orgId ? [orgId] : [];
+
   const [eventStats, subStats, recentByType] = await Promise.all([
     c.env.DB
       .prepare(
@@ -74,8 +80,9 @@ events.get('/stats/summary', async (c) => {
           COUNT(*) as total_events,
           SUM(CASE WHEN created_at > datetime('now', '-24 hours') THEN 1 ELSE 0 END) as events_24h,
           SUM(CASE WHEN created_at > datetime('now', '-1 hour') THEN 1 ELSE 0 END) as events_1h
-        FROM forge_events`
+        FROM forge_events${orgWhere}`
       )
+      .bind(...orgParams)
       .first<{ total_events: number; events_24h: number; events_1h: number }>(),
 
     c.env.DB
@@ -91,11 +98,12 @@ events.get('/stats/summary', async (c) => {
       .prepare(
         `SELECT event_type, COUNT(*) as count
          FROM forge_events
-         WHERE created_at > datetime('now', '-24 hours')
+         WHERE created_at > datetime('now', '-24 hours')${orgFilter}
          GROUP BY event_type
          ORDER BY count DESC
          LIMIT 10`
       )
+      .bind(...orgParams)
       .all<{ event_type: string; count: number }>(),
   ]);
 

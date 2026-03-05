@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../index';
 import { notFound, databaseError } from '../lib/errors';
 import { requireEnum } from '../lib/validate';
+import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 
 export const exports = new Hono<{ Bindings: Env }>();
 
@@ -59,6 +60,7 @@ exports.get('/findings/csv', async (c) => {
     limit = '10000',
     include_asset = 'true',
   } = c.req.query();
+  const { orgId } = getOrgFilter(c);
 
   let query: string;
   const params: any[] = [];
@@ -89,6 +91,7 @@ exports.get('/findings/csv', async (c) => {
       LEFT JOIN assets a ON f.asset_id = a.id
       WHERE 1=1
     `;
+    if (orgId) { query += ' AND f.org_id = ?'; params.push(orgId); }
   } else {
     query = `
       SELECT
@@ -110,6 +113,7 @@ exports.get('/findings/csv', async (c) => {
       FROM findings
       WHERE 1=1
     `;
+    if (orgId) { query += ' AND org_id = ?'; params.push(orgId); }
   }
 
   if (severity) {
@@ -158,6 +162,7 @@ exports.get('/findings/json', async (c) => {
     limit = '10000',
     pretty = 'false',
   } = c.req.query();
+  const { orgId } = getOrgFilter(c);
 
   let query = `
     SELECT
@@ -175,6 +180,8 @@ exports.get('/findings/json', async (c) => {
     WHERE 1=1
   `;
   const params: any[] = [];
+
+  if (orgId) { query += ' AND f.org_id = ?'; params.push(orgId); }
 
   if (severity) {
     const severities = severity.split(',');
@@ -231,6 +238,7 @@ exports.get('/assets/csv', async (c) => {
     include_findings_count = 'true',
     limit = '10000',
   } = c.req.query();
+  const { orgId } = getOrgFilter(c);
 
   let query: string;
   const params: any[] = [];
@@ -257,6 +265,7 @@ exports.get('/assets/csv', async (c) => {
       LEFT JOIN findings f ON a.id = f.asset_id
       WHERE 1=1
     `;
+    if (orgId) { query += ' AND a.org_id = ?'; params.push(orgId); }
   } else {
     query = `
       SELECT
@@ -275,6 +284,7 @@ exports.get('/assets/csv', async (c) => {
       FROM assets
       WHERE 1=1
     `;
+    if (orgId) { query += ' AND org_id = ?'; params.push(orgId); }
   }
 
   if (asset_type) {
@@ -320,9 +330,12 @@ exports.get('/assets/json', async (c) => {
     limit = '10000',
     pretty = 'false',
   } = c.req.query();
+  const { orgId } = getOrgFilter(c);
 
   let query = 'SELECT * FROM assets WHERE 1=1';
   const params: any[] = [];
+
+  if (orgId) { query += ' AND org_id = ?'; params.push(orgId); }
 
   if (asset_type) {
     query += ' AND asset_type = ?';
@@ -345,12 +358,14 @@ exports.get('/assets/json', async (c) => {
     // Optionally include findings for each asset
     if (include_findings === 'true') {
       for (const asset of assets) {
-        const findingsResult = await c.env.DB.prepare(`
+        let findingsQuery = `
           SELECT id, title, severity, state, vendor, first_seen
           FROM findings
-          WHERE asset_id = ? AND state = 'open'
-          ORDER BY severity, created_at DESC
-        `).bind(asset.id).all();
+          WHERE asset_id = ? AND state = 'open'`;
+        const findingsParams: any[] = [asset.id];
+        if (orgId) { findingsQuery += ' AND org_id = ?'; findingsParams.push(orgId); }
+        findingsQuery += ' ORDER BY severity, created_at DESC';
+        const findingsResult = await c.env.DB.prepare(findingsQuery).bind(...findingsParams).all();
 
         asset.findings = findingsResult.results;
         asset.findings_count = findingsResult.results?.length || 0;
@@ -427,10 +442,11 @@ exports.post('/schedule', async (c) => {
   };
 
   // Store schedule in database
+  const orgIdForInsertVal = getOrgIdForInsert(c);
   try {
     await c.env.DB.prepare(`
-      INSERT INTO export_schedules (id, export_type, format, schedule, filters, destination, enabled, next_run, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      INSERT INTO export_schedules (id, export_type, format, schedule, filters, destination, enabled, next_run, org_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `).bind(
       scheduleId,
       body.export_type,
@@ -440,6 +456,7 @@ exports.post('/schedule', async (c) => {
       JSON.stringify(body.destination || { type: 'r2' }),
       body.enabled !== false ? 1 : 0,
       nextRun.toISOString(),
+      orgIdForInsertVal,
     ).run();
   } catch (error) {
     // Table might not exist, store in KV as fallback
@@ -459,11 +476,11 @@ exports.post('/schedule', async (c) => {
 
 // GET /api/v1/exports/schedules - List scheduled exports
 exports.get('/schedules', async (c) => {
+  const { orgId } = getOrgFilter(c);
   try {
-    const result = await c.env.DB.prepare(`
-      SELECT * FROM export_schedules
-      ORDER BY created_at DESC
-    `).all();
+    const result = orgId
+      ? await c.env.DB.prepare('SELECT * FROM export_schedules WHERE org_id = ? ORDER BY created_at DESC').bind(orgId).all()
+      : await c.env.DB.prepare('SELECT * FROM export_schedules ORDER BY created_at DESC').all();
 
     return c.json({
       data: result.results,
@@ -489,9 +506,14 @@ exports.get('/schedules', async (c) => {
 // DELETE /api/v1/exports/schedules/:id - Delete scheduled export
 exports.delete('/schedules/:id', async (c) => {
   const id = c.req.param('id');
+  const { orgId } = getOrgFilter(c);
 
   try {
-    await c.env.DB.prepare('DELETE FROM export_schedules WHERE id = ?').bind(id).run();
+    if (orgId) {
+      await c.env.DB.prepare('DELETE FROM export_schedules WHERE id = ? AND org_id = ?').bind(id, orgId).run();
+    } else {
+      await c.env.DB.prepare('DELETE FROM export_schedules WHERE id = ?').bind(id).run();
+    }
   } catch {
     // Fallback to KV
     await c.env.CACHE.delete(`export_schedule:${id}`);
@@ -504,6 +526,7 @@ exports.delete('/schedules/:id', async (c) => {
 exports.patch('/schedules/:id', async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json<Partial<ScheduleExportRequest>>();
+  const { orgId } = getOrgFilter(c);
 
   try {
     const updates: string[] = ['updated_at = datetime(\'now\')'];
@@ -525,9 +548,15 @@ exports.patch('/schedules/:id', async (c) => {
     }
 
     if (updates.length > 1) {
-      await c.env.DB.prepare(`
-        UPDATE export_schedules SET ${updates.join(', ')} WHERE id = ?
-      `).bind(...params, id).run();
+      if (orgId) {
+        await c.env.DB.prepare(`
+          UPDATE export_schedules SET ${updates.join(', ')} WHERE id = ? AND org_id = ?
+        `).bind(...params, id, orgId).run();
+      } else {
+        await c.env.DB.prepare(`
+          UPDATE export_schedules SET ${updates.join(', ')} WHERE id = ?
+        `).bind(...params, id).run();
+      }
     }
 
     return c.json({ message: 'Export schedule updated' });
@@ -539,13 +568,14 @@ exports.patch('/schedules/:id', async (c) => {
 // POST /api/v1/exports/run/:id - Manually trigger scheduled export
 exports.post('/run/:id', async (c) => {
   const id = c.req.param('id');
+  const { orgId } = getOrgFilter(c);
 
   // Get schedule config
   let schedule: any;
   try {
-    schedule = await c.env.DB.prepare(
-      'SELECT * FROM export_schedules WHERE id = ?'
-    ).bind(id).first();
+    schedule = orgId
+      ? await c.env.DB.prepare('SELECT * FROM export_schedules WHERE id = ? AND org_id = ?').bind(id, orgId).first()
+      : await c.env.DB.prepare('SELECT * FROM export_schedules WHERE id = ?').bind(id).first();
   } catch {
     const value = await c.env.CACHE.get(`export_schedule:${id}`);
     if (value) {
@@ -571,6 +601,7 @@ exports.post('/run/:id', async (c) => {
       query = 'SELECT * FROM findings WHERE 1=1';
       const params: any[] = [];
 
+      if (orgId) { query += ' AND org_id = ?'; params.push(orgId); }
       if (filters.severity?.length) {
         query += ` AND severity IN (${filters.severity.map(() => '?').join(',')})`;
         params.push(...filters.severity);
@@ -586,6 +617,7 @@ exports.post('/run/:id', async (c) => {
       query = 'SELECT * FROM assets WHERE 1=1';
       const params: any[] = [];
 
+      if (orgId) { query += ' AND org_id = ?'; params.push(orgId); }
       if (filters.asset_types?.length) {
         query += ` AND asset_type IN (${filters.asset_types.map(() => '?').join(',')})`;
         params.push(...filters.asset_types);

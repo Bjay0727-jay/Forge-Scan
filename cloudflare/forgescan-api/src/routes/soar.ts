@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 
 interface Env { DB: D1Database; STORAGE: R2Bucket; CACHE: KVNamespace; JWT_SECRET: string }
 interface AuthUser { id: string; email: string; role: string; display_name: string }
@@ -93,6 +94,7 @@ const PLAYBOOK_TEMPLATES = [
 // ─── Playbooks CRUD ────────────────────────────────────────────────────────
 
 soar.get('/playbooks', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const { page = '1', page_size = '25', enabled, trigger_type } = c.req.query();
   const pageNum = parseInt(page);
   const limit = Math.min(parseInt(page_size), 100);
@@ -100,6 +102,7 @@ soar.get('/playbooks', async (c) => {
 
   const conditions: string[] = [];
   const params: (string | number)[] = [];
+  if (orgId) { conditions.push('org_id = ?'); params.push(orgId); }
   if (enabled !== undefined) { conditions.push('enabled = ?'); params.push(enabled === 'true' ? 1 : 0); }
   if (trigger_type) { conditions.push('trigger_type = ?'); params.push(trigger_type); }
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -114,6 +117,7 @@ soar.get('/playbooks', async (c) => {
 
 soar.post('/playbooks', async (c) => {
   try {
+    const orgIdForInsert = getOrgIdForInsert(c);
     const body = await c.req.json();
     const { name, description, trigger_type, trigger_config, steps, severity_filter, max_concurrent, cooldown_seconds } = body;
     if (!name || !trigger_type || !steps) return c.json({ error: 'name, trigger_type, and steps are required' }, 400);
@@ -122,9 +126,9 @@ soar.post('/playbooks', async (c) => {
     const id = crypto.randomUUID();
 
     await c.env.DB.prepare(`
-      INSERT INTO soar_playbooks (id, name, description, trigger_type, trigger_config, steps, severity_filter, max_concurrent, cooldown_seconds, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(id, name, description || null, trigger_type, JSON.stringify(trigger_config || {}), JSON.stringify(steps), severity_filter || null, max_concurrent || 5, cooldown_seconds || 300, user.id).run();
+      INSERT INTO soar_playbooks (id, name, description, trigger_type, trigger_config, steps, severity_filter, max_concurrent, cooldown_seconds, created_by, org_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(id, name, description || null, trigger_type, JSON.stringify(trigger_config || {}), JSON.stringify(steps), severity_filter || null, max_concurrent || 5, cooldown_seconds || 300, user.id, orgIdForInsert).run();
 
     const playbook = await c.env.DB.prepare('SELECT * FROM soar_playbooks WHERE id = ?').bind(id).first();
     return c.json(playbook, 201);
@@ -135,8 +139,15 @@ soar.post('/playbooks', async (c) => {
 });
 
 soar.get('/playbooks/:id', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
-  const playbook = await c.env.DB.prepare('SELECT * FROM soar_playbooks WHERE id = ?').bind(id).first();
+  let pbQuery = 'SELECT * FROM soar_playbooks WHERE id = ?';
+  const pbParams: unknown[] = [id];
+  if (orgId) {
+    pbQuery += ' AND org_id = ?';
+    pbParams.push(orgId);
+  }
+  const playbook = await c.env.DB.prepare(pbQuery).bind(...pbParams).first();
   if (!playbook) return c.json({ error: 'Playbook not found' }, 404);
 
   const executions = await c.env.DB.prepare(
@@ -148,11 +159,18 @@ soar.get('/playbooks/:id', async (c) => {
 
 soar.put('/playbooks/:id', async (c) => {
   try {
+    const { orgId } = getOrgFilter(c);
     const id = c.req.param('id');
     const body = await c.req.json();
     const { name, description, trigger_type, trigger_config, steps, severity_filter, enabled, max_concurrent, cooldown_seconds } = body;
 
-    const existing = await c.env.DB.prepare('SELECT id FROM soar_playbooks WHERE id = ?').bind(id).first();
+    let existPbQuery = 'SELECT id FROM soar_playbooks WHERE id = ?';
+    const existPbParams: unknown[] = [id];
+    if (orgId) {
+      existPbQuery += ' AND org_id = ?';
+      existPbParams.push(orgId);
+    }
+    const existing = await c.env.DB.prepare(existPbQuery).bind(...existPbParams).first();
     if (!existing) return c.json({ error: 'Playbook not found' }, 404);
 
     const updates: string[] = [];
@@ -170,9 +188,14 @@ soar.put('/playbooks/:id', async (c) => {
 
     if (updates.length === 0) return c.json({ error: 'No fields to update' }, 400);
     updates.push("updated_at = datetime('now')");
+    let updatePbWhere = 'WHERE id = ?';
     values.push(id);
+    if (orgId) {
+      updatePbWhere += ' AND org_id = ?';
+      values.push(orgId);
+    }
 
-    await c.env.DB.prepare(`UPDATE soar_playbooks SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+    await c.env.DB.prepare(`UPDATE soar_playbooks SET ${updates.join(', ')} ${updatePbWhere}`).bind(...values).run();
     const playbook = await c.env.DB.prepare('SELECT * FROM soar_playbooks WHERE id = ?').bind(id).first();
     return c.json(playbook);
   } catch (err) {
@@ -182,18 +205,38 @@ soar.put('/playbooks/:id', async (c) => {
 });
 
 soar.delete('/playbooks/:id', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT id FROM soar_playbooks WHERE id = ?').bind(id).first();
+  let existDelPbQuery = 'SELECT id FROM soar_playbooks WHERE id = ?';
+  const existDelPbParams: unknown[] = [id];
+  if (orgId) {
+    existDelPbQuery += ' AND org_id = ?';
+    existDelPbParams.push(orgId);
+  }
+  const existing = await c.env.DB.prepare(existDelPbQuery).bind(...existDelPbParams).first();
   if (!existing) return c.json({ error: 'Playbook not found' }, 404);
-  await c.env.DB.prepare('DELETE FROM soar_playbooks WHERE id = ?').bind(id).run();
+  let delPbQuery = 'DELETE FROM soar_playbooks WHERE id = ?';
+  const delPbParams: unknown[] = [id];
+  if (orgId) {
+    delPbQuery += ' AND org_id = ?';
+    delPbParams.push(orgId);
+  }
+  await c.env.DB.prepare(delPbQuery).bind(...delPbParams).run();
   return c.json({ message: 'Playbook deleted' });
 });
 
 // ─── Execute Playbook ──────────────────────────────────────────────────────
 
 soar.post('/playbooks/:id/execute', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const playbookId = c.req.param('id');
-  const playbook = await c.env.DB.prepare('SELECT * FROM soar_playbooks WHERE id = ?').bind(playbookId).first();
+  let execPbQuery = 'SELECT * FROM soar_playbooks WHERE id = ?';
+  const execPbParams: unknown[] = [playbookId];
+  if (orgId) {
+    execPbQuery += ' AND org_id = ?';
+    execPbParams.push(orgId);
+  }
+  const playbook = await c.env.DB.prepare(execPbQuery).bind(...execPbParams).first();
   if (!playbook) return c.json({ error: 'Playbook not found' }, 404);
 
   const body = await c.req.json().catch(() => ({})) as Record<string, string>;
@@ -265,8 +308,17 @@ soar.post('/playbooks/:id/execute', async (c) => {
 
 // Get execution detail
 soar.get('/executions/:id', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
-  const execution = await c.env.DB.prepare('SELECT * FROM soar_executions WHERE id = ?').bind(id).first();
+  let execDetailQuery = `SELECT e.* FROM soar_executions e
+    JOIN soar_playbooks p ON e.playbook_id = p.id
+    WHERE e.id = ?`;
+  const execDetailParams: unknown[] = [id];
+  if (orgId) {
+    execDetailQuery += ' AND p.org_id = ?';
+    execDetailParams.push(orgId);
+  }
+  const execution = await c.env.DB.prepare(execDetailQuery).bind(...execDetailParams).first();
   if (!execution) return c.json({ error: 'Execution not found' }, 404);
 
   const actions = await c.env.DB.prepare('SELECT * FROM soar_action_log WHERE execution_id = ? ORDER BY step_index').bind(id).all();
@@ -275,15 +327,19 @@ soar.get('/executions/:id', async (c) => {
 
 // List recent executions
 soar.get('/executions', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const { page = '1', page_size = '25', status } = c.req.query();
   const pageNum = parseInt(page);
   const limit = Math.min(parseInt(page_size), 100);
   const offset = (pageNum - 1) * limit;
 
-  const where = status ? 'WHERE e.status = ?' : '';
-  const params = status ? [status] : [];
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+  if (orgId) { conditions.push('p.org_id = ?'); params.push(orgId); }
+  if (status) { conditions.push('e.status = ?'); params.push(status); }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-  const total = await c.env.DB.prepare(`SELECT COUNT(*) as count FROM soar_executions e ${where}`).bind(...params).first<{ count: number }>();
+  const total = await c.env.DB.prepare(`SELECT COUNT(*) as count FROM soar_executions e JOIN soar_playbooks p ON p.id = e.playbook_id ${where}`).bind(...params).first<{ count: number }>();
   const executions = await c.env.DB.prepare(`
     SELECT e.*, p.name as playbook_name FROM soar_executions e
     JOIN soar_playbooks p ON p.id = e.playbook_id
@@ -306,14 +362,21 @@ soar.get('/action-types', async (c) => {
 // ─── Overview ──────────────────────────────────────────────────────────────
 
 soar.get('/overview', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const db = c.env.DB;
+  const orgWhere = orgId ? ' WHERE org_id = ?' : '';
+  const orgAnd = orgId ? ' AND org_id = ?' : '';
+  const orgJoinWhere = orgId ? ' WHERE p.org_id = ?' : '';
+  const orgJoinAnd = orgId ? ' AND p.org_id = ?' : '';
+  const op = orgId ? [orgId] : [];
+
   const [playbookCount, enabledCount, execCount, successCount, failCount, recentExecs] = await Promise.all([
-    db.prepare('SELECT COUNT(*) as count FROM soar_playbooks').first<{ count: number }>(),
-    db.prepare('SELECT COUNT(*) as count FROM soar_playbooks WHERE enabled = 1').first<{ count: number }>(),
-    db.prepare('SELECT COUNT(*) as count FROM soar_executions').first<{ count: number }>(),
-    db.prepare("SELECT COUNT(*) as count FROM soar_executions WHERE status = 'completed'").first<{ count: number }>(),
-    db.prepare("SELECT COUNT(*) as count FROM soar_executions WHERE status = 'failed'").first<{ count: number }>(),
-    db.prepare("SELECT e.*, p.name as playbook_name FROM soar_executions e JOIN soar_playbooks p ON p.id = e.playbook_id ORDER BY e.started_at DESC LIMIT 5").all(),
+    db.prepare(`SELECT COUNT(*) as count FROM soar_playbooks${orgWhere}`).bind(...op).first<{ count: number }>(),
+    db.prepare(`SELECT COUNT(*) as count FROM soar_playbooks WHERE enabled = 1${orgAnd}`).bind(...op).first<{ count: number }>(),
+    db.prepare(`SELECT COUNT(*) as count FROM soar_executions e JOIN soar_playbooks p ON p.id = e.playbook_id${orgJoinWhere}`).bind(...op).first<{ count: number }>(),
+    db.prepare(`SELECT COUNT(*) as count FROM soar_executions e JOIN soar_playbooks p ON p.id = e.playbook_id WHERE e.status = 'completed'${orgJoinAnd}`).bind(...op).first<{ count: number }>(),
+    db.prepare(`SELECT COUNT(*) as count FROM soar_executions e JOIN soar_playbooks p ON p.id = e.playbook_id WHERE e.status = 'failed'${orgJoinAnd}`).bind(...op).first<{ count: number }>(),
+    db.prepare(`SELECT e.*, p.name as playbook_name FROM soar_executions e JOIN soar_playbooks p ON p.id = e.playbook_id${orgJoinWhere} ORDER BY e.started_at DESC LIMIT 5`).bind(...op).all(),
   ]);
 
   const successRate = (execCount?.count || 0) > 0

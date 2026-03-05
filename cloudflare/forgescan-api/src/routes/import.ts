@@ -7,6 +7,7 @@ import {
   parseAssetsCSV,
   normalizeSeverity,
 } from '../lib/csv-parser';
+import { getOrgIdForInsert } from '../middleware/org-scope';
 
 export const importRoutes = new Hono<{ Bindings: Env }>();
 
@@ -14,6 +15,7 @@ export const importRoutes = new Hono<{ Bindings: Env }>();
 
 importRoutes.post('/', async (c) => {
   try {
+    const orgId = getOrgIdForInsert(c);
     const body = await c.req.json();
     const { format, data } = body;
 
@@ -71,9 +73,9 @@ importRoutes.post('/', async (c) => {
           INSERT INTO findings (
             id, title, description, severity, state, cve_id, cvss_score,
             affected_component, remediation, vendor, first_seen, last_seen,
-            created_at, updated_at
+            created_at, updated_at, org_id
           ) VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?, 'import', datetime('now'), datetime('now'),
-            datetime('now'), datetime('now'))
+            datetime('now'), datetime('now'), ?)
         `).bind(
           id,
           finding.title || 'Unknown Finding',
@@ -82,7 +84,8 @@ importRoutes.post('/', async (c) => {
           finding.cve_id || null,
           finding.cvss_score || null,
           finding.affected_component || null,
-          finding.remediation || null
+          finding.remediation || null,
+          orgId
         ).run();
         imported++;
       } catch (err: any) {
@@ -162,6 +165,7 @@ importRoutes.post('/upload', async (c) => {
 
 importRoutes.post('/assets', async (c) => {
   try {
+    const orgId = getOrgIdForInsert(c);
     const body = await c.req.json();
     const { format, data } = body;
 
@@ -197,9 +201,9 @@ importRoutes.post('/assets', async (c) => {
           INSERT INTO assets (
             id, hostname, fqdn, ip_addresses, os, os_version,
             asset_type, network_zone, tags, attributes,
-            first_seen, last_seen, created_at, updated_at
+            first_seen, last_seen, created_at, updated_at, org_id
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'),
-            datetime('now'), datetime('now'))
+            datetime('now'), datetime('now'), ?)
         `).bind(
           id,
           asset.hostname || null,
@@ -215,7 +219,8 @@ importRoutes.post('/assets', async (c) => {
             department: asset.department || null,
             location: asset.location || null,
             mac_addresses: asset.mac_address || null,
-          })
+          }),
+          orgId
         ).run();
         imported++;
       } catch (err: any) {
@@ -250,6 +255,7 @@ importRoutes.post('/assets', async (c) => {
 
 importRoutes.post('/assets/upload', async (c) => {
   try {
+    const orgId = getOrgIdForInsert(c);
     const formData = await c.req.formData();
     const file = formData.get('file') as unknown as File;
     const format = formData.get('format') as string;
@@ -305,9 +311,9 @@ importRoutes.post('/assets/upload', async (c) => {
           INSERT INTO assets (
             id, hostname, fqdn, ip_addresses, os, os_version,
             asset_type, network_zone, tags, attributes,
-            first_seen, last_seen, created_at, updated_at
+            first_seen, last_seen, created_at, updated_at, org_id
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'),
-            datetime('now'), datetime('now'))
+            datetime('now'), datetime('now'), ?)
         `).bind(
           id,
           asset.hostname || null,
@@ -323,7 +329,8 @@ importRoutes.post('/assets/upload', async (c) => {
             department: asset.department || null,
             location: asset.location || null,
             mac_addresses: asset.mac_address || null,
-          })
+          }),
+          orgId
         ).run();
         imported++;
       } catch (err: any) {

@@ -7,6 +7,7 @@ import {
   type Integration,
 } from '../services/integrations/manager';
 import { auditLog } from '../services/audit';
+import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 
 interface AuthUser {
   id: string;
@@ -19,9 +20,10 @@ export const integrations = new Hono<{ Bindings: Env; Variables: { user: AuthUse
 
 // GET /api/v1/integrations - List all integrations
 integrations.get('/', requireRole('platform_admin', 'scan_admin'), async (c) => {
-  const result = await c.env.DB.prepare(
-    'SELECT * FROM integrations ORDER BY created_at DESC'
-  ).all<Integration>();
+  const { orgId } = getOrgFilter(c);
+  const result = orgId
+    ? await c.env.DB.prepare('SELECT * FROM integrations WHERE org_id = ? ORDER BY created_at DESC').bind(orgId).all<Integration>()
+    : await c.env.DB.prepare('SELECT * FROM integrations ORDER BY created_at DESC').all<Integration>();
 
   // Mask sensitive config fields
   const items = (result.results || []).map(i => {
@@ -38,9 +40,10 @@ integrations.get('/', requireRole('platform_admin', 'scan_admin'), async (c) => 
 // GET /api/v1/integrations/:id - Get integration detail
 integrations.get('/:id', requireRole('platform_admin', 'scan_admin'), async (c) => {
   const id = c.req.param('id');
-  const integration = await c.env.DB.prepare(
-    'SELECT * FROM integrations WHERE id = ?'
-  ).bind(id).first<Integration>();
+  const { orgId } = getOrgFilter(c);
+  const integration = orgId
+    ? await c.env.DB.prepare('SELECT * FROM integrations WHERE id = ? AND org_id = ?').bind(id, orgId).first<Integration>()
+    : await c.env.DB.prepare('SELECT * FROM integrations WHERE id = ?').bind(id).first<Integration>();
 
   if (!integration) {
     return c.json({ error: 'Integration not found' }, 404);
@@ -87,11 +90,12 @@ integrations.post('/', requireRole('platform_admin'), async (c) => {
   }
 
   const id = crypto.randomUUID();
+  const orgIdForInsertVal = getOrgIdForInsert(c);
 
   await c.env.DB.prepare(`
-    INSERT INTO integrations (id, name, type, provider, config, is_active, created_by)
-    VALUES (?, ?, ?, ?, ?, 1, ?)
-  `).bind(id, name, type, provider, JSON.stringify(parsedConfig), user?.id || null).run();
+    INSERT INTO integrations (id, name, type, provider, config, is_active, created_by, org_id)
+    VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+  `).bind(id, name, type, provider, JSON.stringify(parsedConfig), user?.id || null, orgIdForInsertVal).run();
 
   // Audit: integration created
   auditLog(c.env.DB, { action: 'integration.created', actor_id: user?.id, actor_email: user?.email, resource_type: 'integration', resource_id: id, details: { type, provider } });
@@ -103,10 +107,11 @@ integrations.post('/', requireRole('platform_admin'), async (c) => {
 integrations.put('/:id', requireRole('platform_admin'), async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json();
+  const { orgId } = getOrgFilter(c);
 
-  const existing = await c.env.DB.prepare(
-    'SELECT * FROM integrations WHERE id = ?'
-  ).bind(id).first<Integration>();
+  const existing = orgId
+    ? await c.env.DB.prepare('SELECT * FROM integrations WHERE id = ? AND org_id = ?').bind(id, orgId).first<Integration>()
+    : await c.env.DB.prepare('SELECT * FROM integrations WHERE id = ?').bind(id).first<Integration>();
 
   if (!existing) {
     return c.json({ error: 'Integration not found' }, 404);
@@ -135,9 +140,15 @@ integrations.put('/:id', requireRole('platform_admin'), async (c) => {
 
   updates.push("updated_at = datetime('now')");
 
-  await c.env.DB.prepare(
-    `UPDATE integrations SET ${updates.join(', ')} WHERE id = ?`
-  ).bind(...params, id).run();
+  if (orgId) {
+    await c.env.DB.prepare(
+      `UPDATE integrations SET ${updates.join(', ')} WHERE id = ? AND org_id = ?`
+    ).bind(...params, id, orgId).run();
+  } else {
+    await c.env.DB.prepare(
+      `UPDATE integrations SET ${updates.join(', ')} WHERE id = ?`
+    ).bind(...params, id).run();
+  }
 
   return c.json({ message: 'Integration updated' });
 });
@@ -145,7 +156,10 @@ integrations.put('/:id', requireRole('platform_admin'), async (c) => {
 // DELETE /api/v1/integrations/:id - Delete an integration
 integrations.delete('/:id', requireRole('platform_admin'), async (c) => {
   const id = c.req.param('id');
-  const result = await c.env.DB.prepare('DELETE FROM integrations WHERE id = ?').bind(id).run();
+  const { orgId } = getOrgFilter(c);
+  const result = orgId
+    ? await c.env.DB.prepare('DELETE FROM integrations WHERE id = ? AND org_id = ?').bind(id, orgId).run()
+    : await c.env.DB.prepare('DELETE FROM integrations WHERE id = ?').bind(id).run();
 
   if (result.meta.changes === 0) {
     return c.json({ error: 'Integration not found' }, 404);
@@ -160,10 +174,11 @@ integrations.delete('/:id', requireRole('platform_admin'), async (c) => {
 // POST /api/v1/integrations/:id/test - Test an integration
 integrations.post('/:id/test', requireRole('platform_admin', 'scan_admin'), async (c) => {
   const id = c.req.param('id');
+  const { orgId } = getOrgFilter(c);
 
-  const integration = await c.env.DB.prepare(
-    'SELECT * FROM integrations WHERE id = ?'
-  ).bind(id).first<Integration>();
+  const integration = orgId
+    ? await c.env.DB.prepare('SELECT * FROM integrations WHERE id = ? AND org_id = ?').bind(id, orgId).first<Integration>()
+    : await c.env.DB.prepare('SELECT * FROM integrations WHERE id = ?').bind(id).first<Integration>();
 
   if (!integration) {
     return c.json({ error: 'Integration not found' }, 404);
@@ -190,9 +205,10 @@ integrations.post('/:id/dispatch', requireRole('platform_admin'), async (c) => {
     return c.json({ error: 'event_type is required' }, 400);
   }
 
-  const integration = await c.env.DB.prepare(
-    'SELECT * FROM integrations WHERE id = ?'
-  ).bind(id).first<Integration>();
+  const { orgId } = getOrgFilter(c);
+  const integration = orgId
+    ? await c.env.DB.prepare('SELECT * FROM integrations WHERE id = ? AND org_id = ?').bind(id, orgId).first<Integration>()
+    : await c.env.DB.prepare('SELECT * FROM integrations WHERE id = ?').bind(id).first<Integration>();
 
   if (!integration) {
     return c.json({ error: 'Integration not found' }, 404);
@@ -214,6 +230,13 @@ integrations.post('/:id/dispatch', requireRole('platform_admin'), async (c) => {
 integrations.get('/:id/logs', requireRole('platform_admin', 'scan_admin'), async (c) => {
   const id = c.req.param('id');
   const { limit = '50', offset = '0' } = c.req.query();
+  const { orgId } = getOrgFilter(c);
+
+  // Verify integration belongs to org
+  if (orgId) {
+    const exists = await c.env.DB.prepare('SELECT id FROM integrations WHERE id = ? AND org_id = ?').bind(id, orgId).first();
+    if (!exists) return c.json({ error: 'Integration not found' }, 404);
+  }
 
   const result = await c.env.DB.prepare(
     'SELECT * FROM integration_logs WHERE integration_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
@@ -232,14 +255,19 @@ integrations.get('/:id/logs', requireRole('platform_admin', 'scan_admin'), async
 // GET /api/v1/integrations/logs/recent - Get recent logs across all integrations
 integrations.get('/logs/recent', requireRole('platform_admin', 'scan_admin'), async (c) => {
   const { limit = '50' } = c.req.query();
+  const { orgId } = getOrgFilter(c);
 
-  const result = await c.env.DB.prepare(`
+  let query = `
     SELECT il.*, i.name as integration_name, i.type as integration_type
     FROM integration_logs il
     LEFT JOIN integrations i ON il.integration_id = i.id
-    ORDER BY il.created_at DESC
-    LIMIT ?
-  `).bind(parseInt(limit)).all();
+    WHERE 1=1`;
+  const params: any[] = [];
+  if (orgId) { query += ' AND i.org_id = ?'; params.push(orgId); }
+  query += ' ORDER BY il.created_at DESC LIMIT ?';
+  params.push(parseInt(limit));
+
+  const result = await c.env.DB.prepare(query).bind(...params).all();
 
   return c.json({ logs: result.results || [] });
 });

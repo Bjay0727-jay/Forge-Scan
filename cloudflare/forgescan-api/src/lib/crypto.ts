@@ -63,7 +63,7 @@ interface JWTPayload {
 export async function signJWT(
   payload: Omit<JWTPayload, 'iat' | 'exp' | 'jti'>,
   secret: string,
-  expiresInSeconds: number = 86400 // 24 hours
+  expiresInSeconds: number = 3600 // 1 hour
 ): Promise<{ token: string; jti: string; expiresAt: string }> {
   const now = Math.floor(Date.now() / 1000);
   const jti = crypto.randomUUID();
@@ -139,6 +139,20 @@ export async function verifyJWT(token: string, secret: string): Promise<JWTPaylo
   } catch {
     return null;
   }
+}
+
+// --- Refresh Token ---
+
+export function generateRefreshToken(): string {
+  const buffer = new Uint8Array(32);
+  crypto.getRandomValues(buffer);
+  return `fsr_${bufferToHex(buffer)}`;
+}
+
+export async function hashRefreshToken(token: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(token));
+  return bufferToHex(new Uint8Array(hashBuffer));
 }
 
 // --- API Key Hashing ---

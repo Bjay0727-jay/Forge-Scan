@@ -50,6 +50,15 @@ function createApp(db: any) {
   const app = new Hono<{ Bindings: Env }>();
   app.use('*', async (c, next) => {
     (c.env as any) = { DB: db, STORAGE: {}, CACHE: {} };
+    c.set('user' as any, {
+      id: 'user-001',
+      email: 'test@example.com',
+      role: 'scan_admin',
+      display_name: 'Test User',
+      organization_id: 'org-test-001',
+      org_role: 'admin',
+    });
+    c.set('orgId' as any, 'org-test-001');
     await next();
   });
   app.route('/api/v1/ingest', ingest);

@@ -4,6 +4,7 @@ import { notFound, badRequest, databaseError } from '../lib/errors';
 import { requireField, parsePagination, validateSortOrder } from '../lib/validate';
 import { executeCampaign } from '../services/redops/controller';
 import { auditLog } from '../services/audit';
+import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 // Register agent implementations (side-effect imports)
 import '../services/redops/agents/web-misconfig';
 import '../services/redops/agents/api-auth-bypass';
@@ -22,6 +23,7 @@ export const redops = new Hono<{ Bindings: Env }>();
 
 // List campaigns
 redops.get('/campaigns', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const { page, pageSize } = parsePagination(c.req.query('page'), c.req.query('page_size'));
   const status = c.req.query('status');
   const campaignType = c.req.query('type');
@@ -31,6 +33,13 @@ redops.get('/campaigns', async (c) => {
   let dataQuery = 'SELECT * FROM redops_campaigns WHERE 1=1';
   const params: unknown[] = [];
   const countParams: unknown[] = [];
+
+  if (orgId) {
+    query += ' AND org_id = ?';
+    dataQuery += ' AND org_id = ?';
+    params.push(orgId);
+    countParams.push(orgId);
+  }
 
   if (status) {
     query += ' AND status = ?';
@@ -71,12 +80,17 @@ redops.get('/campaigns', async (c) => {
 
 // Get campaign by ID
 redops.get('/campaigns/:id', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
 
   try {
-    const campaign = await c.env.DB.prepare(
-      'SELECT * FROM redops_campaigns WHERE id = ?'
-    ).bind(id).first();
+    let getCampaignQuery = 'SELECT * FROM redops_campaigns WHERE id = ?';
+    const getCampaignParams: unknown[] = [id];
+    if (orgId) {
+      getCampaignQuery += ' AND org_id = ?';
+      getCampaignParams.push(orgId);
+    }
+    const campaign = await c.env.DB.prepare(getCampaignQuery).bind(...getCampaignParams).first();
 
     if (!campaign) throw notFound('Campaign', id);
     return c.json(campaign);
@@ -88,6 +102,7 @@ redops.get('/campaigns/:id', async (c) => {
 
 // Create campaign
 redops.post('/campaigns', async (c) => {
+  const orgIdForInsert = getOrgIdForInsert(c);
   const body = await c.req.json();
   const id = crypto.randomUUID();
 
@@ -114,8 +129,8 @@ redops.post('/campaigns', async (c) => {
         target_scope, exclusions, agent_categories,
         max_concurrent_agents, exploitation_level,
         risk_threshold, auto_poam, compliance_mapping,
-        scheduled_at, created_by, created_at, updated_at
-      ) VALUES (?, ?, ?, 'created', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        scheduled_at, created_by, org_id, created_at, updated_at
+      ) VALUES (?, ?, ?, 'created', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     `).bind(
       id,
       body.name,
@@ -131,6 +146,7 @@ redops.post('/campaigns', async (c) => {
       body.compliance_mapping !== false ? 1 : 0,
       body.scheduled_at || null,
       body.created_by || null,
+      orgIdForInsert,
     ).run();
 
     const campaign = await c.env.DB.prepare(
@@ -148,13 +164,18 @@ redops.post('/campaigns', async (c) => {
 
 // Update campaign
 redops.put('/campaigns/:id', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
   const body = await c.req.json();
 
   try {
-    const existing = await c.env.DB.prepare(
-      'SELECT * FROM redops_campaigns WHERE id = ?'
-    ).bind(id).first();
+    let existQuery = 'SELECT * FROM redops_campaigns WHERE id = ?';
+    const existParams: unknown[] = [id];
+    if (orgId) {
+      existQuery += ' AND org_id = ?';
+      existParams.push(orgId);
+    }
+    const existing = await c.env.DB.prepare(existQuery).bind(...existParams).first();
 
     if (!existing) throw notFound('Campaign', id);
 
@@ -181,10 +202,15 @@ redops.put('/campaigns/:id', async (c) => {
     if (fields.length === 0) throw badRequest('No fields to update');
 
     fields.push('updated_at = datetime(\'now\')');
+    let updateWhere = 'WHERE id = ?';
     values.push(id);
+    if (orgId) {
+      updateWhere += ' AND org_id = ?';
+      values.push(orgId);
+    }
 
     await c.env.DB.prepare(
-      `UPDATE redops_campaigns SET ${fields.join(', ')} WHERE id = ?`
+      `UPDATE redops_campaigns SET ${fields.join(', ')} ${updateWhere}`
     ).bind(...values).run();
 
     const updated = await c.env.DB.prepare(
@@ -200,12 +226,17 @@ redops.put('/campaigns/:id', async (c) => {
 
 // Launch campaign (transition to queued -> start agents)
 redops.post('/campaigns/:id/launch', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
 
   try {
-    const campaign = await c.env.DB.prepare(
-      'SELECT * FROM redops_campaigns WHERE id = ?'
-    ).bind(id).first();
+    let launchQuery = 'SELECT * FROM redops_campaigns WHERE id = ?';
+    const launchParams: unknown[] = [id];
+    if (orgId) {
+      launchQuery += ' AND org_id = ?';
+      launchParams.push(orgId);
+    }
+    const campaign = await c.env.DB.prepare(launchQuery).bind(...launchParams).first();
 
     if (!campaign) throw notFound('Campaign', id);
 
@@ -274,12 +305,17 @@ redops.post('/campaigns/:id/launch', async (c) => {
 
 // Cancel campaign
 redops.post('/campaigns/:id/cancel', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
 
   try {
-    const campaign = await c.env.DB.prepare(
-      'SELECT * FROM redops_campaigns WHERE id = ?'
-    ).bind(id).first();
+    let cancelQuery = 'SELECT * FROM redops_campaigns WHERE id = ?';
+    const cancelParams: unknown[] = [id];
+    if (orgId) {
+      cancelQuery += ' AND org_id = ?';
+      cancelParams.push(orgId);
+    }
+    const campaign = await c.env.DB.prepare(cancelQuery).bind(...cancelParams).first();
 
     if (!campaign) throw notFound('Campaign', id);
 
@@ -314,12 +350,17 @@ redops.post('/campaigns/:id/cancel', async (c) => {
 
 // Delete campaign
 redops.delete('/campaigns/:id', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
 
   try {
-    const campaign = await c.env.DB.prepare(
-      'SELECT * FROM redops_campaigns WHERE id = ?'
-    ).bind(id).first();
+    let delCheckQuery = 'SELECT * FROM redops_campaigns WHERE id = ?';
+    const delCheckParams: unknown[] = [id];
+    if (orgId) {
+      delCheckQuery += ' AND org_id = ?';
+      delCheckParams.push(orgId);
+    }
+    const campaign = await c.env.DB.prepare(delCheckQuery).bind(...delCheckParams).first();
 
     if (!campaign) throw notFound('Campaign', id);
 
@@ -329,7 +370,13 @@ redops.delete('/campaigns/:id', async (c) => {
     }
 
     // CASCADE will handle agents and findings
-    await c.env.DB.prepare('DELETE FROM redops_campaigns WHERE id = ?').bind(id).run();
+    let delQuery = 'DELETE FROM redops_campaigns WHERE id = ?';
+    const delParams: unknown[] = [id];
+    if (orgId) {
+      delQuery += ' AND org_id = ?';
+      delParams.push(orgId);
+    }
+    await c.env.DB.prepare(delQuery).bind(...delParams).run();
 
     return c.json({ message: 'Campaign deleted' });
   } catch (err: unknown) {
@@ -344,9 +391,18 @@ redops.delete('/campaigns/:id', async (c) => {
 
 // List agents for a campaign
 redops.get('/campaigns/:id/agents', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const campaignId = c.req.param('id');
   const status = c.req.query('status');
   const category = c.req.query('category');
+
+  // Verify campaign belongs to org
+  if (orgId) {
+    const campaign = await c.env.DB.prepare(
+      'SELECT id FROM redops_campaigns WHERE id = ? AND org_id = ?'
+    ).bind(campaignId, orgId).first();
+    if (!campaign) throw notFound('Campaign', campaignId);
+  }
 
   let query = 'SELECT * FROM redops_agents WHERE campaign_id = ?';
   const params: unknown[] = [campaignId];
@@ -373,12 +429,19 @@ redops.get('/campaigns/:id/agents', async (c) => {
 
 // Get agent details
 redops.get('/agents/:id', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
 
   try {
-    const agent = await c.env.DB.prepare(
-      'SELECT * FROM redops_agents WHERE id = ?'
-    ).bind(id).first();
+    let agentQuery = `SELECT a.* FROM redops_agents a
+      JOIN redops_campaigns c ON a.campaign_id = c.id
+      WHERE a.id = ?`;
+    const agentParams: unknown[] = [id];
+    if (orgId) {
+      agentQuery += ' AND c.org_id = ?';
+      agentParams.push(orgId);
+    }
+    const agent = await c.env.DB.prepare(agentQuery).bind(...agentParams).first();
 
     if (!agent) throw notFound('Agent', id);
     return c.json(agent);
@@ -416,8 +479,17 @@ redops.get('/agent-types', async (c) => {
 
 // List findings for a campaign
 redops.get('/campaigns/:id/findings', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const campaignId = c.req.param('id');
   const { page, pageSize } = parsePagination(c.req.query('page'), c.req.query('page_size'));
+
+  // Verify campaign belongs to org
+  if (orgId) {
+    const campaign = await c.env.DB.prepare(
+      'SELECT id FROM redops_campaigns WHERE id = ? AND org_id = ?'
+    ).bind(campaignId, orgId).first();
+    if (!campaign) throw notFound('Campaign', campaignId);
+  }
   const severity = c.req.query('severity');
   const exploitable = c.req.query('exploitable');
   const status = c.req.query('status');
@@ -474,21 +546,31 @@ redops.get('/campaigns/:id/findings', async (c) => {
 
 // Get all findings across campaigns (global view)
 redops.get('/findings', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const { page, pageSize } = parsePagination(c.req.query('page'), c.req.query('page_size'));
   const severity = c.req.query('severity');
   const exploitable = c.req.query('exploitable');
   const status = c.req.query('status');
 
-  let countQuery = 'SELECT COUNT(*) as total FROM redops_findings WHERE 1=1';
+  let countQuery = `SELECT COUNT(*) as total FROM redops_findings f
+    JOIN redops_campaigns c ON f.campaign_id = c.id
+    WHERE 1=1`;
   let dataQuery = `SELECT f.*, c.name as campaign_name
     FROM redops_findings f
-    LEFT JOIN redops_campaigns c ON f.campaign_id = c.id
+    JOIN redops_campaigns c ON f.campaign_id = c.id
     WHERE 1=1`;
   const countParams: unknown[] = [];
   const params: unknown[] = [];
 
+  if (orgId) {
+    countQuery += ' AND c.org_id = ?';
+    dataQuery += ' AND c.org_id = ?';
+    countParams.push(orgId);
+    params.push(orgId);
+  }
+
   if (severity) {
-    countQuery += ' AND severity = ?';
+    countQuery += ' AND f.severity = ?';
     dataQuery += ' AND f.severity = ?';
     countParams.push(severity);
     params.push(severity);
@@ -496,14 +578,14 @@ redops.get('/findings', async (c) => {
 
   if (exploitable !== undefined) {
     const val = exploitable === 'true' ? 1 : 0;
-    countQuery += ' AND exploitable = ?';
+    countQuery += ' AND f.exploitable = ?';
     dataQuery += ' AND f.exploitable = ?';
     countParams.push(val);
     params.push(val);
   }
 
   if (status) {
-    countQuery += ' AND status = ?';
+    countQuery += ' AND f.status = ?';
     dataQuery += ' AND f.status = ?';
     countParams.push(status);
     params.push(status);
@@ -534,13 +616,21 @@ redops.get('/findings', async (c) => {
 
 // Update finding status
 redops.put('/findings/:id', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
   const body = await c.req.json();
 
   try {
-    const existing = await c.env.DB.prepare(
-      'SELECT * FROM redops_findings WHERE id = ?'
-    ).bind(id).first();
+    // Verify finding belongs to an org-scoped campaign
+    let existQuery = `SELECT f.* FROM redops_findings f
+      JOIN redops_campaigns c ON f.campaign_id = c.id
+      WHERE f.id = ?`;
+    const existParams: unknown[] = [id];
+    if (orgId) {
+      existQuery += ' AND c.org_id = ?';
+      existParams.push(orgId);
+    }
+    const existing = await c.env.DB.prepare(existQuery).bind(...existParams).first();
 
     if (!existing) throw notFound('Finding', id);
 
@@ -581,12 +671,19 @@ redops.put('/findings/:id', async (c) => {
 
 // Correlate RedOps findings with ForgeScan vulnerabilities
 redops.post('/findings/:id/correlate', async (c) => {
+  const { orgId } = getOrgFilter(c);
   const id = c.req.param('id');
 
   try {
-    const finding = await c.env.DB.prepare(
-      'SELECT * FROM redops_findings WHERE id = ?'
-    ).bind(id).first();
+    let corrQuery = `SELECT f.* FROM redops_findings f
+      JOIN redops_campaigns c ON f.campaign_id = c.id
+      WHERE f.id = ?`;
+    const corrParams: unknown[] = [id];
+    if (orgId) {
+      corrQuery += ' AND c.org_id = ?';
+      corrParams.push(orgId);
+    }
+    const finding = await c.env.DB.prepare(corrQuery).bind(...corrParams).first();
 
     if (!finding) throw notFound('Finding', id);
 
@@ -652,7 +749,12 @@ redops.post('/findings/:id/correlate', async (c) => {
 
 // RedOPS overview stats
 redops.get('/overview', async (c) => {
+  const { orgId } = getOrgFilter(c);
   try {
+    const orgFilter = orgId ? ' WHERE org_id = ?' : '';
+    const orgFilterAnd = orgId ? ' AND c.org_id = ?' : '';
+    const campaignParams = orgId ? [orgId] : [];
+
     const [campaigns, findings, agentStats, recentCampaigns] = await Promise.all([
       c.env.DB.prepare(`
         SELECT
@@ -661,35 +763,39 @@ redops.get('/overview', async (c) => {
           SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_campaigns,
           SUM(findings_count) as total_findings,
           SUM(exploitable_count) as total_exploitable
-        FROM redops_campaigns
-      `).first(),
+        FROM redops_campaigns${orgFilter}
+      `).bind(...campaignParams).first(),
 
       c.env.DB.prepare(`
         SELECT
-          severity,
+          f.severity,
           COUNT(*) as count,
-          SUM(CASE WHEN exploitable = 1 THEN 1 ELSE 0 END) as exploitable
-        FROM redops_findings
-        GROUP BY severity
-      `).all(),
+          SUM(CASE WHEN f.exploitable = 1 THEN 1 ELSE 0 END) as exploitable
+        FROM redops_findings f
+        JOIN redops_campaigns c ON f.campaign_id = c.id
+        WHERE 1=1${orgFilterAnd}
+        GROUP BY f.severity
+      `).bind(...campaignParams).all(),
 
       c.env.DB.prepare(`
         SELECT
-          agent_category,
+          a.agent_category,
           COUNT(*) as total,
-          SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
-          SUM(findings_count) as findings
-        FROM redops_agents
-        GROUP BY agent_category
-      `).all(),
+          SUM(CASE WHEN a.status = 'completed' THEN 1 ELSE 0 END) as completed,
+          SUM(a.findings_count) as findings
+        FROM redops_agents a
+        JOIN redops_campaigns c ON a.campaign_id = c.id
+        WHERE 1=1${orgFilterAnd}
+        GROUP BY a.agent_category
+      `).bind(...campaignParams).all(),
 
       c.env.DB.prepare(`
         SELECT id, name, status, campaign_type, findings_count, exploitable_count,
                critical_count, high_count, started_at, completed_at, created_at
-        FROM redops_campaigns
+        FROM redops_campaigns${orgFilter}
         ORDER BY created_at DESC
         LIMIT 5
-      `).all(),
+      `).bind(...campaignParams).all(),
     ]);
 
     // Build severity breakdown

@@ -141,10 +141,10 @@ describe('signJWT', () => {
     expect(parsed.getTime()).not.toBeNaN();
   });
 
-  it('default expiry is approximately 24 hours from now', async () => {
+  it('default expiry is approximately 1 hour from now', async () => {
     const { expiresAt } = await signJWT(testPayload, secret);
     const expiresMs = new Date(expiresAt).getTime();
-    const expectedMs = Date.now() + 86400 * 1000;
+    const expectedMs = Date.now() + 3600 * 1000;
     // Allow 5 seconds tolerance
     expect(Math.abs(expiresMs - expectedMs)).toBeLessThan(5000);
   });

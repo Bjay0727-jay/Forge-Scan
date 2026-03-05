@@ -5,6 +5,7 @@ import { generateExecutivePDF, generateFindingsPDF, generateCompliancePDF, gener
 import { generateFindingsCSV, generateAssetsCSV, generateComplianceCSV } from '../services/reporting/csv-generator';
 import { getFrameworkCompliance, getGapAnalysis } from '../services/compliance';
 import { auditLog } from '../services/audit';
+import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 
 interface AuthUser {
   id: string;
@@ -57,19 +58,23 @@ interface GenerateReportRequest {
 }
 
 // ---- Helper: build executive summary data ----
-async function buildExecutiveData(db: D1Database, cache: KVNamespace, periodDays: number): Promise<ExecutiveSummary> {
-  const cacheKey = `report:executive:${periodDays}`;
+async function buildExecutiveData(db: D1Database, cache: KVNamespace, periodDays: number, orgId: string | null): Promise<ExecutiveSummary> {
+  const cacheKey = orgId ? `report:executive:${periodDays}:${orgId}` : `report:executive:${periodDays}`;
   const cached = await cache.get(cacheKey);
   if (cached) return JSON.parse(cached);
 
+  const orgFilter = orgId ? ' AND org_id = ?' : '';
+  const orgFilterWhere = orgId ? ' WHERE org_id = ?' : '';
+  const orgParams = orgId ? [orgId] : [];
+
   const totals = await db.prepare(`
     SELECT
-      (SELECT COUNT(*) FROM assets) as assets,
-      (SELECT COUNT(*) FROM findings WHERE state = 'open') as open_findings,
-      (SELECT COUNT(*) FROM findings WHERE state = 'fixed') as fixed_findings,
-      (SELECT COUNT(*) FROM findings WHERE created_at >= date('now', '-' || ? || ' days')) as new_findings_period,
-      (SELECT COUNT(*) FROM findings WHERE fixed_at >= date('now', '-' || ? || ' days')) as fixed_period
-  `).bind(periodDays, periodDays).first<{
+      (SELECT COUNT(*) FROM assets${orgId ? ' WHERE org_id = ?' : ''}) as assets,
+      (SELECT COUNT(*) FROM findings WHERE state = 'open'${orgFilter}) as open_findings,
+      (SELECT COUNT(*) FROM findings WHERE state = 'fixed'${orgFilter}) as fixed_findings,
+      (SELECT COUNT(*) FROM findings WHERE created_at >= date('now', '-' || ? || ' days')${orgFilter}) as new_findings_period,
+      (SELECT COUNT(*) FROM findings WHERE fixed_at >= date('now', '-' || ? || ' days')${orgFilter}) as fixed_period
+  `).bind(...orgParams, ...orgParams, ...orgParams, periodDays, ...orgParams, periodDays, ...orgParams).first<{
     assets: number;
     open_findings: number;
     fixed_findings: number;
@@ -78,10 +83,10 @@ async function buildExecutiveData(db: D1Database, cache: KVNamespace, periodDays
   }>();
 
   const severityResult = await db.prepare(`
-    SELECT severity, COUNT(*) as count FROM findings WHERE state = 'open'
+    SELECT severity, COUNT(*) as count FROM findings WHERE state = 'open'${orgFilter}
     GROUP BY severity
     ORDER BY CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END
-  `).all();
+  `).bind(...orgParams).all();
 
   const weights: Record<string, number> = { critical: 10, high: 5, medium: 2, low: 1, info: 0 };
   const severityMap: Record<string, number> = {};
@@ -99,11 +104,11 @@ async function buildExecutiveData(db: D1Database, cache: KVNamespace, periodDays
 
   const topRisks = await db.prepare(`
     SELECT f.title, f.severity, COUNT(DISTINCT f.asset_id) as affected_assets, MAX(f.frs_score) as frs_score
-    FROM findings f WHERE f.state = 'open' AND f.severity IN ('critical', 'high')
+    FROM findings f WHERE f.state = 'open' AND f.severity IN ('critical', 'high')${orgId ? ' AND f.org_id = ?' : ''}
     GROUP BY f.title, f.severity
     ORDER BY CASE f.severity WHEN 'critical' THEN 1 ELSE 2 END, affected_assets DESC, frs_score DESC
     LIMIT 10
-  `).all();
+  `).bind(...orgParams).all();
 
   const recommendations: string[] = [];
   if ((severityMap['critical'] || 0) > 0) recommendations.push(`Address ${severityMap['critical']} critical severity findings immediately`);
@@ -138,7 +143,7 @@ async function buildExecutiveData(db: D1Database, cache: KVNamespace, periodDays
 }
 
 // ---- Helper: build findings data ----
-async function buildFindingsData(db: D1Database, filters: GenerateReportRequest['filters']) {
+async function buildFindingsData(db: D1Database, filters: GenerateReportRequest['filters'], orgId: string | null) {
   let query = `
     SELECT f.*, a.hostname, a.ip_addresses, a.asset_type, a.os,
            v.cve_id, v.cvss_score, v.epss_score
@@ -148,6 +153,11 @@ async function buildFindingsData(db: D1Database, filters: GenerateReportRequest[
     WHERE 1=1
   `;
   const params: any[] = [];
+
+  if (orgId) {
+    query += ' AND f.org_id = ?';
+    params.push(orgId);
+  }
 
   if (filters?.severity?.length) {
     query += ` AND f.severity IN (${filters.severity.map(() => '?').join(',')})`;
@@ -166,7 +176,7 @@ async function buildFindingsData(db: D1Database, filters: GenerateReportRequest[
 
   const result = await db.prepare(query).bind(...params).all();
 
-  const summaryQuery = `
+  let summaryQuery = `
     SELECT COUNT(*) as total,
       SUM(CASE WHEN f.severity = 'critical' THEN 1 ELSE 0 END) as critical,
       SUM(CASE WHEN f.severity = 'high' THEN 1 ELSE 0 END) as high,
@@ -176,7 +186,12 @@ async function buildFindingsData(db: D1Database, filters: GenerateReportRequest[
       COUNT(DISTINCT f.asset_id) as affected_assets
     FROM findings f WHERE f.state = 'open'
   `;
-  const summary = await db.prepare(summaryQuery).first<any>();
+  const summaryParams: any[] = [];
+  if (orgId) {
+    summaryQuery += ' AND f.org_id = ?';
+    summaryParams.push(orgId);
+  }
+  const summary = await db.prepare(summaryQuery).bind(...summaryParams).first<any>();
 
   return {
     summary: summary || { total: 0, critical: 0, high: 0, medium: 0, low: 0, info: 0, affected_assets: 0 },
@@ -225,7 +240,7 @@ async function buildComplianceData(db: D1Database) {
 }
 
 // ---- Helper: build assets data ----
-async function buildAssetsData(db: D1Database, filters: GenerateReportRequest['filters']) {
+async function buildAssetsData(db: D1Database, filters: GenerateReportRequest['filters'], orgId: string | null) {
   let query = `
     SELECT a.*,
       COUNT(CASE WHEN f.state = 'open' THEN 1 END) as open_findings,
@@ -236,6 +251,11 @@ async function buildAssetsData(db: D1Database, filters: GenerateReportRequest['f
   `;
   const params: any[] = [];
 
+  if (orgId) {
+    query += ' AND a.org_id = ?';
+    params.push(orgId);
+  }
+
   if (filters?.asset_types?.length) {
     query += ` AND a.asset_type IN (${filters.asset_types.map(() => '?').join(',')})`;
     params.push(...filters.asset_types);
@@ -244,11 +264,17 @@ async function buildAssetsData(db: D1Database, filters: GenerateReportRequest['f
   query += ' GROUP BY a.id ORDER BY critical_findings DESC, high_findings DESC, open_findings DESC LIMIT 5000';
   const result = await db.prepare(query).bind(...params).all();
 
+  const assetSummaryParams: any[] = [];
+  let assetSummaryFilter = '';
+  if (orgId) {
+    assetSummaryFilter = ' WHERE org_id = ?';
+    assetSummaryParams.push(orgId);
+  }
   const summary = await db.prepare(`
-    SELECT COUNT(*) as total_assets, COUNT(DISTINCT asset_type) as asset_types, COUNT(DISTINCT network_zone) as network_zones FROM assets
-  `).first<any>();
+    SELECT COUNT(*) as total_assets, COUNT(DISTINCT asset_type) as asset_types, COUNT(DISTINCT network_zone) as network_zones FROM assets${assetSummaryFilter}
+  `).bind(...assetSummaryParams).first<any>();
 
-  const typeBreakdown = await db.prepare('SELECT asset_type, COUNT(*) as count FROM assets GROUP BY asset_type ORDER BY count DESC').all();
+  const typeBreakdown = await db.prepare(`SELECT asset_type, COUNT(*) as count FROM assets${assetSummaryFilter} GROUP BY asset_type ORDER BY count DESC`).bind(...assetSummaryParams).all();
 
   return {
     summary: summary || { total_assets: 0, asset_types: 0, network_zones: 0 },
@@ -260,13 +286,15 @@ async function buildAssetsData(db: D1Database, filters: GenerateReportRequest['f
 // ---- GET /api/v1/reports/executive ----
 reports.get('/executive', async (c) => {
   const { days = '30' } = c.req.query();
-  const report = await buildExecutiveData(c.env.DB, c.env.CACHE, parseInt(days));
+  const { orgId } = getOrgFilter(c);
+  const report = await buildExecutiveData(c.env.DB, c.env.CACHE, parseInt(days), orgId);
   return c.json(report);
 });
 
 // ---- GET /api/v1/reports/findings ----
 reports.get('/findings', async (c) => {
   const { severity, vendor, state = 'open', asset_type, date_from, date_to, limit = '100', offset = '0' } = c.req.query();
+  const { orgId } = getOrgFilter(c);
 
   let query = `
     SELECT f.*, a.hostname, a.ip_addresses, a.asset_type, v.cve_id, v.cvss_score, v.epss_score
@@ -274,6 +302,8 @@ reports.get('/findings', async (c) => {
     WHERE 1=1
   `;
   const params: any[] = [];
+
+  if (orgId) { query += ' AND f.org_id = ?'; params.push(orgId); }
 
   if (severity) { const s = severity.split(','); query += ` AND f.severity IN (${s.map(() => '?').join(',')})`; params.push(...s); }
   if (vendor) { const v = vendor.split(','); query += ` AND f.vendor IN (${v.map(() => '?').join(',')})`; params.push(...v); }
@@ -297,6 +327,7 @@ reports.get('/findings', async (c) => {
     COUNT(DISTINCT f.asset_id) as affected_assets, COUNT(DISTINCT f.vendor) as vendors
     FROM findings f LEFT JOIN assets a ON f.asset_id = a.id WHERE 1=1`;
   const sp: any[] = [];
+  if (orgId) { summaryQuery += ' AND f.org_id = ?'; sp.push(orgId); }
   if (severity) { const s = severity.split(','); summaryQuery += ` AND f.severity IN (${s.map(() => '?').join(',')})`; sp.push(...s); }
   if (state) { summaryQuery += ' AND f.state = ?'; sp.push(state); }
 
@@ -320,6 +351,7 @@ reports.get('/compliance', async (c) => {
 // ---- GET /api/v1/reports/assets ----
 reports.get('/assets', async (c) => {
   const { asset_type, network_zone, limit = '100', offset = '0' } = c.req.query();
+  const { orgId } = getOrgFilter(c);
 
   let query = `
     SELECT a.*, COUNT(CASE WHEN f.state = 'open' THEN 1 END) as open_findings,
@@ -328,14 +360,17 @@ reports.get('/assets', async (c) => {
       MAX(f.frs_score) as max_frs_score
     FROM assets a LEFT JOIN findings f ON a.id = f.asset_id WHERE 1=1`;
   const params: any[] = [];
+  if (orgId) { query += ' AND a.org_id = ?'; params.push(orgId); }
   if (asset_type) { query += ' AND a.asset_type = ?'; params.push(asset_type); }
   if (network_zone) { query += ' AND a.network_zone = ?'; params.push(network_zone); }
   query += ` GROUP BY a.id ORDER BY critical_findings DESC, high_findings DESC, open_findings DESC LIMIT ? OFFSET ?`;
   params.push(parseInt(limit), parseInt(offset));
 
   const result = await c.env.DB.prepare(query).bind(...params).all();
-  const summary = await c.env.DB.prepare('SELECT COUNT(*) as total_assets, COUNT(DISTINCT asset_type) as asset_types, COUNT(DISTINCT network_zone) as network_zones FROM assets').first();
-  const typeBreakdown = await c.env.DB.prepare('SELECT asset_type, COUNT(*) as count FROM assets GROUP BY asset_type ORDER BY count DESC').all();
+  const summaryOrgFilter = orgId ? ' WHERE org_id = ?' : '';
+  const summaryOrgParams = orgId ? [orgId] : [];
+  const summary = await c.env.DB.prepare(`SELECT COUNT(*) as total_assets, COUNT(DISTINCT asset_type) as asset_types, COUNT(DISTINCT network_zone) as network_zones FROM assets${summaryOrgFilter}`).bind(...summaryOrgParams).first();
+  const typeBreakdown = await c.env.DB.prepare(`SELECT asset_type, COUNT(*) as count FROM assets${summaryOrgFilter} GROUP BY asset_type ORDER BY count DESC`).bind(...summaryOrgParams).all();
 
   return c.json({
     generated_at: new Date().toISOString(),
@@ -350,6 +385,8 @@ reports.get('/assets', async (c) => {
 reports.post('/generate', requireRole('platform_admin', 'scan_admin', 'vuln_manager', 'auditor'), async (c) => {
   const body = await c.req.json<GenerateReportRequest>();
   const user = c.get('user');
+  const { orgId } = getOrgFilter(c);
+  const orgIdForInsert = getOrgIdForInsert(c);
   const reportId = crypto.randomUUID();
   const format = body.format || 'json';
   const reportTitle = body.title || `${body.report_type}_report_${new Date().toISOString().split('T')[0]}`;
@@ -369,7 +406,7 @@ reports.post('/generate', requireRole('platform_admin', 'scan_admin', 'vuln_mana
 
     switch (body.report_type) {
       case 'executive': {
-        const data = await buildExecutiveData(c.env.DB, c.env.CACHE, 30);
+        const data = await buildExecutiveData(c.env.DB, c.env.CACHE, 30, orgId);
         if (format === 'pdf') {
           content = await generateExecutivePDF(data);
           contentType = 'application/pdf';
@@ -384,7 +421,7 @@ reports.post('/generate', requireRole('platform_admin', 'scan_admin', 'vuln_mana
       }
 
       case 'findings': {
-        const data = await buildFindingsData(c.env.DB, body.filters);
+        const data = await buildFindingsData(c.env.DB, body.filters, orgId);
         if (format === 'pdf') {
           // Flatten array filters to comma-separated strings for PDF generator
           const pdfFilters: Record<string, string | undefined> = {};
@@ -442,7 +479,7 @@ reports.post('/generate', requireRole('platform_admin', 'scan_admin', 'vuln_mana
       }
 
       case 'assets': {
-        const data = await buildAssetsData(c.env.DB, body.filters);
+        const data = await buildAssetsData(c.env.DB, body.filters, orgId);
         if (format === 'pdf') {
           content = await generateAssetsPDF(data);
           contentType = 'application/pdf';
@@ -480,12 +517,12 @@ reports.post('/generate', requireRole('platform_admin', 'scan_admin', 'vuln_mana
 
     // Store metadata in D1
     await c.env.DB.prepare(`
-      INSERT INTO reports (id, title, report_type, format, filters, storage_key, file_size, status, generated_by, created_at, completed_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', ?, datetime('now'), datetime('now'))
+      INSERT INTO reports (id, title, report_type, format, filters, storage_key, file_size, status, generated_by, org_id, created_at, completed_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?, datetime('now'), datetime('now'))
     `).bind(
       reportId, reportTitle, body.report_type, extension,
       JSON.stringify(body.filters || {}), storageKey, fileSize,
-      user?.id || null,
+      user?.id || null, orgIdForInsert,
     ).run();
 
     // Audit: report generated
@@ -508,13 +545,13 @@ reports.post('/generate', requireRole('platform_admin', 'scan_admin', 'vuln_mana
 
     // Log failure in D1
     await c.env.DB.prepare(`
-      INSERT INTO reports (id, title, report_type, format, filters, status, error_message, generated_by, created_at)
-      VALUES (?, ?, ?, ?, ?, 'failed', ?, ?, datetime('now'))
+      INSERT INTO reports (id, title, report_type, format, filters, status, error_message, generated_by, org_id, created_at)
+      VALUES (?, ?, ?, ?, ?, 'failed', ?, ?, ?, datetime('now'))
     `).bind(
       reportId, reportTitle, body.report_type, format,
       JSON.stringify(body.filters || {}),
       error instanceof Error ? error.message : 'Unknown error',
-      user?.id || null,
+      user?.id || null, orgIdForInsert,
     ).run().catch(() => {});
 
     return c.json({
@@ -527,9 +564,12 @@ reports.post('/generate', requireRole('platform_admin', 'scan_admin', 'vuln_mana
 // ---- GET /api/v1/reports/:id/download ----
 reports.get('/:id/download', async (c) => {
   const id = c.req.param('id');
+  const { orgId } = getOrgFilter(c);
 
   // Look up report metadata to determine format
-  const meta = await c.env.DB.prepare('SELECT * FROM reports WHERE id = ?').bind(id).first<any>();
+  const meta = orgId
+    ? await c.env.DB.prepare('SELECT * FROM reports WHERE id = ? AND org_id = ?').bind(id, orgId).first<any>()
+    : await c.env.DB.prepare('SELECT * FROM reports WHERE id = ?').bind(id).first<any>();
 
   if (meta?.storage_key) {
     const object = await c.env.STORAGE.get(meta.storage_key);
@@ -569,20 +609,24 @@ reports.get('/:id/download', async (c) => {
 // ---- GET /api/v1/reports/list/all ----
 reports.get('/list/all', async (c) => {
   const { limit = '20', offset = '0', report_type } = c.req.query();
+  const { orgId } = getOrgFilter(c);
 
   try {
     let query = 'SELECT * FROM reports WHERE 1=1';
     const params: any[] = [];
 
+    if (orgId) { query += ' AND org_id = ?'; params.push(orgId); }
     if (report_type) { query += ' AND report_type = ?'; params.push(report_type); }
     query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     params.push(parseInt(limit), parseInt(offset));
 
     const result = await c.env.DB.prepare(query).bind(...params).all();
 
-    const countQuery = report_type
-      ? await c.env.DB.prepare('SELECT COUNT(*) as total FROM reports WHERE report_type = ?').bind(report_type).first<{ total: number }>()
-      : await c.env.DB.prepare('SELECT COUNT(*) as total FROM reports').first<{ total: number }>();
+    let countQ = 'SELECT COUNT(*) as total FROM reports WHERE 1=1';
+    const countP: any[] = [];
+    if (orgId) { countQ += ' AND org_id = ?'; countP.push(orgId); }
+    if (report_type) { countQ += ' AND report_type = ?'; countP.push(report_type); }
+    const countQuery = await c.env.DB.prepare(countQ).bind(...countP).first<{ total: number }>();
 
     return c.json({
       data: result.results,
@@ -609,12 +653,20 @@ reports.get('/list/all', async (c) => {
 // ---- DELETE /api/v1/reports/:id ----
 reports.delete('/:id', requireRole('platform_admin'), async (c) => {
   const id = c.req.param('id');
-  const meta = await c.env.DB.prepare('SELECT storage_key FROM reports WHERE id = ?').bind(id).first<{ storage_key: string }>();
+  const { orgId } = getOrgFilter(c);
+
+  const meta = orgId
+    ? await c.env.DB.prepare('SELECT storage_key FROM reports WHERE id = ? AND org_id = ?').bind(id, orgId).first<{ storage_key: string }>()
+    : await c.env.DB.prepare('SELECT storage_key FROM reports WHERE id = ?').bind(id).first<{ storage_key: string }>();
 
   if (meta?.storage_key) {
     await c.env.STORAGE.delete(meta.storage_key);
   }
 
-  await c.env.DB.prepare('DELETE FROM reports WHERE id = ?').bind(id).run();
+  if (orgId) {
+    await c.env.DB.prepare('DELETE FROM reports WHERE id = ? AND org_id = ?').bind(id, orgId).run();
+  } else {
+    await c.env.DB.prepare('DELETE FROM reports WHERE id = ?').bind(id).run();
+  }
   return c.json({ message: 'Report deleted' });
 });

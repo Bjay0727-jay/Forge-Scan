@@ -9,6 +9,7 @@ import {
   normalizeSeverity,
   getSupportedVendors,
 } from '../lib/csv-parser';
+import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 
 export const ingest = new Hono<{ Bindings: Env }>();
 
@@ -17,9 +18,15 @@ export const ingest = new Hono<{ Bindings: Env }>();
 ingest.get('/jobs', async (c) => {
   const { limit = '20', vendor, status } = c.req.query();
   const limitNum = parsePositiveInt(limit, 20);
+  const { orgId } = getOrgFilter(c);
 
   let query = 'SELECT * FROM ingestion_jobs WHERE 1=1';
   const params: any[] = [];
+
+  if (orgId) {
+    query += ' AND org_id = ?';
+    params.push(orgId);
+  }
 
   if (vendor) {
     query += ' AND vendor = ?';
@@ -46,11 +53,16 @@ ingest.get('/jobs', async (c) => {
 
 ingest.get('/jobs/:id', async (c) => {
   const id = c.req.param('id');
+  const { orgId } = getOrgFilter(c);
 
   try {
-    const job = await c.env.DB.prepare(
-      'SELECT * FROM ingestion_jobs WHERE id = ?'
-    ).bind(id).first();
+    const job = orgId
+      ? await c.env.DB.prepare(
+          'SELECT * FROM ingestion_jobs WHERE id = ? AND org_id = ?'
+        ).bind(id, orgId).first()
+      : await c.env.DB.prepare(
+          'SELECT * FROM ingestion_jobs WHERE id = ?'
+        ).bind(id).first();
 
     if (!job) {
       throw notFound('Job', id);
@@ -71,12 +83,14 @@ ingest.post('/upload', async (c) => {
   const dataType = c.req.query('type') || 'findings'; // 'findings' | 'assets'
   const jobId = crypto.randomUUID();
 
+  const orgId = getOrgIdForInsert(c);
+
   // Create ingestion job
   try {
     await c.env.DB.prepare(`
-      INSERT INTO ingestion_jobs (id, vendor, source, status, started_at)
-      VALUES (?, ?, 'file_upload', 'processing', datetime('now'))
-    `).bind(jobId, vendor).run();
+      INSERT INTO ingestion_jobs (id, vendor, source, status, started_at, org_id)
+      VALUES (?, ?, 'file_upload', 'processing', datetime('now'), ?)
+    `).bind(jobId, vendor, orgId).run();
   } catch (err) {
     throw databaseError(err);
   }
@@ -169,7 +183,7 @@ ingest.post('/upload', async (c) => {
 
     // ── Process asset imports ────────────────────────────────────────────
     if (isAssetImport && assetRows.length > 0) {
-      const result = await importAssets(c.env.DB, assetRows);
+      const result = await importAssets(c.env.DB, assetRows, orgId);
       parseErrors.push(...result.errors);
 
       await c.env.DB.prepare(`
@@ -214,12 +228,13 @@ ingest.post('/upload', async (c) => {
         if (!assetId && (ip || hostname)) {
           assetId = crypto.randomUUID();
           await c.env.DB.prepare(`
-            INSERT OR IGNORE INTO assets (id, hostname, ip_addresses, created_at, updated_at)
-            VALUES (?, ?, ?, datetime('now'), datetime('now'))
+            INSERT OR IGNORE INTO assets (id, hostname, ip_addresses, created_at, updated_at, org_id)
+            VALUES (?, ?, ?, datetime('now'), datetime('now'), ?)
           `).bind(
             assetId,
             hostname,
             JSON.stringify(ip ? [ip] : []),
+            orgId,
           ).run();
         }
 
@@ -230,9 +245,9 @@ ingest.post('/upload', async (c) => {
             id, asset_id, vendor, vendor_id, title, description, severity,
             port, protocol, service, solution, evidence, cve_id, cvss_score,
             affected_component, references, metadata,
-            state, first_seen, last_seen, created_at, updated_at
+            state, first_seen, last_seen, created_at, updated_at, org_id
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open',
-            datetime('now'), datetime('now'), datetime('now'), datetime('now'))
+            datetime('now'), datetime('now'), datetime('now'), datetime('now'), ?)
         `).bind(
           findingId,
           assetId,
@@ -251,6 +266,7 @@ ingest.post('/upload', async (c) => {
           finding.affected_component || null,
           finding.references ? (typeof finding.references === 'string' ? finding.references : JSON.stringify(finding.references)) : null,
           JSON.stringify(finding),
+          orgId,
         ).run();
 
         imported++;
@@ -346,6 +362,7 @@ ingest.post('/rapid7', async (c) => {
 async function importAssets(
   db: D1Database,
   assets: any[],
+  orgId: string | null = null,
 ): Promise<{ imported: number; skipped: number; errors: string[] }> {
   let imported = 0;
   let skipped = 0;
@@ -363,8 +380,8 @@ async function importAssets(
         INSERT INTO assets (
           id, hostname, fqdn, ip_addresses, os, os_version,
           asset_type, network_zone, tags, attributes,
-          first_seen, last_seen, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'), datetime('now'))
+          first_seen, last_seen, created_at, updated_at, org_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'), datetime('now'), ?)
       `).bind(
         id,
         asset.hostname || null,
@@ -381,6 +398,7 @@ async function importAssets(
           location: asset.location || null,
           mac_addresses: asset.mac_address || null,
         }),
+        orgId,
       ).run();
 
       imported++;

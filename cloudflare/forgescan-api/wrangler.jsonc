@@ -39,7 +39,7 @@
   "vars": {
     "ENVIRONMENT": "production",
     "API_VERSION": "v1",
-    "CORS_ORIGIN": "*"
+    "CORS_ORIGIN": "https://app.forgescan.forgecyberdefense.com"
   },
 
   // Named environments
@@ -58,7 +58,7 @@
       "vars": {
         "ENVIRONMENT": "development",
         "API_VERSION": "v1",
-        "CORS_ORIGIN": "*"
+        "CORS_ORIGIN": "http://localhost:3000,http://localhost:5173"
       }
     }
   }

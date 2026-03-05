@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
 import { requireRole } from '../middleware/auth';
+import { getOrgFilter } from '../middleware/org-scope';
 
 export const audit = new Hono<{ Bindings: Env }>();
 
@@ -17,10 +18,19 @@ audit.get('/', requireRole('platform_admin'), async (c) => {
   const since = c.req.query('since');
   const until = c.req.query('until');
 
+  const { orgId } = getOrgFilter(c);
+
   let query = "SELECT * FROM forge_events WHERE event_type LIKE 'audit.%'";
   let countQuery = "SELECT COUNT(*) as total FROM forge_events WHERE event_type LIKE 'audit.%'";
   const params: string[] = [];
   const countParams: string[] = [];
+
+  if (orgId) {
+    query += ' AND org_id = ?';
+    countQuery += ' AND org_id = ?';
+    params.push(orgId);
+    countParams.push(orgId);
+  }
 
   if (action) {
     query += ' AND event_type = ?';
