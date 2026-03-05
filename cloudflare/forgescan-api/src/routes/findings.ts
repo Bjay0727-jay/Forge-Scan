@@ -3,6 +3,7 @@ import type { Env } from '../index';
 import { notFound, badRequest, databaseError } from '../lib/errors';
 import { parsePagination, requireEnum, validateSort, validateSortOrder } from '../lib/validate';
 import { auditLog } from '../services/audit';
+import { createFindingSchema, parseBody } from '../lib/schemas';
 import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 
 export const findings = new Hono<{ Bindings: Env }>();
@@ -152,7 +153,7 @@ findings.get('/:id', async (c) => {
 
 // Create finding
 findings.post('/', async (c) => {
-  const body = await c.req.json();
+  const body = parseBody(createFindingSchema, await c.req.json());
   const id = crypto.randomUUID();
   const orgId = getOrgIdForInsert(c);
 

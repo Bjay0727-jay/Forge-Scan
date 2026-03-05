@@ -12,6 +12,7 @@ import {
 } from '../lib/crypto';
 import { requireRole } from '../middleware/auth';
 import { sanitizeLikeInput, requireMaxLength } from '../lib/validate';
+import { loginSchema, registerSchema, parseBody } from '../lib/schemas';
 import { seedFrameworks } from '../services/compliance';
 import { auditLog, getClientIP } from '../services/audit';
 
@@ -39,20 +40,7 @@ const auth = new Hono<AuthContext>();
 // Register (first user becomes platform_admin, subsequent require admin auth)
 auth.post('/register', async (c) => {
   try {
-    const body = await c.req.json();
-    const { email, password, display_name } = body;
-
-    if (!email || !password || !display_name) {
-      return c.json({ error: 'email, password, and display_name are required' }, 400);
-    }
-
-    requireMaxLength(email, 'email', 254);
-    requireMaxLength(display_name, 'display_name', 100);
-    requireMaxLength(password, 'password', 128);
-
-    if (password.length < 8) {
-      return c.json({ error: 'Password must be at least 8 characters' }, 400);
-    }
+    const { email, password, display_name, role: requestedRole } = parseBody(registerSchema, await c.req.json());
 
     // Check if this is the first user (bootstrap)
     const userCount = await c.env.DB.prepare(
@@ -81,7 +69,7 @@ auth.post('/register', async (c) => {
     const id = crypto.randomUUID();
     const salt = generateSalt();
     const passwordHash = await hashPassword(password, salt);
-    const role = isBootstrap ? 'platform_admin' : (body.role && VALID_ROLES.includes(body.role) ? body.role : 'auditor');
+    const role = isBootstrap ? 'platform_admin' : (requestedRole && VALID_ROLES.includes(requestedRole) ? requestedRole : 'auditor');
 
     await c.env.DB.prepare(`
       INSERT INTO users (id, email, password_hash, salt, display_name, role)
@@ -118,12 +106,7 @@ auth.post('/register', async (c) => {
 // Login
 auth.post('/login', async (c) => {
   try {
-    const body = await c.req.json();
-    const { email, password } = body;
-
-    if (!email || !password) {
-      return c.json({ error: 'email and password are required' }, 400);
-    }
+    const { email, password } = parseBody(loginSchema, await c.req.json());
 
     const user = await c.env.DB.prepare(
       'SELECT id, email, password_hash, salt, display_name, role, is_active, failed_login_attempts, locked_until FROM users WHERE email = ?'

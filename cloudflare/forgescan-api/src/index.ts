@@ -7,6 +7,8 @@ import { errorHandler } from './middleware/error-handler';
 import { rateLimitMiddleware } from './middleware/rate-limit';
 import { metricsMiddleware } from './middleware/metrics';
 import { requireJsonContentType } from './middleware/content-type';
+import { securityHeaders } from './middleware/security-headers';
+import { bodyLimitMiddleware } from './middleware/body-limit';
 import { metrics } from './routes/metrics';
 import { audit } from './routes/audit';
 import { auth } from './routes/auth';
@@ -55,6 +57,7 @@ const app = new Hono<{ Bindings: Env }>();
 registerSOCHandlers();
 
 // Middleware
+app.use('*', securityHeaders);
 app.use('*', logger());
 app.use('*', cors({
   origin: (origin, c) => {
@@ -68,13 +71,16 @@ app.use('*', cors({
   credentials: true,
 }));
 
+// Request body size limits (1MB default, 100MB for ingest/import uploads)
+app.use('*', bodyLimitMiddleware());
+
 // Request metrics collection
 app.use('*', metricsMiddleware);
 
-// Rate limiting – stricter for auth, relaxed for scanners, general for everything else
+// Rate limiting – stricter for auth, relaxed for scanners, per-user for general API
 app.use('/api/v1/auth/*', rateLimitMiddleware({ limit: 10, windowMs: 60_000, keyPrefix: 'auth' }));
 app.use('/api/v1/scanner/*', rateLimitMiddleware({ limit: 300, windowMs: 60_000, keyPrefix: 'scanner' }));
-app.use('/api/*', rateLimitMiddleware({ limit: 100, windowMs: 60_000, keyPrefix: 'api' }));
+app.use('/api/*', rateLimitMiddleware({ limit: 100, windowMs: 60_000, keyPrefix: 'api', perUser: true }));
 
 // Health check (public)
 app.get('/', (c) => {

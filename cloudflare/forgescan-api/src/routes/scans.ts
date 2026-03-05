@@ -3,6 +3,7 @@ import type { Env } from '../index';
 import { createTasksForScan, getTasksForScan, cancelScanTasks } from '../services/scan-orchestrator';
 import { ApiError, notFound, badRequest, invalidStateTransition, databaseError } from '../lib/errors';
 import { parsePagination, requireEnum, validateSort, validateSortOrder } from '../lib/validate';
+import { createScanSchema, parseBody } from '../lib/schemas';
 import { auditLog } from '../services/audit';
 import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
 
@@ -165,7 +166,7 @@ scans.get('/:id', async (c) => {
 
 // Create new scan
 scans.post('/', async (c) => {
-  const body = await c.req.json();
+  const body = parseBody(createScanSchema, await c.req.json());
   const id = crypto.randomUUID();
   const orgId = getOrgIdForInsert(c);
 

@@ -3,6 +3,7 @@ import type { Env } from '../index';
 import { notFound, databaseError } from '../lib/errors';
 import { parsePagination, validateSort, validateSortOrder } from '../lib/validate';
 import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
+import { createAssetSchema, updateAssetSchema, parseBody } from '../lib/schemas';
 
 export const assets = new Hono<{ Bindings: Env }>();
 
@@ -139,7 +140,7 @@ assets.get('/:id', async (c) => {
 
 // Create asset
 assets.post('/', async (c) => {
-  const body = await c.req.json();
+  const body = parseBody(createAssetSchema, await c.req.json());
   const id = crypto.randomUUID();
   const orgId = getOrgIdForInsert(c);
 
@@ -171,7 +172,7 @@ assets.post('/', async (c) => {
 // Update asset
 assets.put('/:id', async (c) => {
   const id = c.req.param('id');
-  const body = await c.req.json();
+  const body = parseBody(updateAssetSchema, await c.req.json());
   const { orgId } = getOrgFilter(c);
 
   try {
@@ -200,12 +201,12 @@ assets.put('/:id', async (c) => {
         updated_at = datetime('now')
       WHERE id = ?`;
     const updateParams: (string | null)[] = [
-      body.hostname,
-      body.fqdn,
+      body.hostname ?? null,
+      body.fqdn ?? null,
       body.ip_addresses ? JSON.stringify(body.ip_addresses) : null,
-      body.os,
-      body.os_version,
-      body.asset_type,
+      body.os ?? null,
+      body.os_version ?? null,
+      body.asset_type ?? null,
       body.tags ? JSON.stringify(body.tags) : null,
       id,
     ];
