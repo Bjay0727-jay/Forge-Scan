@@ -642,3 +642,212 @@ dashboard.get('/breakdown/asset-types', async (c) => {
     throw databaseError(err);
   }
 });
+
+// ─── Unified Compliance + Threats Dashboard ─────────────────────────────────
+// Single-pane view combining compliance posture (ForgeComply 360) and active
+// threats (Forge-Scan) for CISO-grade situational awareness.
+
+dashboard.get('/unified', async (c) => {
+  try {
+    const { orgId } = getOrgFilter(c);
+    const orgFilter = orgId ? 'AND org_id = ?' : '';
+    const orgWhere = orgId ? 'WHERE org_id = ?' : '';
+    const orgParams = orgId ? [orgId] : [];
+
+    // Try cache first
+    const cacheKey = `dashboard:unified:${orgId || 'all'}`;
+    const cached = await c.env.CACHE.get(cacheKey);
+    if (cached) {
+      return c.json(JSON.parse(cached));
+    }
+
+    // ── Threat Posture ────────────────────────────────────────────────
+
+    const threatCounts = await c.env.DB.prepare(`
+      SELECT
+        COUNT(*) as total_open,
+        SUM(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END) as critical,
+        SUM(CASE WHEN severity = 'high' THEN 1 ELSE 0 END) as high,
+        SUM(CASE WHEN severity = 'medium' THEN 1 ELSE 0 END) as medium,
+        SUM(CASE WHEN severity = 'low' THEN 1 ELSE 0 END) as low,
+        SUM(CASE WHEN severity = 'critical' THEN 10
+                 WHEN severity = 'high' THEN 5
+                 WHEN severity = 'medium' THEN 2
+                 WHEN severity = 'low' THEN 1
+                 ELSE 0 END) as risk_score
+      FROM findings
+      WHERE state = 'open' ${orgFilter}
+    `).bind(...orgParams).first<{
+      total_open: number; critical: number; high: number; medium: number; low: number; risk_score: number;
+    }>();
+
+    const tc = threatCounts || { total_open: 0, critical: 0, high: 0, medium: 0, low: 0, risk_score: 0 };
+    const normalizedRisk = Math.min(100, Math.round((tc.risk_score / 1000) * 100));
+
+    // Recent critical/high findings with control mappings
+    const recentThreats = await c.env.DB.prepare(`
+      SELECT f.id, f.title, f.severity, f.vendor, f.cve_id, f.cvss_score,
+             f.control_mappings, f.created_at, a.hostname, a.ip_addresses
+      FROM findings f
+      LEFT JOIN assets a ON f.asset_id = a.id
+      WHERE f.state = 'open' AND f.severity IN ('critical', 'high') ${orgFilter ? 'AND f.org_id = ?' : ''}
+      ORDER BY f.created_at DESC
+      LIMIT 10
+    `).bind(...orgParams).all();
+
+    // ── Compliance Posture ────────────────────────────────────────────
+
+    const frameworks = await c.env.DB.prepare(
+      'SELECT id, name, version FROM compliance_frameworks ORDER BY name'
+    ).all<{ id: string; name: string; version: string }>();
+
+    const compliancePosture: Array<{
+      framework_id: string; framework_name: string; version: string;
+      total_controls: number; compliant: number; non_compliant: number;
+      partial: number; not_assessed: number; compliance_pct: number;
+    }> = [];
+
+    for (const fw of frameworks.results || []) {
+      const stats = await c.env.DB.prepare(`
+        SELECT
+          COUNT(*) as total_controls,
+          SUM(CASE WHEN cm.status = 'compliant' THEN 1 ELSE 0 END) as compliant,
+          SUM(CASE WHEN cm.status = 'non_compliant' THEN 1 ELSE 0 END) as non_compliant,
+          SUM(CASE WHEN cm.status = 'partial' THEN 1 ELSE 0 END) as partial,
+          SUM(CASE WHEN cm.status IS NULL OR cm.status = 'not_assessed' THEN 1 ELSE 0 END) as not_assessed
+        FROM compliance_controls cc
+        LEFT JOIN compliance_mappings cm ON cc.id = cm.control_id AND cm.framework_id = ?
+          ${orgId ? 'AND cm.org_id = ?' : ''}
+        WHERE cc.framework_id = ?
+      `).bind(fw.id, ...(orgId ? [orgId] : []), fw.id).first<{
+        total_controls: number; compliant: number; non_compliant: number; partial: number; not_assessed: number;
+      }>();
+
+      const s = stats || { total_controls: 0, compliant: 0, non_compliant: 0, partial: 0, not_assessed: 0 };
+      const assessed = s.total_controls - s.not_assessed;
+      const compliancePct = assessed > 0 ? Math.round((s.compliant / assessed) * 100) : 0;
+
+      compliancePosture.push({
+        framework_id: fw.id,
+        framework_name: fw.name,
+        version: fw.version,
+        total_controls: s.total_controls,
+        compliant: s.compliant,
+        non_compliant: s.non_compliant,
+        partial: s.partial,
+        not_assessed: s.not_assessed,
+        compliance_pct: compliancePct,
+      });
+    }
+
+    // ── POA&M Summary ────────────────────────────────────────────────
+
+    const poamStats = await c.env.DB.prepare(`
+      SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open_count,
+        SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN status = 'delayed' THEN 1 ELSE 0 END) as delayed,
+        SUM(CASE WHEN status NOT IN ('completed') AND scheduled_completion < date('now') THEN 1 ELSE 0 END) as overdue
+      FROM poam_items
+      ${orgWhere}
+    `).bind(...orgParams).first<{
+      total: number; open_count: number; in_progress: number; completed: number; delayed: number; overdue: number;
+    }>();
+
+    const ps = poamStats || { total: 0, open_count: 0, in_progress: 0, completed: 0, delayed: 0, overdue: 0 };
+
+    // ── Evidence Vault Summary ───────────────────────────────────────
+
+    const evidenceStats = await c.env.DB.prepare(`
+      SELECT
+        COUNT(*) as total_evidence,
+        SUM(CASE WHEN expires_at IS NOT NULL AND expires_at < datetime('now') THEN 1 ELSE 0 END) as expired
+      FROM evidence_files
+      ${orgWhere}
+    `).bind(...orgParams).first<{ total_evidence: number; expired: number }>();
+
+    // ── Control-to-Threat Correlation ────────────────────────────────
+    // Show which compliance controls are most impacted by open findings
+
+    let controlCorrelation: any = { results: [] };
+    try {
+      controlCorrelation = await c.env.DB.prepare(`
+        SELECT
+          json_extract(value, '$.control_id') as control_id,
+          json_extract(value, '$.control_name') as control_name,
+          json_extract(value, '$.framework') as framework,
+          COUNT(DISTINCT f.id) as finding_count,
+          SUM(CASE WHEN f.severity = 'critical' THEN 1 ELSE 0 END) as critical_count
+        FROM findings f, json_each(f.control_mappings)
+        WHERE f.state = 'open'
+          AND f.control_mappings IS NOT NULL
+          AND f.control_mappings != '[]'
+          ${orgFilter ? 'AND f.org_id = ?' : ''}
+        GROUP BY control_id, control_name, framework
+        ORDER BY finding_count DESC
+        LIMIT 10
+      `).bind(...orgParams).all();
+    } catch {
+      // json_each may not work if control_mappings column is missing on older data
+    }
+
+    // ── Recent Compliance Events ─────────────────────────────────────
+
+    const recentEvents = await c.env.DB.prepare(`
+      SELECT id, event_type, source, created_at
+      FROM forge_events
+      WHERE (event_type LIKE 'forge.compliance.%' OR event_type LIKE 'forge.scan.%' OR event_type LIKE 'forge.vulnerability.%')
+        ${orgFilter}
+      ORDER BY created_at DESC
+      LIMIT 10
+    `).bind(...orgParams).all();
+
+    // ── Assemble Response ────────────────────────────────────────────
+
+    let riskGrade = 'A';
+    if (normalizedRisk >= 80) riskGrade = 'F';
+    else if (normalizedRisk >= 60) riskGrade = 'D';
+    else if (normalizedRisk >= 40) riskGrade = 'C';
+    else if (normalizedRisk >= 20) riskGrade = 'B';
+
+    const unifiedResult = {
+      threat_posture: {
+        risk_score: normalizedRisk,
+        risk_grade: riskGrade,
+        open_findings: tc.total_open,
+        severity_counts: { critical: tc.critical, high: tc.high, medium: tc.medium, low: tc.low },
+        recent_threats: recentThreats.results,
+      },
+      compliance_posture: {
+        frameworks: compliancePosture,
+        overall_compliance_pct: compliancePosture.length > 0
+          ? Math.round(compliancePosture.reduce((sum, f) => sum + f.compliance_pct, 0) / compliancePosture.length)
+          : 0,
+      },
+      poam_summary: {
+        total: ps.total,
+        open: ps.open_count,
+        in_progress: ps.in_progress,
+        completed: ps.completed,
+        delayed: ps.delayed,
+        overdue: ps.overdue,
+      },
+      evidence_summary: {
+        total: evidenceStats?.total_evidence || 0,
+        expired: evidenceStats?.expired || 0,
+      },
+      control_threat_correlation: controlCorrelation.results || [],
+      recent_events: recentEvents.results,
+      generated_at: new Date().toISOString(),
+    };
+
+    // Cache for 5 minutes
+    await c.env.CACHE.put(cacheKey, JSON.stringify(unifiedResult), { expirationTtl: 300 });
+
+    return c.json(unifiedResult);
+  } catch (err) {
+    throw databaseError(err);
+  }
+});

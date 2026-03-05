@@ -3,6 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { emitEvent as emitNotificationEvent } from '../notifications/engine';
+import { handleScanCompleted, handleVulnerabilityDetected } from '../comply360-bridge';
 import type {
   ForgeEvent,
   ForgeEventSource,
@@ -305,7 +306,7 @@ async function executeSubscriptionHandler(
       return executeWebhookHandler(event, config);
 
     case 'compliance_check':
-      return { success: true, message: 'Compliance check handler not yet implemented' };
+      return executeComplianceCheckHandler(db, event, config);
 
     case 'custom':
       return { success: true, message: 'Custom handler not yet implemented' };
@@ -479,6 +480,42 @@ function buildTargetScope(payload: Record<string, unknown>): Record<string, unkn
   }
 
   return scope;
+}
+
+/** Execute a compliance check handler — maps findings to controls, generates POA&M, links evidence */
+async function executeComplianceCheckHandler(
+  db: D1Database,
+  event: ForgeEvent,
+  config: Record<string, unknown>
+): Promise<HandlerResult> {
+  const action = config.action || 'map_findings';
+
+  try {
+    if (action === 'map_findings' || event.event_type === 'forge.scan.completed') {
+      const result = await handleScanCompleted(db, event, config);
+      return {
+        success: true,
+        message: `Mapped ${result.controls_mapped} controls, created ${result.poam_created} POA&M items, linked ${result.evidence_linked} evidence`,
+        data: result as unknown as Record<string, unknown>,
+      };
+    }
+
+    if (action === 'map_single_finding' || event.event_type === 'forge.vulnerability.detected') {
+      const result = await handleVulnerabilityDetected(db, event, config);
+      return {
+        success: true,
+        message: `Mapped ${result.controls_mapped} controls for finding, linked ${result.evidence_linked} evidence`,
+        data: result as unknown as Record<string, unknown>,
+      };
+    }
+
+    return { success: false, message: `Unknown compliance check action: ${action}` };
+  } catch (err) {
+    return {
+      success: false,
+      message: `Compliance check failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
 }
 
 /** Execute a webhook handler */
