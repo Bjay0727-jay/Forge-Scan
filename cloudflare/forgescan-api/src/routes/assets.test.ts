@@ -149,10 +149,23 @@ describe('POST /api/v1/assets', () => {
     const res = await app.request(PREFIX, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ hostname: 'minimal-host' }),
     });
 
     expect(res.status).toBe(201);
+  });
+
+  it('rejects asset with no identifiers', async () => {
+    const db = createMockDB();
+    const app = mkApp(db);
+
+    const res = await app.request(PREFIX, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(400);
   });
 });
 
