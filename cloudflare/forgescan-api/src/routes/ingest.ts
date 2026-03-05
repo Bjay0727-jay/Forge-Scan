@@ -10,6 +10,7 @@ import {
   getSupportedVendors,
 } from '../lib/csv-parser';
 import { getOrgFilter, getOrgIdForInsert } from '../middleware/org-scope';
+import { parseNessusXML, mapNessusSeverity } from '../services/nessus-parser';
 
 export const ingest = new Hono<{ Bindings: Env }>();
 
@@ -336,11 +337,206 @@ ingest.get('/vendors', (c) => {
 
 // ─── Vendor-specific placeholders ───────────────────────────────────────────
 
+// ─── Nessus XML (.nessus) import ─────────────────────────────────────────────
+
+ingest.post('/nessus', async (c) => {
+  const orgId = getOrgIdForInsert(c);
+  const contentType = c.req.header('content-type') || '';
+  const importId = crypto.randomUUID();
+
+  let xmlContent: string;
+  let fileName = 'upload.nessus';
+
+  if (contentType.includes('multipart/form-data')) {
+    const formData = await c.req.formData();
+    const file = formData.get('file') as unknown as File | null;
+    if (!file) {
+      throw badRequest('No file provided in multipart upload');
+    }
+    xmlContent = await file.text();
+    fileName = file.name || fileName;
+  } else if (contentType.includes('text/xml') || contentType.includes('application/xml')) {
+    xmlContent = await c.req.text();
+  } else {
+    throw badRequest('Content-Type must be multipart/form-data, text/xml, or application/xml');
+  }
+
+  if (!xmlContent.trim()) {
+    throw badRequest('Empty file content');
+  }
+
+  // Validate it looks like Nessus XML
+  if (!xmlContent.includes('NessusClientData_v2') && !xmlContent.includes('<Report')) {
+    throw badRequest('File does not appear to be a valid .nessus XML file');
+  }
+
+  // Compute file hash
+  const encoder = new TextEncoder();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(xmlContent));
+  const fileHash = Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, '0')).join('');
+
+  // Create scan_import record
+  try {
+    await c.env.DB.prepare(`
+      INSERT INTO scan_imports (id, org_id, vendor, file_name, file_hash, status, started_at)
+      VALUES (?, ?, 'nessus', ?, ?, 'processing', datetime('now'))
+    `).bind(importId, orgId, fileName, fileHash).run();
+  } catch (err) {
+    throw databaseError(err);
+  }
+
+  try {
+    const parseResult = parseNessusXML(xmlContent);
+    let findingsCreated = 0;
+    let findingsUpdated = 0;
+    const importErrors: string[] = [...parseResult.errors];
+
+    for (const host of parseResult.hosts) {
+      // Upsert asset
+      const assetId = crypto.randomUUID();
+      try {
+        await c.env.DB.prepare(`
+          INSERT INTO assets (id, hostname, fqdn, ip_addresses, os, asset_type, first_seen, last_seen, created_at, updated_at, org_id)
+          VALUES (?, ?, ?, ?, ?, 'host', datetime('now'), datetime('now'), datetime('now'), datetime('now'), ?)
+          ON CONFLICT(id) DO UPDATE SET last_seen = datetime('now'), updated_at = datetime('now')
+        `).bind(
+          assetId,
+          host.hostname || null,
+          host.fqdn || null,
+          JSON.stringify(host.ip ? [host.ip] : []),
+          host.os || null,
+          orgId,
+        ).run();
+      } catch (err) {
+        // Try to find existing asset by IP
+        if (host.ip) {
+          const existing = await c.env.DB.prepare(
+            "SELECT id FROM assets WHERE ip_addresses LIKE ? AND org_id = ? LIMIT 1"
+          ).bind(`%${host.ip}%`, orgId).first<{ id: string }>();
+          if (existing) {
+            // Reuse existing asset ID — but we continue using assetId for findings below
+            // Update the reference
+            Object.defineProperty(host, '_assetId', { value: existing.id });
+          }
+        }
+      }
+
+      const effectiveAssetId = (host as any)._assetId || assetId;
+
+      for (const finding of host.findings) {
+        // Skip informational findings (severity 0) unless they have CVEs
+        if (finding.severity === 0 && finding.cves.length === 0) continue;
+
+        try {
+          const findingId = crypto.randomUUID();
+          const bestScore = finding.cvss3Score || finding.cvssScore || null;
+          const primaryCve = finding.cves.length > 0 ? finding.cves[0] : null;
+
+          // Check if finding already exists (same plugin + asset)
+          const existingFinding = await c.env.DB.prepare(
+            "SELECT id FROM findings WHERE vendor_id = ? AND asset_id = ? AND org_id = ?"
+          ).bind(finding.pluginId, effectiveAssetId, orgId).first<{ id: string }>();
+
+          if (existingFinding) {
+            // Update existing finding
+            await c.env.DB.prepare(`
+              UPDATE findings SET
+                last_seen = datetime('now'),
+                severity = ?,
+                cvss_score = ?,
+                solution = ?,
+                evidence = ?,
+                updated_at = datetime('now')
+              WHERE id = ?
+            `).bind(
+              mapNessusSeverity(finding.severity),
+              bestScore,
+              finding.solution || null,
+              finding.output || null,
+              existingFinding.id,
+            ).run();
+            findingsUpdated++;
+          } else {
+            await c.env.DB.prepare(`
+              INSERT INTO findings (
+                id, asset_id, vendor, vendor_id, title, description, severity,
+                port, protocol, service, solution, evidence, cve_id, cvss_score,
+                metadata, state, first_seen, last_seen, created_at, updated_at, org_id
+              ) VALUES (?, ?, 'nessus', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open',
+                datetime('now'), datetime('now'), datetime('now'), datetime('now'), ?)
+            `).bind(
+              findingId, effectiveAssetId, finding.pluginId,
+              finding.pluginName, finding.description || finding.synopsis || null,
+              mapNessusSeverity(finding.severity),
+              finding.port || null, finding.protocol || null, finding.service || null,
+              finding.solution || null, finding.output || null,
+              primaryCve, bestScore,
+              JSON.stringify({
+                plugin_id: finding.pluginId,
+                cves: finding.cves,
+                cwe: finding.cwe,
+                risk_factor: finding.riskFactor,
+                see_also: finding.seeAlso,
+                synopsis: finding.synopsis,
+              }),
+              orgId,
+            ).run();
+            findingsCreated++;
+          }
+        } catch (err) {
+          importErrors.push(`Plugin ${finding.pluginId}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+    }
+
+    // Update scan_import record
+    await c.env.DB.prepare(`
+      UPDATE scan_imports SET
+        status = 'completed',
+        hosts_total = ?,
+        hosts_processed = ?,
+        findings_created = ?,
+        findings_updated = ?,
+        errors = ?,
+        completed_at = datetime('now')
+      WHERE id = ?
+    `).bind(
+      parseResult.hosts.length,
+      parseResult.hosts.length,
+      findingsCreated,
+      findingsUpdated,
+      importErrors.length > 0 ? JSON.stringify(importErrors.slice(0, 50)) : null,
+      importId,
+    ).run();
+
+    return c.json({
+      import_id: importId,
+      report_name: parseResult.reportName,
+      status: 'completed',
+      hosts_total: parseResult.hosts.length,
+      findings_created: findingsCreated,
+      findings_updated: findingsUpdated,
+      errors: importErrors.slice(0, 10),
+    });
+
+  } catch (err: any) {
+    try {
+      await c.env.DB.prepare(`
+        UPDATE scan_imports SET status = 'failed', errors = ?, completed_at = datetime('now')
+        WHERE id = ?
+      `).bind(JSON.stringify([err.message || String(err)]), importId).run();
+    } catch { /* best effort */ }
+
+    if (err instanceof ApiError) throw err;
+    throw databaseError(err);
+  }
+});
+
 ingest.post('/tenable', async (c) => {
   return c.json({
-    message: 'Tenable import should be triggered from the scanner service',
-    note: 'Use POST /upload?vendor=tenable to import exported Nessus CSV data',
-  }, 501);
+    message: 'Use POST /api/v1/ingest/nessus to import .nessus XML files directly',
+    note: 'For CSV exports, use POST /api/v1/ingest/upload?vendor=tenable',
+  }, 301);
 });
 
 ingest.post('/qualys', async (c) => {

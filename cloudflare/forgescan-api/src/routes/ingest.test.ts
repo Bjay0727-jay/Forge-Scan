@@ -492,12 +492,14 @@ describe('GET /api/v1/ingest/vendors', () => {
 // ─── Vendor placeholders ────────────────────────────────────────────────────
 
 describe('vendor-specific endpoints', () => {
-  it('POST /tenable returns 501', async () => {
+  it('POST /tenable returns 301 redirect to /nessus', async () => {
     const db = createMockDB();
     const app = createApp(db);
 
     const res = await app.request('/api/v1/ingest/tenable', { method: 'POST' });
-    expect(res.status).toBe(501);
+    expect(res.status).toBe(301);
+    const body = await res.json();
+    expect(body.message).toContain('/nessus');
   });
 
   it('POST /qualys returns 501', async () => {
