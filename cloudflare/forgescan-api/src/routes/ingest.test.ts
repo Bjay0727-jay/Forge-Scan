@@ -498,7 +498,7 @@ describe('vendor-specific endpoints', () => {
 
     const res = await app.request('/api/v1/ingest/tenable', { method: 'POST' });
     expect(res.status).toBe(301);
-    const body = await res.json();
+    const body = await res.json() as { message: string };
     expect(body.message).toContain('/nessus');
   });
 
