@@ -72,7 +72,7 @@ export function parseNessusXML(xml: string): NessusParseResult {
 
   // Extract report name
   const reportNameMatch = xml.match(/<Report\s+name="([^"]*)"/);
-  const reportName = reportNameMatch ? reportNameMatch[1] : null;
+  const reportName = reportNameMatch ? decodeXMLEntities(reportNameMatch[1]) : null;
 
   // Extract all ReportHost blocks
   const hostRegex = /<ReportHost\s+name="([^"]*)"[^>]*>([\s\S]*?)<\/ReportHost>/g;
