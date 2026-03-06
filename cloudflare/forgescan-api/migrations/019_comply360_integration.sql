@@ -10,9 +10,6 @@ ALTER TABLE findings ADD COLUMN control_mappings TEXT DEFAULT '[]';
 -- Index for plugin_id lookups (Nessus dedup, ForgeComply correlation)
 CREATE INDEX IF NOT EXISTS idx_findings_plugin_id ON findings(plugin_id);
 
--- Extend forge_events to track compliance-specific correlation
-ALTER TABLE forge_events ADD COLUMN org_id TEXT;
-
 -- Auto-evidence tracking: links scan events to compliance evidence
 CREATE TABLE IF NOT EXISTS compliance_evidence_links (
   id TEXT PRIMARY KEY,
