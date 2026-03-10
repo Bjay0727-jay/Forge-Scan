@@ -39,7 +39,7 @@
   "vars": {
     "ENVIRONMENT": "production",
     "API_VERSION": "v1",
-    "CORS_ORIGIN": "https://app.forgescan.forgecyberdefense.com"
+    "CORS_ORIGIN": "https://app.forgescan.forgecyberdefense.com,https://forgescan-dashboard.pages.dev"
   },
 
   // Named environments
