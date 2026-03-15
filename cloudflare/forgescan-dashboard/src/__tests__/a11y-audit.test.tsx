@@ -205,31 +205,31 @@ describe('WCAG 2.1 Audit — Dashboard', () => {
   afterEach(cleanup);
 
   it('Dashboard: heading hierarchy should not skip levels', async () => {
-    const { default: Dashboard } = await lazyImport('@/pages/Dashboard');
+    const { Dashboard } = await lazyImport('@/pages/Dashboard');
     const { container } = renderWithRouter(<Dashboard />);
     assertHeadingHierarchy(container);
   });
 
   it('Dashboard: all images should have alt text', async () => {
-    const { default: Dashboard } = await lazyImport('@/pages/Dashboard');
+    const { Dashboard } = await lazyImport('@/pages/Dashboard');
     const { container } = renderWithRouter(<Dashboard />);
     assertImagesHaveAlt(container);
   });
 
   it('Dashboard: all interactive elements should have accessible names', async () => {
-    const { default: Dashboard } = await lazyImport('@/pages/Dashboard');
+    const { Dashboard } = await lazyImport('@/pages/Dashboard');
     const { container } = renderWithRouter(<Dashboard />);
     assertInteractiveElementsHaveNames(container);
   });
 
   it('Dashboard: severity badges should have aria-label for color-blind users', async () => {
-    const { default: Dashboard } = await lazyImport('@/pages/Dashboard');
+    const { Dashboard } = await lazyImport('@/pages/Dashboard');
     const { container } = renderWithRouter(<Dashboard />);
     assertBadgesHaveSemanticMeaning(container);
   });
 
   it('Dashboard: charts should have text alternatives or descriptions', async () => {
-    const { default: Dashboard } = await lazyImport('@/pages/Dashboard');
+    const { Dashboard } = await lazyImport('@/pages/Dashboard');
     const { container } = renderWithRouter(<Dashboard />);
     // Recharts SVGs should have role="img" and aria-label, or a sibling description
     const svgs = container.querySelectorAll('svg.recharts-surface');
@@ -245,13 +245,13 @@ describe('WCAG 2.1 Audit — Dashboard', () => {
   });
 
   it('Dashboard: focus indicators should be present on interactive elements', async () => {
-    const { default: Dashboard } = await lazyImport('@/pages/Dashboard');
+    const { Dashboard } = await lazyImport('@/pages/Dashboard');
     const { container } = renderWithRouter(<Dashboard />);
     assertFocusIndicatorsExist(container);
   });
 
   it('Dashboard: stat cards should use semantic markup for screen readers', async () => {
-    const { default: Dashboard } = await lazyImport('@/pages/Dashboard');
+    const { Dashboard } = await lazyImport('@/pages/Dashboard');
     const { container } = renderWithRouter(<Dashboard />);
     // Cards with metrics should use appropriate heading or label structure
     const cards = container.querySelectorAll('[class*="card"]');
@@ -272,37 +272,37 @@ describe('WCAG 2.1 Audit — Findings', () => {
   afterEach(cleanup);
 
   it('Findings: heading hierarchy should not skip levels', async () => {
-    const { default: Findings } = await lazyImport('@/pages/Findings');
+    const { Findings } = await lazyImport('@/pages/Findings');
     const { container } = renderWithRouter(<Findings />);
     assertHeadingHierarchy(container);
   });
 
   it('Findings: tables should have proper header associations', async () => {
-    const { default: Findings } = await lazyImport('@/pages/Findings');
+    const { Findings } = await lazyImport('@/pages/Findings');
     const { container } = renderWithRouter(<Findings />);
     assertTablesHaveHeaders(container);
   });
 
   it('Findings: filter controls should have labels', async () => {
-    const { default: Findings } = await lazyImport('@/pages/Findings');
+    const { Findings } = await lazyImport('@/pages/Findings');
     const { container } = renderWithRouter(<Findings />);
     assertFormLabels(container);
   });
 
   it('Findings: severity badges should convey meaning beyond color alone', async () => {
-    const { default: Findings } = await lazyImport('@/pages/Findings');
+    const { Findings } = await lazyImport('@/pages/Findings');
     const { container } = renderWithRouter(<Findings />);
     assertBadgesHaveSemanticMeaning(container);
   });
 
   it('Findings: detail dialog should have proper ARIA roles', async () => {
-    const { default: Findings } = await lazyImport('@/pages/Findings');
+    const { Findings } = await lazyImport('@/pages/Findings');
     const { container } = renderWithRouter(<Findings />);
     assertDialogsHaveRoles(container);
   });
 
   it('Findings: sort buttons should have accessible names describing sort direction', async () => {
-    const { default: Findings } = await lazyImport('@/pages/Findings');
+    const { Findings } = await lazyImport('@/pages/Findings');
     const { container } = renderWithRouter(<Findings />);
     const sortButtons = container.querySelectorAll('[aria-sort], [class*="sort"]');
     sortButtons.forEach((btn) => {
@@ -317,7 +317,7 @@ describe('WCAG 2.1 Audit — Findings', () => {
   });
 
   it('Findings: search input should have an accessible label', async () => {
-    const { default: Findings } = await lazyImport('@/pages/Findings');
+    const { Findings } = await lazyImport('@/pages/Findings');
     renderWithRouter(<Findings />);
     const searchInputs = document.querySelectorAll('input[type="search"], input[type="text"]');
     searchInputs.forEach((input) => {
@@ -331,7 +331,7 @@ describe('WCAG 2.1 Audit — Findings', () => {
   });
 
   it('Findings: pagination controls should be keyboard navigable', async () => {
-    const { default: Findings } = await lazyImport('@/pages/Findings');
+    const { Findings } = await lazyImport('@/pages/Findings');
     const { container } = renderWithRouter(<Findings />);
     const paginationButtons = container.querySelectorAll(
       'nav[aria-label*="pagination"] button, nav[aria-label*="page"] button, [class*="pagination"] button'
@@ -351,31 +351,31 @@ describe('WCAG 2.1 Audit — Compliance', () => {
   afterEach(cleanup);
 
   it('Compliance: heading hierarchy should not skip levels', async () => {
-    const { default: Compliance } = await lazyImport('@/pages/Compliance');
+    const { Compliance } = await lazyImport('@/pages/Compliance');
     const { container } = renderWithRouter(<Compliance />);
     assertHeadingHierarchy(container);
   });
 
   it('Compliance: framework tables should have proper header associations', async () => {
-    const { default: Compliance } = await lazyImport('@/pages/Compliance');
+    const { Compliance } = await lazyImport('@/pages/Compliance');
     const { container } = renderWithRouter(<Compliance />);
     assertTablesHaveHeaders(container);
   });
 
   it('Compliance: compliance status badges should not rely solely on color', async () => {
-    const { default: Compliance } = await lazyImport('@/pages/Compliance');
+    const { Compliance } = await lazyImport('@/pages/Compliance');
     const { container } = renderWithRouter(<Compliance />);
     assertBadgesHaveSemanticMeaning(container);
   });
 
   it('Compliance: all buttons should have accessible names', async () => {
-    const { default: Compliance } = await lazyImport('@/pages/Compliance');
+    const { Compliance } = await lazyImport('@/pages/Compliance');
     const { container } = renderWithRouter(<Compliance />);
     assertInteractiveElementsHaveNames(container);
   });
 
   it('Compliance: percentage indicators should have text alternatives', async () => {
-    const { default: Compliance } = await lazyImport('@/pages/Compliance');
+    const { Compliance } = await lazyImport('@/pages/Compliance');
     const { container } = renderWithRouter(<Compliance />);
     // Progress bars or percentage displays need accessible values
     const progressElements = container.querySelectorAll(
@@ -391,7 +391,7 @@ describe('WCAG 2.1 Audit — Compliance', () => {
   });
 
   it('Compliance: focus indicators should be present', async () => {
-    const { default: Compliance } = await lazyImport('@/pages/Compliance');
+    const { Compliance } = await lazyImport('@/pages/Compliance');
     const { container } = renderWithRouter(<Compliance />);
     assertFocusIndicatorsExist(container);
   });
@@ -405,31 +405,31 @@ describe('WCAG 2.1 Audit — Reports', () => {
   afterEach(cleanup);
 
   it('Reports: heading hierarchy should not skip levels', async () => {
-    const { default: Reports } = await lazyImport('@/pages/Reports');
+    const { Reports } = await lazyImport('@/pages/Reports');
     const { container } = renderWithRouter(<Reports />);
     assertHeadingHierarchy(container);
   });
 
   it('Reports: all buttons should have accessible names', async () => {
-    const { default: Reports } = await lazyImport('@/pages/Reports');
+    const { Reports } = await lazyImport('@/pages/Reports');
     const { container } = renderWithRouter(<Reports />);
     assertInteractiveElementsHaveNames(container);
   });
 
   it('Reports: form controls for report generation should have labels', async () => {
-    const { default: Reports } = await lazyImport('@/pages/Reports');
+    const { Reports } = await lazyImport('@/pages/Reports');
     const { container } = renderWithRouter(<Reports />);
     assertFormLabels(container);
   });
 
   it('Reports: status badges should convey meaning beyond color', async () => {
-    const { default: Reports } = await lazyImport('@/pages/Reports');
+    const { Reports } = await lazyImport('@/pages/Reports');
     const { container } = renderWithRouter(<Reports />);
     assertBadgesHaveSemanticMeaning(container);
   });
 
   it('Reports: download links should have descriptive text', async () => {
-    const { default: Reports } = await lazyImport('@/pages/Reports');
+    const { Reports } = await lazyImport('@/pages/Reports');
     const { container } = renderWithRouter(<Reports />);
     const links = container.querySelectorAll('a[href]');
     links.forEach((link) => {
@@ -442,7 +442,7 @@ describe('WCAG 2.1 Audit — Reports', () => {
   });
 
   it('Reports: dialogs should have proper ARIA roles', async () => {
-    const { default: Reports } = await lazyImport('@/pages/Reports');
+    const { Reports } = await lazyImport('@/pages/Reports');
     const { container } = renderWithRouter(<Reports />);
     assertDialogsHaveRoles(container);
   });
@@ -456,37 +456,37 @@ describe('WCAG 2.1 Audit — Scans', () => {
   afterEach(cleanup);
 
   it('Scans: heading hierarchy should not skip levels', async () => {
-    const { default: Scans } = await lazyImport('@/pages/Scans');
+    const { Scans } = await lazyImport('@/pages/Scans');
     const { container } = renderWithRouter(<Scans />);
     assertHeadingHierarchy(container);
   });
 
   it('Scans: tables should have proper header associations', async () => {
-    const { default: Scans } = await lazyImport('@/pages/Scans');
+    const { Scans } = await lazyImport('@/pages/Scans');
     const { container } = renderWithRouter(<Scans />);
     assertTablesHaveHeaders(container);
   });
 
   it('Scans: all interactive elements should have accessible names', async () => {
-    const { default: Scans } = await lazyImport('@/pages/Scans');
+    const { Scans } = await lazyImport('@/pages/Scans');
     const { container } = renderWithRouter(<Scans />);
     assertInteractiveElementsHaveNames(container);
   });
 
   it('Scans: scan status indicators should not rely solely on color', async () => {
-    const { default: Scans } = await lazyImport('@/pages/Scans');
+    const { Scans } = await lazyImport('@/pages/Scans');
     const { container } = renderWithRouter(<Scans />);
     assertBadgesHaveSemanticMeaning(container);
   });
 
   it('Scans: form controls should have labels', async () => {
-    const { default: Scans } = await lazyImport('@/pages/Scans');
+    const { Scans } = await lazyImport('@/pages/Scans');
     const { container } = renderWithRouter(<Scans />);
     assertFormLabels(container);
   });
 
   it('Scans: focus indicators should be present', async () => {
-    const { default: Scans } = await lazyImport('@/pages/Scans');
+    const { Scans } = await lazyImport('@/pages/Scans');
     const { container } = renderWithRouter(<Scans />);
     assertFocusIndicatorsExist(container);
   });
@@ -500,37 +500,37 @@ describe('WCAG 2.1 Audit — Assets', () => {
   afterEach(cleanup);
 
   it('Assets: heading hierarchy should not skip levels', async () => {
-    const { default: Assets } = await lazyImport('@/pages/Assets');
+    const { Assets } = await lazyImport('@/pages/Assets');
     const { container } = renderWithRouter(<Assets />);
     assertHeadingHierarchy(container);
   });
 
   it('Assets: tables should have proper header associations', async () => {
-    const { default: Assets } = await lazyImport('@/pages/Assets');
+    const { Assets } = await lazyImport('@/pages/Assets');
     const { container } = renderWithRouter(<Assets />);
     assertTablesHaveHeaders(container);
   });
 
   it('Assets: all buttons should have accessible names', async () => {
-    const { default: Assets } = await lazyImport('@/pages/Assets');
+    const { Assets } = await lazyImport('@/pages/Assets');
     const { container } = renderWithRouter(<Assets />);
     assertInteractiveElementsHaveNames(container);
   });
 
   it('Assets: asset type badges should convey meaning beyond color', async () => {
-    const { default: Assets } = await lazyImport('@/pages/Assets');
+    const { Assets } = await lazyImport('@/pages/Assets');
     const { container } = renderWithRouter(<Assets />);
     assertBadgesHaveSemanticMeaning(container);
   });
 
   it('Assets: search and filter inputs should have labels', async () => {
-    const { default: Assets } = await lazyImport('@/pages/Assets');
+    const { Assets } = await lazyImport('@/pages/Assets');
     const { container } = renderWithRouter(<Assets />);
     assertFormLabels(container);
   });
 
   it('Assets: all images should have alt text', async () => {
-    const { default: Assets } = await lazyImport('@/pages/Assets');
+    const { Assets } = await lazyImport('@/pages/Assets');
     const { container } = renderWithRouter(<Assets />);
     assertImagesHaveAlt(container);
   });
@@ -544,43 +544,43 @@ describe('WCAG 2.1 Audit — SOC', () => {
   afterEach(cleanup);
 
   it('SOC: heading hierarchy should not skip levels', async () => {
-    const { default: SOC } = await lazyImport('@/pages/SOC');
+    const { SOC } = await lazyImport('@/pages/SOC');
     const { container } = renderWithRouter(<SOC />);
     assertHeadingHierarchy(container);
   });
 
   it('SOC: alert tables should have proper header associations', async () => {
-    const { default: SOC } = await lazyImport('@/pages/SOC');
+    const { SOC } = await lazyImport('@/pages/SOC');
     const { container } = renderWithRouter(<SOC />);
     assertTablesHaveHeaders(container);
   });
 
   it('SOC: severity badges should have aria-label for color-blind users', async () => {
-    const { default: SOC } = await lazyImport('@/pages/SOC');
+    const { SOC } = await lazyImport('@/pages/SOC');
     const { container } = renderWithRouter(<SOC />);
     assertBadgesHaveSemanticMeaning(container);
   });
 
   it('SOC: all interactive elements should have accessible names', async () => {
-    const { default: SOC } = await lazyImport('@/pages/SOC');
+    const { SOC } = await lazyImport('@/pages/SOC');
     const { container } = renderWithRouter(<SOC />);
     assertInteractiveElementsHaveNames(container);
   });
 
   it('SOC: dialogs should have proper ARIA roles', async () => {
-    const { default: SOC } = await lazyImport('@/pages/SOC');
+    const { SOC } = await lazyImport('@/pages/SOC');
     const { container } = renderWithRouter(<SOC />);
     assertDialogsHaveRoles(container);
   });
 
   it('SOC: focus indicators should be present', async () => {
-    const { default: SOC } = await lazyImport('@/pages/SOC');
+    const { SOC } = await lazyImport('@/pages/SOC');
     const { container } = renderWithRouter(<SOC />);
     assertFocusIndicatorsExist(container);
   });
 
   it('SOC: incident status should convey meaning beyond color', async () => {
-    const { default: SOC } = await lazyImport('@/pages/SOC');
+    const { SOC } = await lazyImport('@/pages/SOC');
     const { container } = renderWithRouter(<SOC />);
     assertBadgesHaveSemanticMeaning(container);
   });
@@ -594,43 +594,43 @@ describe('WCAG 2.1 Audit — RedOps', () => {
   afterEach(cleanup);
 
   it('RedOps: heading hierarchy should not skip levels', async () => {
-    const { default: RedOps } = await lazyImport('@/pages/RedOps');
+    const { RedOps } = await lazyImport('@/pages/RedOps');
     const { container } = renderWithRouter(<RedOps />);
     assertHeadingHierarchy(container);
   });
 
   it('RedOps: tables should have proper header associations', async () => {
-    const { default: RedOps } = await lazyImport('@/pages/RedOps');
+    const { RedOps } = await lazyImport('@/pages/RedOps');
     const { container } = renderWithRouter(<RedOps />);
     assertTablesHaveHeaders(container);
   });
 
   it('RedOps: all buttons should have accessible names', async () => {
-    const { default: RedOps } = await lazyImport('@/pages/RedOps');
+    const { RedOps } = await lazyImport('@/pages/RedOps');
     const { container } = renderWithRouter(<RedOps />);
     assertInteractiveElementsHaveNames(container);
   });
 
   it('RedOps: campaign status badges should not rely solely on color', async () => {
-    const { default: RedOps } = await lazyImport('@/pages/RedOps');
+    const { RedOps } = await lazyImport('@/pages/RedOps');
     const { container } = renderWithRouter(<RedOps />);
     assertBadgesHaveSemanticMeaning(container);
   });
 
   it('RedOps: form controls should have labels', async () => {
-    const { default: RedOps } = await lazyImport('@/pages/RedOps');
+    const { RedOps } = await lazyImport('@/pages/RedOps');
     const { container } = renderWithRouter(<RedOps />);
     assertFormLabels(container);
   });
 
   it('RedOps: dialogs should have proper ARIA roles', async () => {
-    const { default: RedOps } = await lazyImport('@/pages/RedOps');
+    const { RedOps } = await lazyImport('@/pages/RedOps');
     const { container } = renderWithRouter(<RedOps />);
     assertDialogsHaveRoles(container);
   });
 
   it('RedOps: focus indicators should be present on interactive elements', async () => {
-    const { default: RedOps } = await lazyImport('@/pages/RedOps');
+    const { RedOps } = await lazyImport('@/pages/RedOps');
     const { container } = renderWithRouter(<RedOps />);
     assertFocusIndicatorsExist(container);
   });
