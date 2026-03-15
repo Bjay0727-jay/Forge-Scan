@@ -133,7 +133,7 @@ function CreateAssetDialog({ onSuccess }: { onSuccess: () => void }) {
                   setFormData({ ...formData, type: value as AssetType })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Asset type">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -366,8 +366,8 @@ export function Assets() {
   );
 
   const {
-    items: assets,
-    total,
+    items: assets = [],
+    total = 0,
     totalPages,
     page,
     loading,
@@ -406,6 +406,7 @@ export function Assets() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search assets..."
+                aria-label="Search assets"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
@@ -417,7 +418,7 @@ export function Assets() {
                 setTypeFilter(value as AssetType | 'all')
               }
             >
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-[180px]" aria-label="Filter by asset type">
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
@@ -574,6 +575,7 @@ export function Assets() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            aria-label={`Delete ${asset.name}`}
                             onClick={() => setDeleteConfirm({ id: asset.id, name: asset.name })}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
