@@ -792,7 +792,7 @@ export function Scans() {
     setPage,
     refetch,
   } = usePaginatedApi<Scan>(fetchScans);
-  const scans = items ?? [];
+  const scans = useMemo(() => items ?? [], [items]);
 
   // Check if any visible scans are running/pending
   const hasRunningScans = useMemo(

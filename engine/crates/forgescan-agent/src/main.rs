@@ -262,11 +262,7 @@ async fn run_registration(platform_endpoint: &str, config_path: &str) -> Result<
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
-        anyhow::bail!(
-            "Registration failed with status {}: {}",
-            status,
-            body
-        );
+        anyhow::bail!("Registration failed with status {}: {}", status, body);
     }
 
     let reg_resp: RegisterResponse = resp
@@ -297,7 +293,10 @@ agent_id = "{}"
     info!("Registration successful!");
     info!("Agent ID: {}", reg_resp.agent_id);
     info!("Config saved to: {}", config_path);
-    println!("Agent registered successfully. Agent ID: {}", reg_resp.agent_id);
+    println!(
+        "Agent registered successfully. Agent ID: {}",
+        reg_resp.agent_id
+    );
 
     Ok(())
 }
@@ -528,11 +527,7 @@ async fn run_daemon(
     let mut heartbeat_timer = time::interval(heartbeat_interval);
 
     let client = reqwest::Client::new();
-    let api_key = config
-        .platform
-        .api_key
-        .clone()
-        .unwrap_or_default();
+    let api_key = config.platform.api_key.clone().unwrap_or_default();
 
     let sys_info = SystemCollector::collect();
     let hostname = sys_info.os.hostname.clone();
