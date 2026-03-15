@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ClipboardCheck,
   RefreshCw,
@@ -7,6 +8,7 @@ import {
   XCircle,
   AlertCircle,
   MinusCircle,
+  ExternalLink,
 } from 'lucide-react';
 import { useAuth, hasRole } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -99,6 +101,7 @@ const complianceColor = (pct: number) => {
 export function Compliance() {
   const { user } = useAuth();
   const isAdmin = hasRole(user, 'platform_admin', 'scan_admin');
+  const navigate = useNavigate();
 
   const [frameworks, setFrameworks] = useState<Framework[]>([]);
   const [loading, setLoading] = useState(true);
@@ -188,6 +191,12 @@ export function Compliance() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={loadFrameworks}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate('/reports?section=compliance')}
+          >
+            <ExternalLink className="mr-2 h-4 w-4" /> Open in Reporter
+          </Button>
           {isAdmin && (
             <Button onClick={seedFrameworks} disabled={seeding}>
               {seeding ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
@@ -307,10 +316,21 @@ export function Compliance() {
               {gaps && gaps.total_gaps > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <AlertCircle className="h-5 w-5 text-yellow-500" /> Gap Analysis
-                    </CardTitle>
-                    <CardDescription>{gaps.total_gaps} control{gaps.total_gaps !== 1 ? 's' : ''} require attention</CardDescription>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <AlertCircle className="h-5 w-5 text-yellow-500" /> Gap Analysis
+                        </CardTitle>
+                        <CardDescription>{gaps.total_gaps} control{gaps.total_gaps !== 1 ? 's' : ''} require attention</CardDescription>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/reports?section=vulnerabilities&framework=${selectedFw}`)}
+                      >
+                        <ExternalLink className="mr-2 h-4 w-4" /> View in Reporter
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     {gaps.non_compliant.length > 0 && (
