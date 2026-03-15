@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Server, Search, Plus, Trash2, Eye, Shield, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -133,7 +133,7 @@ function CreateAssetDialog({ onSuccess }: { onSuccess: () => void }) {
                   setFormData({ ...formData, type: value as AssetType })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Asset type">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -225,13 +225,13 @@ function AssetDetailDialog({
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <h4 className="mb-1 text-sm font-medium">IP Addresses</h4>
+              <h3 className="mb-1 text-sm font-medium">IP Addresses</h3>
               <p className="text-sm font-mono text-muted-foreground">
                 {(asset.metadata?.ip_addresses as string[])?.join(', ') || 'N/A'}
               </p>
             </div>
             <div>
-              <h4 className="mb-1 text-sm font-medium">Operating System</h4>
+              <h3 className="mb-1 text-sm font-medium">Operating System</h3>
               <p className="text-sm text-muted-foreground">
                 {(asset.metadata as Record<string, unknown>)?.os as string || 'Unknown'}
               </p>
@@ -240,7 +240,7 @@ function AssetDetailDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <h4 className="mb-1 text-sm font-medium">Risk Score</h4>
+              <h3 className="mb-1 text-sm font-medium">Risk Score</h3>
               <div className="flex items-center gap-2">
                 <div className="h-2 w-20 rounded-full bg-muted">
                   <div
@@ -252,7 +252,7 @@ function AssetDetailDialog({
               </div>
             </div>
             <div>
-              <h4 className="mb-1 text-sm font-medium">Last Seen</h4>
+              <h3 className="mb-1 text-sm font-medium">Last Seen</h3>
               <p className="text-sm text-muted-foreground">
                 {formatDateTime(asset.updated_at)}
               </p>
@@ -261,7 +261,7 @@ function AssetDetailDialog({
 
           {asset.tags.length > 0 && (
             <div>
-              <h4 className="mb-1 text-sm font-medium">Tags</h4>
+              <h3 className="mb-1 text-sm font-medium">Tags</h3>
               <div className="flex flex-wrap gap-1">
                 {asset.tags.map((tag) => (
                   <Badge key={tag} variant="secondary">{tag}</Badge>
@@ -272,10 +272,10 @@ function AssetDetailDialog({
 
           {/* Findings for this asset */}
           <div>
-            <h4 className="mb-2 text-sm font-medium flex items-center gap-2">
+            <h3 className="mb-2 text-sm font-medium flex items-center gap-2">
               <Shield className="h-4 w-4" />
               Findings ({loading ? '...' : findings.length})
-            </h4>
+            </h3>
             {loading ? (
               <Skeleton className="h-16 w-full" />
             ) : findings.length === 0 ? (
@@ -366,8 +366,8 @@ export function Assets() {
   );
 
   const {
-    items: assets,
-    total,
+    items: assets = [],
+    total = 0,
     totalPages,
     page,
     loading,
@@ -406,6 +406,7 @@ export function Assets() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search assets..."
+                aria-label="Search assets"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
@@ -417,7 +418,7 @@ export function Assets() {
                 setTypeFilter(value as AssetType | 'all')
               }
             >
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-[180px]" aria-label="Filter by asset type">
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
@@ -456,9 +457,9 @@ export function Assets() {
         <>
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm font-medium">
+              <h2 className="text-sm font-medium">
                 {total} asset{total !== 1 ? 's' : ''} found
-              </CardTitle>
+              </h2>
             </CardHeader>
             <CardContent>
               {deleteConfirm && (
@@ -568,12 +569,13 @@ export function Assets() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => handleViewAsset(asset)}>
+                          <Button variant="ghost" size="icon" aria-label={`View ${asset.name}`} onClick={() => handleViewAsset(asset)}>
                             <Eye className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
+                            aria-label={`Delete ${asset.name}`}
                             onClick={() => setDeleteConfirm({ id: asset.id, name: asset.name })}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />

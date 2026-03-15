@@ -17,7 +17,7 @@ export function ErrorState({
     <Card className="border-destructive">
       <CardContent className="flex flex-col items-center justify-center py-10">
         <AlertTriangle className="h-12 w-12 text-destructive" />
-        <h3 className="mt-4 text-lg font-semibold">{title}</h3>
+        <h2 className="mt-4 text-lg font-semibold">{title}</h2>
         <p className="mt-2 text-center text-sm text-muted-foreground">
           {message}
         </p>

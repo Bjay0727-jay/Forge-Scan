@@ -35,9 +35,9 @@ async function hashKey(key: string): Promise<string> {
 // ---------- Scanner authentication middleware ----------
 
 const authenticateScanner: MiddlewareHandler<ScannerEnv> = async (c, next) => {
-  const apiKey = c.req.header('X-Scanner-Key');
+  const apiKey = c.req.header('X-Scanner-Key') || c.req.header('X-Agent-Key');
   if (!apiKey) {
-    return c.json({ error: 'Unauthorized', message: 'X-Scanner-Key header required' }, 401);
+    return c.json({ error: 'Unauthorized', message: 'X-Scanner-Key or X-Agent-Key header required' }, 401);
   }
 
   const keyHash = await hashKey(apiKey);
@@ -604,6 +604,265 @@ scanner.post('/captures/:id/upload', authenticateScanner, async (c) => {
     console.error('PCAP upload error:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
     return c.json({ error: 'Failed to upload PCAP', message }, 500);
+  }
+});
+
+// ==========================================
+//  Agent routes (REST transport for endpoint agents)
+// ==========================================
+
+// POST /agent/register - Self-registration for agents (no auth required, returns API key)
+scanner.post('/agent/register', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { hostname, version, os_name, os_version, os_arch, capabilities } = body;
+
+    if (!hostname) {
+      return c.json({ error: 'hostname is required' }, 400);
+    }
+
+    // Generate a unique scanner_id for this agent
+    const randomSuffix = crypto.randomUUID().replace(/-/g, '').substring(0, 8);
+    const scanner_id = `agent-${hostname}-${randomSuffix}`;
+
+    // Check for duplicate scanner_id (extremely unlikely with random suffix)
+    const existing = await c.env.DB.prepare(
+      'SELECT id FROM scanner_registrations WHERE scanner_id = ?'
+    ).bind(scanner_id).first();
+
+    if (existing) {
+      return c.json({ error: 'Agent with this identifier already exists, please retry' }, 409);
+    }
+
+    // Generate API key
+    const rawKey = `agent_${crypto.randomUUID().replace(/-/g, '')}`;
+    const keyHash = await hashKey(rawKey);
+    const keyPrefix = rawKey.substring(0, 8);
+    const id = crypto.randomUUID();
+
+    const capList = capabilities && Array.isArray(capabilities) ? capabilities : ['config_audit'];
+
+    await c.env.DB.prepare(`
+      INSERT INTO scanner_registrations (id, scanner_id, hostname, version, capabilities, api_key_hash, api_key_prefix, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'registered', datetime('now'), datetime('now'))
+    `).bind(
+      id,
+      scanner_id,
+      hostname,
+      version || null,
+      JSON.stringify(capList),
+      keyHash,
+      keyPrefix,
+    ).run();
+
+    // Audit: agent registered
+    auditLog(c.env.DB, { action: 'agent.registered', resource_type: 'scanner', resource_id: id, details: { scanner_id, hostname, os_name, os_version, os_arch } });
+
+    return c.json({
+      agent_id: scanner_id,
+      api_key: rawKey,
+      message: 'Store this API key securely - it will not be shown again',
+    }, 201);
+  } catch (error: unknown) {
+    console.error('Agent register error:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: 'Failed to register agent', message }, 500);
+  }
+});
+
+// POST /agent/heartbeat - Agent heartbeat (X-Agent-Key auth)
+scanner.post('/agent/heartbeat', authenticateScanner, async (c) => {
+  try {
+    const scannerInfo = c.get('scanner')!;
+    const body = await c.req.json();
+    const { system_metrics } = body;
+
+    await c.env.DB.prepare(`
+      UPDATE scanner_registrations SET last_heartbeat_at = datetime('now'), status = 'active', updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(scannerInfo.id).run();
+
+    // Return any configuration updates the agent might need
+    const activeTasks = await c.env.DB.prepare(
+      "SELECT COUNT(*) as count FROM scan_tasks WHERE scanner_id = ? AND status IN ('assigned', 'running')"
+    ).bind(scannerInfo.scanner_id).first<{ count: number }>();
+
+    return c.json({
+      status: 'ok',
+      agent_id: scannerInfo.scanner_id,
+      active_tasks: activeTasks?.count || 0,
+      server_time: new Date().toISOString(),
+    });
+  } catch (error: unknown) {
+    console.error('Agent heartbeat error:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: 'Failed to process agent heartbeat', message }, 500);
+  }
+});
+
+// GET /agent/tasks/next - Poll for agent tasks (X-Agent-Key auth)
+scanner.get('/agent/tasks/next', authenticateScanner, async (c) => {
+  try {
+    const scannerInfo = c.get('scanner')!;
+    const scannerOrgId = scannerInfo.org_id;
+
+    // Agent tasks are filtered to config_audit type
+    let query: string;
+    let task: Record<string, unknown> | null;
+
+    if (scannerOrgId) {
+      query = "SELECT * FROM scan_tasks WHERE status = 'queued' AND org_id = ? AND task_type = 'config_audit' ORDER BY priority ASC, created_at ASC LIMIT 1";
+      task = await c.env.DB.prepare(query).bind(scannerOrgId).first();
+    } else {
+      query = "SELECT * FROM scan_tasks WHERE status = 'queued' AND task_type = 'config_audit' ORDER BY priority ASC, created_at ASC LIMIT 1";
+      task = await c.env.DB.prepare(query).first();
+    }
+
+    if (!task) {
+      return c.body(null, 204);
+    }
+
+    // Assign the task to this agent
+    await c.env.DB.prepare(`
+      UPDATE scan_tasks SET status = 'assigned', scanner_id = ?, assigned_at = datetime('now'), updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(scannerInfo.scanner_id, task.id as string).run();
+
+    return c.json({
+      task: {
+        id: task.id,
+        scan_id: task.scan_id,
+        task_type: task.task_type,
+        task_payload: task.task_payload ? JSON.parse(task.task_payload as string) : {},
+        priority: task.priority,
+        retry_count: task.retry_count,
+        max_retries: task.max_retries,
+      },
+    });
+  } catch (error: unknown) {
+    console.error('Agent get next task error:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: 'Failed to get next task', message }, 500);
+  }
+});
+
+// POST /agent/tasks/:id/results - Submit agent task results (X-Agent-Key auth)
+scanner.post('/agent/tasks/:id/results', authenticateScanner, async (c) => {
+  try {
+    const taskId = c.req.param('id');
+    const scannerInfo = c.get('scanner')!;
+
+    const task = await c.env.DB.prepare(
+      'SELECT id, scan_id, scanner_id, status FROM scan_tasks WHERE id = ?'
+    ).bind(taskId).first<{ id: string; scan_id: string; scanner_id: string; status: string }>();
+
+    if (!task) {
+      return c.json({ error: 'Task not found' }, 404);
+    }
+
+    if (task.scanner_id !== scannerInfo.scanner_id) {
+      return c.json({ error: 'Task is not assigned to this agent' }, 403);
+    }
+
+    const body = await c.req.json();
+    const status = body.status;
+    const findings = body.findings;
+    const error_message = body.error_message;
+    const summary = body.summary || body.result_summary;
+
+    if (!status || !['completed', 'failed'].includes(status)) {
+      return c.json({ error: "status must be 'completed' or 'failed'" }, 400);
+    }
+
+    const db = c.env.DB;
+    let findingsCount = 0;
+
+    // Resolve org_id
+    const scanOrgRow = await db.prepare('SELECT org_id FROM scans WHERE id = ?').bind(task.scan_id).first<{ org_id: string | null }>();
+    const orgId = scannerInfo.org_id || scanOrgRow?.org_id || null;
+
+    // Insert findings
+    if (findings && Array.isArray(findings) && findings.length > 0) {
+      for (const finding of findings) {
+        const findingId = crypto.randomUUID();
+
+        // For config audit findings, create or reuse a host asset
+        let assetId = finding.asset_id;
+        if (!assetId) {
+          const hostAsset = await db.prepare(
+            'SELECT id FROM assets WHERE hostname = ? LIMIT 1'
+          ).bind(scannerInfo.hostname).first<{ id: string }>();
+
+          if (hostAsset) {
+            assetId = hostAsset.id;
+          } else {
+            assetId = crypto.randomUUID();
+            await db.prepare(
+              "INSERT INTO assets (id, hostname, ip_addresses, asset_type, last_seen, org_id) VALUES (?, ?, ?, 'host', datetime('now'), ?)"
+            ).bind(assetId, scannerInfo.hostname, '127.0.0.1', orgId).run();
+          }
+        }
+
+        await db.prepare(`
+          INSERT INTO findings (id, asset_id, vendor, vendor_id, title, description, severity, port, protocol, service, state, solution, evidence, org_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)
+        `).bind(
+          findingId,
+          assetId,
+          finding.vendor || 'forgescan-agent',
+          finding.vendor_id || findingId,
+          finding.title,
+          finding.description || null,
+          finding.severity || 'medium',
+          finding.port || null,
+          finding.protocol || null,
+          finding.service || null,
+          finding.solution || null,
+          finding.evidence || null,
+          orgId,
+        ).run();
+
+        findingsCount++;
+      }
+    }
+
+    // Update the task
+    await db.prepare(`
+      UPDATE scan_tasks
+      SET status = ?, completed_at = datetime('now'), updated_at = datetime('now'),
+          findings_count = ?, result_summary = ?, error_message = ?
+      WHERE id = ?
+    `).bind(
+      status,
+      findingsCount,
+      summary || null,
+      error_message || null,
+      taskId,
+    ).run();
+
+    // Update scanner/agent task counters
+    if (status === 'completed') {
+      await db.prepare(
+        "UPDATE scanner_registrations SET tasks_completed = tasks_completed + 1, updated_at = datetime('now') WHERE scanner_id = ?"
+      ).bind(scannerInfo.scanner_id).run();
+    } else if (status === 'failed') {
+      await db.prepare(
+        "UPDATE scanner_registrations SET tasks_failed = tasks_failed + 1, updated_at = datetime('now') WHERE scanner_id = ?"
+      ).bind(scannerInfo.scanner_id).run();
+    }
+
+    // Check if parent scan is complete
+    await updateScanFromTasks(db, task.scan_id);
+
+    return c.json({
+      message: 'Results received',
+      task_id: taskId,
+      findings_count: findingsCount,
+    });
+  } catch (error: unknown) {
+    console.error('Agent submit results error:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: 'Failed to submit agent results', message }, 500);
   }
 });
 

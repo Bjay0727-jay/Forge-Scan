@@ -101,6 +101,7 @@ function ExecutiveScorecard({ metrics }: { metrics: ExecutiveMetrics }) {
 
   return (
     <div className="mb-6 space-y-4">
+      <h2 className="sr-only">Security Scorecard</h2>
       {/* Top row: Grade + KPIs */}
       <div className="grid gap-4 lg:grid-cols-4">
         {/* Risk Grade — hero card */}

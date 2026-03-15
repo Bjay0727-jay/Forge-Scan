@@ -783,7 +783,7 @@ export function Scans() {
   );
 
   const {
-    items: scans,
+    items,
     total,
     totalPages,
     page,
@@ -792,6 +792,7 @@ export function Scans() {
     setPage,
     refetch,
   } = usePaginatedApi<Scan>(fetchScans);
+  const scans = items ?? [];
 
   // Check if any visible scans are running/pending
   const hasRunningScans = useMemo(
@@ -853,7 +854,7 @@ export function Scans() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Scans</h1>
+          <h2 className="text-2xl font-bold">Scans</h2>
           <p className="text-muted-foreground">
             Manage and monitor security scans
           </p>
@@ -872,6 +873,7 @@ export function Scans() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
+                aria-label="Search scans"
               />
             </div>
             <Select
