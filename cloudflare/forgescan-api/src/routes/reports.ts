@@ -45,7 +45,7 @@ interface ExecutiveSummary {
 }
 
 interface GenerateReportRequest {
-  report_type: 'executive' | 'findings' | 'compliance' | 'assets';
+  report_type: 'executive' | 'findings' | 'compliance' | 'assets' | 'vulnerabilities';
   title?: string;
   filters?: {
     severity?: string[];
@@ -53,6 +53,7 @@ interface GenerateReportRequest {
     asset_types?: string[];
     date_from?: string;
     date_to?: string;
+    framework_id?: string;
   };
   format?: 'json' | 'csv' | 'pdf';
 }
@@ -283,6 +284,100 @@ async function buildAssetsData(db: D1Database, filters: GenerateReportRequest['f
   };
 }
 
+// ---- Helper: build vulnerabilities data (ForgeScan findings + FC360 compliance mappings) ----
+async function buildVulnerabilitiesData(db: D1Database, filters: GenerateReportRequest['filters'], orgId: string | null) {
+  let query = `
+    SELECT f.id, f.title, f.description, f.severity, f.state, f.cve_id, f.cvss3_score,
+           f.frs_score, f.affected_component, f.solution, f.control_mappings,
+           f.vendor, f.vendor_id, f.plugin_id, f.first_seen, f.last_seen,
+           f.created_at, f.updated_at,
+           a.hostname, a.ip_addresses, a.asset_type, a.os, a.network_zone,
+           p.id as poam_id, p.status as poam_status, p.remediation_effort as poam_effort,
+           p.scheduled_completion as poam_due_date
+    FROM findings f
+    LEFT JOIN assets a ON f.asset_id = a.id
+    LEFT JOIN poam_items p ON p.finding_id = f.id AND p.status != 'completed'
+    WHERE f.state = 'open'
+  `;
+  const params: any[] = [];
+
+  if (orgId) {
+    query += ' AND f.org_id = ?';
+    params.push(orgId);
+  }
+  if (filters?.severity?.length) {
+    query += ` AND f.severity IN (${filters.severity.map(() => '?').join(',')})`;
+    params.push(...filters.severity);
+  }
+  if (filters?.vendors?.length) {
+    query += ` AND f.vendor IN (${filters.vendors.map(() => '?').join(',')})`;
+    params.push(...filters.vendors);
+  }
+  if (filters?.date_from) { query += ' AND f.created_at >= ?'; params.push(filters.date_from); }
+  if (filters?.date_to) { query += ' AND f.created_at <= ?'; params.push(filters.date_to); }
+
+  // Only include findings that have FC360 control mappings if a framework is specified
+  if (filters?.framework_id) {
+    query += ` AND f.control_mappings IS NOT NULL AND f.control_mappings != '[]'`;
+  }
+
+  query += ` ORDER BY
+    CASE f.severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END,
+    f.frs_score DESC NULLS LAST, f.created_at DESC LIMIT 5000`;
+
+  const result = await db.prepare(query).bind(...params).all();
+
+  // Parse control_mappings JSON and enrich findings
+  const findings = (result.results || []).map((row: any) => {
+    let controlMappings: any[] = [];
+    try { controlMappings = JSON.parse(row.control_mappings || '[]'); } catch { /* empty */ }
+    return {
+      ...row,
+      control_mappings: controlMappings,
+      has_poam: !!row.poam_id,
+    };
+  });
+
+  // Build summary with compliance coverage stats
+  const summaryParams: any[] = [];
+  let summaryFilter = '';
+  if (orgId) { summaryFilter = ' AND f.org_id = ?'; summaryParams.push(orgId); }
+
+  const summary = await db.prepare(`
+    SELECT COUNT(*) as total,
+      SUM(CASE WHEN f.severity = 'critical' THEN 1 ELSE 0 END) as critical,
+      SUM(CASE WHEN f.severity = 'high' THEN 1 ELSE 0 END) as high,
+      SUM(CASE WHEN f.severity = 'medium' THEN 1 ELSE 0 END) as medium,
+      SUM(CASE WHEN f.severity = 'low' THEN 1 ELSE 0 END) as low,
+      SUM(CASE WHEN f.severity = 'info' THEN 1 ELSE 0 END) as info,
+      SUM(CASE WHEN f.control_mappings IS NOT NULL AND f.control_mappings != '[]' THEN 1 ELSE 0 END) as mapped_to_controls,
+      COUNT(DISTINCT f.asset_id) as affected_assets
+    FROM findings f WHERE f.state = 'open'${summaryFilter}
+  `).bind(...summaryParams).first<any>();
+
+  // Count POA&M items
+  const poamParams: any[] = [];
+  let poamFilter = '';
+  if (orgId) { poamFilter = ' WHERE org_id = ?'; poamParams.push(orgId); }
+  const poamSummary = await db.prepare(`
+    SELECT COUNT(*) as total_poam,
+      SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open_poam,
+      SUM(CASE WHEN scheduled_completion < date('now') AND status != 'completed' THEN 1 ELSE 0 END) as overdue_poam
+    FROM poam_items${poamFilter}
+  `).bind(...poamParams).first<any>();
+
+  return {
+    summary: {
+      ...(summary || { total: 0, critical: 0, high: 0, medium: 0, low: 0, info: 0, mapped_to_controls: 0, affected_assets: 0 }),
+      total_poam: poamSummary?.total_poam || 0,
+      open_poam: poamSummary?.open_poam || 0,
+      overdue_poam: poamSummary?.overdue_poam || 0,
+    },
+    findings,
+    filters: filters || {},
+  };
+}
+
 // ---- GET /api/v1/reports/executive ----
 reports.get('/executive', async (c) => {
   const { days = '30' } = c.req.query();
@@ -381,6 +476,34 @@ reports.get('/assets', async (c) => {
   });
 });
 
+// ---- GET /api/v1/reports/vulnerabilities ----
+reports.get('/vulnerabilities', async (c) => {
+  const { severity, vendor, date_from, date_to, framework_id, limit = '100', offset = '0' } = c.req.query();
+  const { orgId } = getOrgFilter(c);
+
+  const filters: GenerateReportRequest['filters'] = {};
+  if (severity) filters.severity = severity.split(',');
+  if (vendor) filters.vendors = vendor.split(',');
+  if (date_from) filters.date_from = date_from;
+  if (date_to) filters.date_to = date_to;
+  if (framework_id) filters.framework_id = framework_id;
+
+  const data = await buildVulnerabilitiesData(c.env.DB, filters, orgId);
+
+  // Apply pagination to findings
+  const start = parseInt(offset);
+  const end = start + parseInt(limit);
+  const paginatedFindings = data.findings.slice(start, end);
+
+  return c.json({
+    generated_at: new Date().toISOString(),
+    summary: data.summary,
+    data: paginatedFindings,
+    total: data.findings.length,
+    pagination: { limit: parseInt(limit), offset: parseInt(offset) },
+  });
+});
+
 // ---- POST /api/v1/reports/generate - Generate report in PDF/CSV/JSON, store in R2 ----
 reports.post('/generate', requireRole('platform_admin', 'scan_admin', 'vuln_manager', 'auditor'), async (c) => {
   const body = await c.req.json<GenerateReportRequest>();
@@ -391,9 +514,9 @@ reports.post('/generate', requireRole('platform_admin', 'scan_admin', 'vuln_mana
   const format = body.format || 'json';
   const reportTitle = body.title || `${body.report_type}_report_${new Date().toISOString().split('T')[0]}`;
 
-  const validTypes = ['executive', 'findings', 'compliance', 'assets'];
+  const validTypes = ['executive', 'findings', 'compliance', 'assets', 'vulnerabilities'];
   if (!validTypes.includes(body.report_type)) {
-    return c.json({ error: 'Invalid report type. Must be: executive, findings, compliance, or assets' }, 400);
+    return c.json({ error: 'Invalid report type. Must be: executive, findings, compliance, assets, or vulnerabilities' }, 400);
   }
   if (!['json', 'csv', 'pdf'].includes(format)) {
     return c.json({ error: 'Invalid format. Must be: json, csv, or pdf' }, 400);
@@ -468,6 +591,35 @@ reports.post('/generate', requireRole('platform_admin', 'scan_admin', 'vuln_mana
             }
           }
           content = generateComplianceCSV(allControls);
+          contentType = 'text/csv; charset=utf-8';
+          extension = 'csv';
+        } else {
+          content = JSON.stringify({ title: reportTitle, generated_at: new Date().toISOString(), ...data }, null, 2);
+          contentType = 'application/json';
+          extension = 'json';
+        }
+        break;
+      }
+
+      case 'vulnerabilities': {
+        const data = await buildVulnerabilitiesData(c.env.DB, body.filters, orgId);
+        if (format === 'pdf') {
+          content = await generateFindingsPDF({
+            summary: data.summary,
+            findings: data.findings,
+            filters: {},
+          });
+          contentType = 'application/pdf';
+          extension = 'pdf';
+        } else if (format === 'csv') {
+          // Flatten control_mappings into a string column for CSV
+          const csvFindings = data.findings.map((f: any) => ({
+            ...f,
+            control_mappings: Array.isArray(f.control_mappings)
+              ? f.control_mappings.map((c: any) => c.control_id || c).join('; ')
+              : '',
+          }));
+          content = generateFindingsCSV(csvFindings);
           contentType = 'text/csv; charset=utf-8';
           extension = 'csv';
         } else {

@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   FileText,
   RefreshCw,
@@ -11,6 +12,7 @@ import {
   Shield,
   Server,
   AlertTriangle,
+  Bug,
 } from 'lucide-react';
 import { useAuth, hasRole } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -92,6 +94,14 @@ const reportTypes = [
     color: 'text-green-400',
   },
   {
+    type: 'vulnerabilities',
+    label: 'Vulnerabilities (FC360)',
+    description: 'ForgeScan findings with FC360 compliance control mappings, POA&M status, and remediation tracking.',
+    icon: Bug,
+    formats: ['pdf', 'csv', 'json'],
+    color: 'text-red-400',
+  },
+  {
     type: 'assets',
     label: 'Asset Inventory',
     description: 'Complete asset inventory with finding counts, risk scores, and OS/type breakdown.',
@@ -124,11 +134,21 @@ const statusBadge = (status: string) => {
 export function Reports() {
   const { user } = useAuth();
   const isAdmin = hasRole(user, 'platform_admin', 'scan_admin');
+  const [searchParams] = useSearchParams();
+  const sectionParam = searchParams.get('section');
+  const highlightedRef = useRef<HTMLDivElement>(null);
 
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState<string | null>(null);
+
+  // Scroll to the highlighted section when deep-linked
+  useEffect(() => {
+    if (sectionParam && highlightedRef.current && !loading) {
+      highlightedRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [sectionParam, loading]);
 
   const loadReports = useCallback(async () => {
     try {
@@ -230,13 +250,20 @@ export function Reports() {
       </div>
 
       {/* Quick Report Generation */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {reportTypes.map(rt => (
-          <Card key={rt.type}>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        {reportTypes.map(rt => {
+          const isHighlighted = sectionParam === rt.type;
+          return (
+          <Card
+            key={rt.type}
+            ref={isHighlighted ? highlightedRef : undefined}
+            className={isHighlighted ? 'ring-2 ring-primary shadow-lg' : ''}
+          >
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <rt.icon className={`h-5 w-5 ${rt.color}`} />
                 {rt.label}
+                {isHighlighted && <Badge className="ml-auto bg-primary/15 text-primary text-[10px]">Linked</Badge>}
               </CardTitle>
               <CardDescription className="text-xs">{rt.description}</CardDescription>
             </CardHeader>
@@ -266,7 +293,8 @@ export function Reports() {
               </div>
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
       </div>
 
       {/* Generated Reports Table */}
