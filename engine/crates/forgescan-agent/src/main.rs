@@ -59,8 +59,10 @@ struct TaskResponse {
 #[derive(Deserialize)]
 struct TaskInfo {
     id: String,
+    #[allow(dead_code)]
     scan_id: String,
     task_type: String,
+    #[allow(dead_code)]
     task_payload: serde_json::Value,
 }
 
@@ -550,7 +552,7 @@ async fn run_daemon(
                     hostname: hostname.clone(),
                     version: version.clone(),
                     system_metrics: SystemMetrics {
-                        cpu_cores: sys.hardware.cpu_cores as u32,
+                        cpu_cores: sys.hardware.cpu_cores,
                         total_memory_mb: sys.hardware.total_memory / 1024 / 1024,
                         os: sys.os.name.clone(),
                         arch: sys.os.arch.clone(),
