@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { AlertTriangle, Search, CheckCircle, Eye, ArrowUpDown, ArrowUp, ArrowDown, XCircle } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -68,7 +68,7 @@ function FindingDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl" aria-label={`Finding detail: ${finding.title}`}>
         <DialogHeader>
           <div className="flex items-center gap-2">
             <Badge variant={finding.severity as Severity}>
@@ -92,18 +92,18 @@ function FindingDetailDialog({
 
         <div className="space-y-4">
           <div>
-            <h4 className="mb-1 text-sm font-medium">Description</h4>
+            <h3 className="mb-1 text-sm font-medium">Description</h3>
             <p className="text-sm text-muted-foreground">{finding.description}</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <h4 className="mb-1 text-sm font-medium">Affected Component</h4>
+              <h3 className="mb-1 text-sm font-medium">Affected Component</h3>
               <p className="text-sm font-mono">{finding.affected_component}</p>
             </div>
             {finding.cvss_score !== undefined && (
               <div>
-                <h4 className="mb-1 text-sm font-medium">CVSS Score</h4>
+                <h3 className="mb-1 text-sm font-medium">CVSS Score</h3>
                 <p className="text-sm">{finding.cvss_score}</p>
               </div>
             )}
@@ -111,13 +111,13 @@ function FindingDetailDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <h4 className="mb-1 text-sm font-medium">First Seen</h4>
+              <h3 className="mb-1 text-sm font-medium">First Seen</h3>
               <p className="text-sm text-muted-foreground">
                 {formatDateTime(finding.first_seen)}
               </p>
             </div>
             <div>
-              <h4 className="mb-1 text-sm font-medium">Last Seen</h4>
+              <h3 className="mb-1 text-sm font-medium">Last Seen</h3>
               <p className="text-sm text-muted-foreground">
                 {formatDateTime(finding.last_seen)}
               </p>
@@ -126,14 +126,14 @@ function FindingDetailDialog({
 
           {finding.remediation && (
             <div>
-              <h4 className="mb-1 text-sm font-medium">Remediation</h4>
+              <h3 className="mb-1 text-sm font-medium">Remediation</h3>
               <p className="text-sm text-muted-foreground">{finding.remediation}</p>
             </div>
           )}
 
           {finding.references && finding.references.length > 0 && (
             <div>
-              <h4 className="mb-1 text-sm font-medium">References</h4>
+              <h3 className="mb-1 text-sm font-medium">References</h3>
               <ul className="list-inside list-disc text-sm text-muted-foreground">
                 {finding.references.map((ref, i) => (
                   <li key={i}>
@@ -152,7 +152,7 @@ function FindingDetailDialog({
           )}
 
           <div>
-            <h4 className="mb-2 text-sm font-medium">Status</h4>
+            <h3 className="mb-2 text-sm font-medium">Status</h3>
             <div className="flex gap-2">
               {states.map((state) => (
                 <Button
@@ -242,7 +242,7 @@ export function Findings() {
   );
 
   const {
-    items: findings,
+    items,
     total,
     totalPages,
     page,
@@ -251,6 +251,8 @@ export function Findings() {
     setPage,
     refetch,
   } = usePaginatedApi<Finding>(fetchFindings);
+
+  const findings = items ?? [];
 
   const handleViewFinding = (finding: Finding) => {
     setSelectedFinding(finding);
@@ -283,6 +285,7 @@ export function Findings() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search findings..."
+                aria-label="Search findings"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
@@ -294,7 +297,7 @@ export function Findings() {
                 setSeverityFilter(value as Severity | 'all')
               }
             >
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className="w-[150px]" aria-label="Filter by severity">
                 <SelectValue placeholder="Severity" />
               </SelectTrigger>
               <SelectContent>
@@ -312,7 +315,7 @@ export function Findings() {
                 setStateFilter(value as FindingState | 'all')
               }
             >
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className="w-[150px]" aria-label="Filter by state">
                 <SelectValue placeholder="State" />
               </SelectTrigger>
               <SelectContent>
@@ -328,7 +331,7 @@ export function Findings() {
               value={vendorFilter}
               onValueChange={setVendorFilter}
             >
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className="w-[150px]" aria-label="Filter by vendor">
                 <SelectValue placeholder="Vendor" />
               </SelectTrigger>
               <SelectContent>
@@ -372,24 +375,36 @@ export function Findings() {
         <>
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm font-medium">
+              <h2 className="text-sm font-medium">
                 {total} finding{total !== 1 ? 's' : ''} found
-              </CardTitle>
+              </h2>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort('severity')}>
+                    <TableHead
+                      className="cursor-pointer select-none"
+                      aria-sort={sortBy === 'severity' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+                      onClick={() => handleSort('severity')}
+                    >
                       <span className="flex items-center">Severity <SortIcon column="severity" /></span>
                     </TableHead>
-                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort('title')}>
+                    <TableHead
+                      className="cursor-pointer select-none"
+                      aria-sort={sortBy === 'title' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+                      onClick={() => handleSort('title')}
+                    >
                       <span className="flex items-center">Title <SortIcon column="title" /></span>
                     </TableHead>
                     <TableHead>CVE</TableHead>
                     <TableHead>Component</TableHead>
                     <TableHead>State</TableHead>
-                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort('last_seen')}>
+                    <TableHead
+                      className="cursor-pointer select-none"
+                      aria-sort={sortBy === 'last_seen' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+                      onClick={() => handleSort('last_seen')}
+                    >
                       <span className="flex items-center">Last Seen <SortIcon column="last_seen" /></span>
                     </TableHead>
                     <TableHead className="w-[120px]">Actions</TableHead>
@@ -446,6 +461,7 @@ export function Findings() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            aria-label={`View finding: ${finding.title}`}
                             onClick={() => handleViewFinding(finding)}
                           >
                             <Eye className="h-4 w-4" />
@@ -454,6 +470,7 @@ export function Findings() {
                             <Button
                               variant="ghost"
                               size="icon"
+                              aria-label={`Resolve finding: ${finding.title}`}
                               onClick={() => handleQuickResolve(finding)}
                             >
                               <CheckCircle className="h-4 w-4 text-green-400" />
@@ -469,13 +486,13 @@ export function Findings() {
           </Card>
 
           {totalPages > 1 && (
-            <div className="mt-6">
+            <nav className="mt-6" aria-label="Findings pagination">
               <Pagination
                 page={page}
                 totalPages={totalPages}
                 onPageChange={setPage}
               />
-            </div>
+            </nav>
           )}
         </>
       )}
