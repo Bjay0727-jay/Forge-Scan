@@ -1,5 +1,12 @@
 import '@testing-library/jest-dom/vitest';
 
+// Mock ResizeObserver for components that use it (e.g. recharts ResponsiveContainer)
+global.ResizeObserver = class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
+
 // Mock localStorage
 const localStorageMock = (() => {
   let store: Record<string, string> = {};

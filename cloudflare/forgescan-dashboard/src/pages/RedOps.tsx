@@ -744,7 +744,7 @@ export function RedOps() {
               )}
             </div>
           )}
-          <Button variant="outline" size="sm" onClick={refetch}>
+          <Button variant="outline" size="sm" onClick={refetch} aria-label="Refresh campaigns">
             <RefreshCw className="h-4 w-4" />
           </Button>
           <Button
@@ -768,6 +768,7 @@ export function RedOps() {
 
       {/* Overview Stats */}
       <div className="space-y-6">
+        <h2 className="sr-only">Campaign Overview</h2>
         <OverviewStats overview={effectiveOverview} />
         <SeverityBar overview={effectiveOverview} />
 
