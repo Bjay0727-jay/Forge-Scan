@@ -9,6 +9,7 @@ import {
   AlertCircle,
   MinusCircle,
   ExternalLink,
+  HelpCircle,
 } from 'lucide-react';
 import { useAuth, hasRole } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { FederalTermTooltip, FederalTermsGlossary } from '@/components/FederalTermsHelp';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -98,6 +100,25 @@ const complianceColor = (pct: number) => {
   return 'text-red-400';
 };
 
+const FRAMEWORK_TERM_MAP: Record<string, string> = {
+  'NIST 800-53': 'NIST SP 800-53',
+  'NIST SP 800-53': 'NIST SP 800-53',
+  'CIS': 'CIS Benchmarks',
+  'CIS Benchmarks': 'CIS Benchmarks',
+  'FedRAMP': 'FedRAMP',
+  'FISMA': 'FISMA',
+  'STIG': 'STIG',
+};
+
+function FrameworkNameWithTooltip({ name }: { name: string }) {
+  for (const [pattern, termKey] of Object.entries(FRAMEWORK_TERM_MAP)) {
+    if (name.includes(pattern)) {
+      return <FederalTermTooltip term={termKey}>{name}</FederalTermTooltip>;
+    }
+  }
+  return <>{name}</>;
+}
+
 export function Compliance() {
   const { user } = useAuth();
   const isAdmin = hasRole(user, 'platform_admin', 'scan_admin');
@@ -106,6 +127,7 @@ export function Compliance() {
   const [frameworks, setFrameworks] = useState<Framework[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
+  const [glossaryOpen, setGlossaryOpen] = useState(false);
 
   // Detail view
   const [selectedFw, setSelectedFw] = useState<string | null>(null);
@@ -187,9 +209,12 @@ export function Compliance() {
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <ClipboardCheck className="h-5 w-5" /> Compliance
           </h1>
-          <p className="text-muted-foreground mt-1">Framework mappings and gap analysis</p>
+          <p className="text-muted-foreground mt-1">Framework mappings and gap analysis — track <FederalTermTooltip term="POA&M">POA&M</FederalTermTooltip> items, <FederalTermTooltip term="NIST SP 800-53">NIST 800-53</FederalTermTooltip> controls, and more</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setGlossaryOpen(true)}>
+            <HelpCircle className="mr-2 h-4 w-4" /> Federal Terms
+          </Button>
           <Button variant="outline" onClick={loadFrameworks}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
           <Button
             variant="outline"
@@ -250,7 +275,9 @@ export function Compliance() {
             return (
               <Card key={fw.id} className={`cursor-pointer transition-shadow hover:shadow-md ${selectedFw === fw.id ? 'ring-2 ring-primary' : ''}`} onClick={() => loadDetail(fw.id)}>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base">{fw.name}</CardTitle>
+                  <CardTitle className="text-base">
+                    <FrameworkNameWithTooltip name={fw.name} />
+                  </CardTitle>
                   <CardDescription>v{fw.version}</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -387,6 +414,7 @@ export function Compliance() {
           )}
         </>
       )}
+      <FederalTermsGlossary open={glossaryOpen} onOpenChange={setGlossaryOpen} />
     </div>
   );
 }

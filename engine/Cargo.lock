@@ -1296,6 +1296,7 @@ name = "forgescan-agent"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "forgescan-checks",
  "forgescan-common",
@@ -1304,6 +1305,7 @@ dependencies = [
  "forgescan-nvd",
  "forgescan-transport",
  "forgescan-vuln",
+ "reqwest",
  "serde",
  "serde_json",
  "tokio",
