@@ -7,16 +7,19 @@
 #
 # File naming: FSC-{CATEGORY}-{NUMBER}.yaml
 #   Categories: VULN (vulnerability), CFG (configuration), NET (network),
-#               WEB (web application), CLD (cloud)
+#               WEB (web application), CLD (cloud),
+#               IoMT-{SUB} (medical devices: HL7, DICOM, BACNET, MODBUS,
+#                           MQTT, SAFE, DEV, HIPAA, FDA)
 #
 # Place in: engine/checks/{category}/
+#   IoMT checks: engine/checks/iomt/{subcategory}/
 # ============================================================================
 
 # ── Required Fields ──────────────────────────────────────────────────
 #
 # id:          Unique check identifier (FSC-VULN-0001 format)
 # name:        Human-readable name
-# category:    vulnerability | configuration | network | webapp | cloud
+# category:    vulnerability | configuration | network | webapp | cloud | iomt
 # severity:    critical | high | medium | low | info
 # detection:   How to detect the issue (see Detection Types below)
 # remediation: How to fix it
@@ -47,9 +50,23 @@
 # dns-check:         DNS record analysis
 # command-check:     Run command and check output (agent-only)
 # file-check:        Check file existence/permissions (agent-only)
+# passive-probe:     Non-disruptive discovery (safe-scan mode only)
+#
+# ── IoMT-Specific Fields ───────────────────────────────────────────
+#
+# device_classes:    Target device classes for this check
+#   medical_imaging, patient_monitor, infusion_pump, ventilator,
+#   clinical_analyzer, hl7_router, dicom_server, ehr_system,
+#   building_automation, industrial_control, generic_iot
+#
+# scan_modes:        Restrict to specific scan modes
+#   agentless, agent, hybrid, safe-scan
+#
+# patient_impact:    Patient safety impact if exploited
+#   none, indirect, direct_care, life_support
 
 # ============================================================================
 # This file serves as the format reference. See the example checks in
-# checks/vulnerability/, checks/configuration/, and checks/network/
+# checks/vuln/, checks/configuration/, checks/network/, and checks/iomt/
 # for real detection signatures.
 # ============================================================================

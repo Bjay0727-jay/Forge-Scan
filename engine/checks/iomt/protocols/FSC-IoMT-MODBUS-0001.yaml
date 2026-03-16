@@ -1,0 +1,51 @@
+# ForgeScan Check Definition
+# Modbus TCP Without Authentication
+
+id: "FSC-IoMT-MODBUS-0001"
+name: "Modbus TCP Without Authentication"
+category: iomt
+severity: high
+enabled: true
+confidence: high
+
+description: |
+  Modbus TCP is accessible without authentication on port 502. In healthcare,
+  Modbus controls pharmacy automation, sterilization systems, and laboratory
+  equipment. The protocol has no built-in authentication or encryption.
+
+impact: |
+  An attacker can read sensor values and write to control registers/coils,
+  potentially disrupting medication dispensing, sterilization processes,
+  or laboratory equipment calibration.
+
+detection:
+  type: port-check
+  port: 502
+  protocol: tcp
+  verify_service: true
+
+device_classes:
+  - industrial_control
+
+remediation: |
+  1. Isolate Modbus devices on a dedicated OT/ICS network segment.
+  2. Deploy an industrial firewall or Modbus-aware proxy.
+  3. If available, migrate to Modbus/TCP Security (TLS extension).
+  4. Implement monitoring for anomalous Modbus function codes.
+  5. Restrict access to authorized SCADA/HMI stations only.
+
+remediation_effort: high
+
+tags:
+  - modbus
+  - ics
+  - scada
+  - iomt
+  - industrial
+
+nist_controls:
+  - "SC-7"
+  - "AC-3"
+  - "SI-4"
+
+enabled_by_default: true

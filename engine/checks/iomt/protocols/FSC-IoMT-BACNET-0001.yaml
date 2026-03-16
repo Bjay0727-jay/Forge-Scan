@@ -1,0 +1,54 @@
+# ForgeScan Check Definition
+# BACnet Network Without Authentication
+
+id: "FSC-IoMT-BACNET-0001"
+name: "BACnet Network Without Authentication"
+category: iomt
+severity: high
+enabled: true
+confidence: high
+
+description: |
+  BACnet/IP building automation is accessible without authentication.
+  In healthcare facilities, BACnet controls HVAC, physical access control,
+  fire alarm systems, and environmental monitoring for sensitive areas
+  (pharmacy, operating rooms, isolation rooms).
+
+impact: |
+  Unauthorized control of facility systems. An attacker could manipulate
+  HVAC settings in medication storage, disable access control, or disrupt
+  environmental conditions in operating rooms and isolation wards.
+
+detection:
+  type: port-check
+  port: 47808
+  protocol: udp
+  supplemental:
+    - type: banner-match
+      protocol: udp
+      port: 47808
+      pattern: "BACnet"
+
+device_classes:
+  - building_automation
+
+remediation: |
+  1. Segment BACnet traffic on a dedicated OT/facilities VLAN.
+  2. Implement BACnet/SC (Secure Connect) with TLS and certificates.
+  3. Configure BBMD (BACnet Broadcast Management Device) to limit scope.
+  4. Deploy firewall rules restricting BACnet to authorized BMS controllers.
+
+remediation_effort: high
+
+tags:
+  - bacnet
+  - building-automation
+  - ot
+  - iomt
+  - healthcare-facilities
+
+nist_controls:
+  - "SC-7"
+  - "AC-3"
+
+enabled_by_default: true

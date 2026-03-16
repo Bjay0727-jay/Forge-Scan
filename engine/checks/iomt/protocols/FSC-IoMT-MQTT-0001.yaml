@@ -1,0 +1,46 @@
+# ForgeScan Check Definition
+# MQTT Broker Anonymous Access
+
+id: "FSC-IoMT-MQTT-0001"
+name: "MQTT Broker Allows Anonymous Connections"
+category: iomt
+severity: high
+enabled: true
+confidence: high
+
+description: |
+  MQTT broker accepts connections without authentication. IoMT devices using
+  MQTT to publish telemetry (vital signs, device status, alerts) can be
+  eavesdropped on or injected with false data.
+
+detection:
+  type: port-check
+  ports: [1883, 8883]
+  protocol: tcp
+  verify_service: true
+  supplemental:
+    - type: banner-match
+      pattern: "MQTT|mosquitto|emqx|vernemq|hivemq"
+
+device_classes:
+  - generic_iot
+
+remediation: |
+  1. Enable MQTT authentication (username/password or certificate-based).
+  2. Use MQTT over TLS (port 8883) for all connections.
+  3. Implement topic-level ACLs to restrict pub/sub permissions.
+  4. Disable anonymous access in broker configuration.
+
+remediation_effort: low
+
+tags:
+  - mqtt
+  - iot
+  - anonymous-access
+  - iomt
+
+nist_controls:
+  - "IA-2"
+  - "SC-8"
+
+enabled_by_default: true

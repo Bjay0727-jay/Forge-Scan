@@ -280,6 +280,175 @@ pub struct FrsBreakdown {
     pub criticality_contribution: f64,
 }
 
+/// Extended FRS calculator for medical/IoT devices
+///
+/// Augments the base FRS score with patient safety impact, regulatory context,
+/// and device criticality factors specific to healthcare environments.
+pub struct MedicalFrsCalculator {
+    base: FrsCalculator,
+}
+
+impl Default for MedicalFrsCalculator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MedicalFrsCalculator {
+    pub fn new() -> Self {
+        Self {
+            base: FrsCalculator::new(),
+        }
+    }
+
+    pub fn with_base(base: FrsCalculator) -> Self {
+        Self { base }
+    }
+
+    /// Calculate FRS with medical device context
+    pub fn calculate_medical_frs(
+        &self,
+        factors: &RiskFactors,
+        medical_factors: &MedicalRiskFactors,
+    ) -> MedicalFrsScore {
+        let base_score = self.base.calculate_with_factors(factors);
+        let mut medical_score = base_score.score;
+
+        // Patient impact multiplier (life-support devices get highest boost)
+        medical_score *= medical_factors.patient_impact.risk_multiplier();
+
+        // Regulatory violation boost
+        if medical_factors.is_regulatory_violation {
+            medical_score *= 1.15;
+        }
+
+        // Device is FDA Class III (highest risk category)
+        if medical_factors.fda_class == forgescan_core::FdaDeviceClass::ClassIII {
+            medical_score *= 1.10;
+        }
+
+        // No patch available for medical device (common with legacy equipment)
+        if !medical_factors.patch_available {
+            medical_score *= 1.10;
+        }
+
+        // Device has known FDA recall or safety alert
+        if medical_factors.has_fda_recall {
+            medical_score *= 1.20;
+        }
+
+        // Time-critical clinical workflow dependency
+        if medical_factors.time_critical_workflow {
+            medical_score *= 1.15;
+        }
+
+        medical_score = medical_score.clamp(0.0, 100.0);
+
+        MedicalFrsScore {
+            base_frs: base_score,
+            medical_score,
+            medical_rating: FrsRating::from_score(medical_score),
+            medical_factors: medical_factors.clone(),
+        }
+    }
+}
+
+/// Medical-specific risk factors for FRS calculation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MedicalRiskFactors {
+    /// Patient safety impact level
+    pub patient_impact: forgescan_core::PatientImpact,
+    /// FDA device classification
+    pub fda_class: forgescan_core::FdaDeviceClass,
+    /// Whether the finding constitutes a regulatory violation (HIPAA, FDA)
+    pub is_regulatory_violation: bool,
+    /// Whether a vendor patch is available for this device
+    pub patch_available: bool,
+    /// Whether the device has an active FDA recall or safety alert
+    pub has_fda_recall: bool,
+    /// Whether the device is part of a time-critical clinical workflow
+    pub time_critical_workflow: bool,
+    /// Clinical workflow context (e.g., "ICU ventilator", "OR imaging")
+    pub workflow_context: Option<String>,
+}
+
+impl Default for MedicalRiskFactors {
+    fn default() -> Self {
+        Self {
+            patient_impact: forgescan_core::PatientImpact::None,
+            fda_class: forgescan_core::FdaDeviceClass::NotRegulated,
+            is_regulatory_violation: false,
+            patch_available: true,
+            has_fda_recall: false,
+            time_critical_workflow: false,
+            workflow_context: None,
+        }
+    }
+}
+
+/// FRS score with medical device context
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MedicalFrsScore {
+    /// Base FRS score (standard IT risk)
+    pub base_frs: FrsScore,
+    /// Medical-adjusted score (0-100)
+    pub medical_score: f64,
+    /// Medical-adjusted rating
+    pub medical_rating: FrsRating,
+    /// Medical risk factors used
+    pub medical_factors: MedicalRiskFactors,
+}
+
+impl MedicalFrsScore {
+    /// Get SLA deadline adjusted for medical device context
+    pub fn medical_sla_days(&self) -> u32 {
+        let base_sla = self.medical_rating.sla_days();
+
+        // Life-support devices get halved SLA deadlines
+        if self.medical_factors.patient_impact.is_time_critical() {
+            return (base_sla / 2).max(1);
+        }
+
+        // Direct patient care devices get 75% of standard SLA
+        if self.medical_factors.patient_impact.is_direct_patient_care() {
+            return (base_sla * 3 / 4).max(1);
+        }
+
+        base_sla
+    }
+
+    /// Human-readable description including medical context
+    pub fn medical_description(&self) -> String {
+        let base_desc = self.base_frs.description();
+        let impact_desc = match self.medical_factors.patient_impact {
+            forgescan_core::PatientImpact::LifeSupport => {
+                " LIFE-CRITICAL: Device supports patient vital functions."
+            }
+            forgescan_core::PatientImpact::DirectCare => {
+                " Patient care device: remediation requires clinical coordination."
+            }
+            forgescan_core::PatientImpact::Indirect => {
+                " Healthcare operations impact: coordinate with clinical IT."
+            }
+            forgescan_core::PatientImpact::None => "",
+        };
+        format!("{}{}", base_desc, impact_desc)
+    }
+}
+
+impl FrsRating {
+    /// Get SLA deadline in days based on rating
+    fn sla_days(&self) -> u32 {
+        match self {
+            FrsRating::Critical => 1,
+            FrsRating::High => 7,
+            FrsRating::Medium => 30,
+            FrsRating::Low => 90,
+            FrsRating::Minimal => 180,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -334,5 +503,80 @@ mod tests {
             .sla_days(),
             1
         );
+    }
+
+    #[test]
+    fn test_medical_frs_life_support_boost() {
+        let calc = MedicalFrsCalculator::new();
+
+        let factors = RiskFactors {
+            cvss_score: 7.5,
+            is_kev: false,
+            is_internet_facing: false,
+            has_exploit: false,
+            asset_criticality: 0.5,
+            threat_intel_score: 0.0,
+            days_since_published: None,
+            patch_available: true,
+        };
+
+        let normal_factors = MedicalRiskFactors::default();
+        let life_support_factors = MedicalRiskFactors {
+            patient_impact: forgescan_core::PatientImpact::LifeSupport,
+            fda_class: forgescan_core::FdaDeviceClass::ClassIII,
+            time_critical_workflow: true,
+            ..Default::default()
+        };
+
+        let normal_score = calc.calculate_medical_frs(&factors, &normal_factors);
+        let life_support_score = calc.calculate_medical_frs(&factors, &life_support_factors);
+
+        // Life support should score significantly higher
+        assert!(life_support_score.medical_score > normal_score.medical_score);
+    }
+
+    #[test]
+    fn test_medical_frs_fda_recall_boost() {
+        let calc = MedicalFrsCalculator::new();
+
+        let factors = RiskFactors {
+            cvss_score: 6.0,
+            ..Default::default()
+        };
+
+        let no_recall = MedicalRiskFactors::default();
+        let with_recall = MedicalRiskFactors {
+            has_fda_recall: true,
+            ..Default::default()
+        };
+
+        let score_no_recall = calc.calculate_medical_frs(&factors, &no_recall);
+        let score_with_recall = calc.calculate_medical_frs(&factors, &with_recall);
+
+        assert!(score_with_recall.medical_score > score_no_recall.medical_score);
+    }
+
+    #[test]
+    fn test_medical_sla_reduction() {
+        let calc = MedicalFrsCalculator::new();
+
+        let factors = RiskFactors {
+            cvss_score: 9.0,
+            is_kev: true,
+            is_internet_facing: true,
+            has_exploit: true,
+            asset_criticality: 0.9,
+            ..Default::default()
+        };
+
+        let life_support = MedicalRiskFactors {
+            patient_impact: forgescan_core::PatientImpact::LifeSupport,
+            fda_class: forgescan_core::FdaDeviceClass::ClassIII,
+            ..Default::default()
+        };
+
+        let score = calc.calculate_medical_frs(&factors, &life_support);
+        // Life-support critical finding: SLA should be at most 1 day
+        assert!(score.medical_sla_days() <= 1);
     }
 }

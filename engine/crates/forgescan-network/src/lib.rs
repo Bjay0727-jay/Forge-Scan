@@ -10,6 +10,7 @@ pub mod banner;
 pub mod capture;
 pub mod discovery;
 pub mod fingerprint;
+pub mod iomt_fingerprint;
 pub mod passive;
 pub mod port_scan;
 pub mod service_detect;
@@ -21,6 +22,7 @@ pub use capture::{
 };
 pub use discovery::{DiscoveryMethod, DiscoveryResult, HostDiscovery};
 pub use fingerprint::{Fingerprinter, HostFingerprint, OsFamily, OsFingerprint};
+pub use iomt_fingerprint::{is_medical_network_segment, IoMTFingerprint, IoMTFingerprinter};
 pub use passive::{
     EventBuffer, EventCategory, EventSeverity, PassiveConfig, PassiveMonitor, PassiveStats,
     ProtocolAnalyzer, RingPcapWriter, SecurityEvent,

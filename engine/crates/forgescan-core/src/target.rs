@@ -163,6 +163,9 @@ pub enum ScanMode {
     Agent,
     /// Both agentless and agent scanning
     Hybrid,
+    /// Safe-scan: non-disruptive passive detection for life-critical devices
+    #[serde(alias = "safe-scan")]
+    SafeScan,
 }
 
 impl ScanMode {
@@ -171,6 +174,58 @@ impl ScanMode {
             ScanMode::Agentless => "agentless",
             ScanMode::Agent => "agent",
             ScanMode::Hybrid => "hybrid",
+            ScanMode::SafeScan => "safe-scan",
+        }
+    }
+
+    /// Whether this mode restricts scanning to passive-only techniques
+    pub fn is_passive_only(&self) -> bool {
+        matches!(self, ScanMode::SafeScan)
+    }
+}
+
+/// Safe-scan profile controlling how aggressively to probe medical/IoT devices
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SafeScanProfile {
+    /// Passive only: DNS queries, SNMP reads, passive traffic analysis
+    #[default]
+    PassiveOnly,
+    /// Lightweight: TCP connect probes on known-safe ports, no payload injection
+    Lightweight,
+    /// Medical device: Optimized for healthcare equipment (passive + safe service ID)
+    MedicalDevice,
+    /// Industrial: For SCADA/ICS/BACnet/Modbus (minimal probing, no writes)
+    Industrial,
+}
+
+impl SafeScanProfile {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SafeScanProfile::PassiveOnly => "passive_only",
+            SafeScanProfile::Lightweight => "lightweight",
+            SafeScanProfile::MedicalDevice => "medical_device",
+            SafeScanProfile::Industrial => "industrial",
+        }
+    }
+
+    /// Maximum number of concurrent connections allowed for this profile
+    pub fn max_concurrent_connections(&self) -> u32 {
+        match self {
+            SafeScanProfile::PassiveOnly => 0,
+            SafeScanProfile::Lightweight => 5,
+            SafeScanProfile::MedicalDevice => 3,
+            SafeScanProfile::Industrial => 2,
+        }
+    }
+
+    /// Ports that are safe to probe under this profile
+    pub fn safe_ports(&self) -> &[u16] {
+        match self {
+            SafeScanProfile::PassiveOnly => &[],
+            SafeScanProfile::Lightweight => &[22, 80, 443, 161],
+            SafeScanProfile::MedicalDevice => &[22, 80, 443, 161, 104, 2575, 8080, 8443],
+            SafeScanProfile::Industrial => &[22, 80, 443, 161, 502, 47808, 1883, 8883],
         }
     }
 }

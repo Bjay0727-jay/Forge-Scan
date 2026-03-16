@@ -1,0 +1,54 @@
+# ForgeScan Check Definition
+# DICOM Over Unencrypted Network
+
+id: "FSC-IoMT-DICOM-0002"
+name: "DICOM Over Unencrypted Network"
+category: iomt
+severity: high
+enabled: true
+confidence: high
+
+description: |
+  DICOM traffic is transmitted unencrypted over TCP port 104. Medical images
+  and patient demographics in DICOM headers are visible to network observers.
+
+detection:
+  type: port-check
+  port: 104
+  protocol: tcp
+  supplemental:
+    - type: tls-check
+      port: 104
+      check: tls_supported
+      condition: false
+    - type: port-check
+      port: 2762
+      protocol: tcp
+      condition: closed  # DICOM TLS port not available
+
+device_classes:
+  - dicom_server
+  - medical_imaging
+
+remediation: |
+  1. Enable DICOM over TLS (port 2762) per DICOM PS3.15 Security Profiles.
+  2. If native DICOM TLS is not supported, use a TLS proxy or VPN tunnel.
+  3. At minimum, isolate DICOM traffic on a dedicated clinical VLAN.
+
+remediation_effort: medium
+
+tags:
+  - dicom
+  - encryption
+  - iomt
+  - hipaa
+
+nist_controls:
+  - "SC-8"
+  - "SC-8(1)"
+
+hipaa_refs:
+  - "§164.312(e)(1)"
+  - "§164.312(e)(2)(ii)"
+
+enabled_by_default: true

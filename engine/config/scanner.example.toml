@@ -212,6 +212,65 @@ frs_enabled = true
 frs_weights = { cvss = 0.4, exploitability = 0.25, asset_criticality = 0.2, age = 0.15 }
 
 # ============================================================================
+# IoMT / Medical Device Scanning
+# ============================================================================
+
+[iomt]
+# Enable IoMT deep scanning (medical device discovery and protocol analysis)
+enabled = true
+
+# Device fingerprint database
+fingerprint_db = "/var/lib/forgescan/checks/iomt/device-fingerprints.yaml"
+
+# Medical protocol detection
+detect_hl7 = true
+detect_dicom = true
+detect_bacnet = true
+detect_modbus = true
+detect_mqtt = true
+
+# Medical-specific FRS scoring (adjusts risk for patient safety impact)
+medical_frs_enabled = true
+
+# FDA recall/safety alert integration
+# fda_recall_db_path = "/var/lib/forgescan/fda-recalls.db"
+# fda_recall_auto_update = true
+
+# ============================================================================
+# Safe-Scan Mode (for life-critical devices)
+# ============================================================================
+
+[iomt.safe_scan]
+# Enable safe-scan mode for detected life-critical devices
+enabled = true
+
+# Safe-scan profile: "passive_only", "lightweight", "medical_device", "industrial"
+default_profile = "medical_device"
+
+# Automatically switch to safe-scan when life-critical device detected
+auto_safe_scan = true
+
+# Maximum packets per second for safe-scan probes
+max_rate_pps = 10
+
+# Delay between probes in milliseconds
+inter_probe_delay_ms = 500
+
+# Ports considered safe to probe on medical devices
+safe_ports = [22, 80, 104, 161, 443, 2575, 8080, 8443]
+
+# Never probe these ports on medical devices (may cause device disruption)
+blocked_ports = [502, 20000]
+
+# Device classes that require safe-scan mode (override per-class)
+life_critical_classes = ["ventilator", "infusion_pump", "patient_monitor"]
+
+# Approved scanning windows for medical devices (24h format, UTC)
+# Uncomment to restrict scanning to maintenance windows only
+# scan_window_start = "02:00"
+# scan_window_end = "06:00"
+
+# ============================================================================
 # TLS
 # ============================================================================
 

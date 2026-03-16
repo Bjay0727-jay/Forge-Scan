@@ -1,0 +1,65 @@
+# ForgeScan Check Definition
+# DICOM Server Anonymous Access
+
+id: "FSC-IoMT-DICOM-0001"
+name: "DICOM Server Allows Anonymous Queries"
+category: iomt
+severity: critical
+enabled: true
+confidence: high
+
+description: |
+  The DICOM server (PACS) accepts C-FIND and C-MOVE queries without
+  authentication. Any device on the network can query and retrieve patient
+  medical images, including CT, MRI, X-ray, and ultrasound studies, along
+  with embedded patient demographics (name, DOB, MRN).
+
+impact: |
+  Unrestricted access to all medical imaging data stored in the PACS.
+  Medical images contain embedded DICOM headers with full patient
+  demographics, diagnoses, and ordering physician information.
+
+detection:
+  type: port-check
+  port: 104
+  protocol: tcp
+  verify_service: true
+  supplemental:
+    - type: banner-match
+      port: 104
+      pattern: "DICOM|1\\.2\\.840\\.10008"
+
+device_classes:
+  - dicom_server
+  - medical_imaging
+
+remediation: |
+  1. Enable DICOM association authentication (AE Title whitelisting at minimum).
+  2. Implement DICOM TLS (DICOM over TLS on port 2762).
+  3. Use firewall rules to restrict DICOM access to authorized modalities only.
+  4. Deploy a DICOM proxy/gateway for audit logging and access control.
+  5. Consider IHE ATNA (Audit Trail and Node Authentication) profile.
+
+remediation_effort: medium
+
+references:
+  - "https://www.dicomstandard.org/using/security"
+
+tags:
+  - dicom
+  - pacs
+  - medical-imaging
+  - anonymous-access
+  - iomt
+  - ephi
+
+nist_controls:
+  - "AC-3"
+  - "AC-17"
+  - "SC-8"
+
+hipaa_refs:
+  - "§164.312(a)(1)"
+  - "§164.312(e)(1)"
+
+enabled_by_default: true

@@ -14,9 +14,10 @@ pub mod target;
 
 // Re-export commonly used types at crate root
 pub use check::{
-    Check, CheckContext, CheckMetadata, CheckResult, CredentialProvider, CveInfo, NvdDatabase,
+    Check, CheckContext, CheckMetadata, CheckResult, CredentialProvider, CveInfo, DeviceContext,
+    MedicalProtocol, NvdDatabase,
 };
 pub use error::{Error, Result};
 pub use finding::{ComplianceRef, ExploitMaturity, Finding, PortInfo};
-pub use severity::{CheckCategory, Severity};
-pub use target::{IpRange, ScanMode, ScanTarget};
+pub use severity::{CheckCategory, DeviceClass, FdaDeviceClass, PatientImpact, Severity};
+pub use target::{IpRange, SafeScanProfile, ScanMode, ScanTarget};

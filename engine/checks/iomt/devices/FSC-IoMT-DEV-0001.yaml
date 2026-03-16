@@ -1,0 +1,64 @@
+# ForgeScan Check Definition
+# Medical Device Running End-of-Life OS/Firmware
+
+id: "FSC-IoMT-DEV-0001"
+name: "Medical Device Running End-of-Life OS or Firmware"
+category: iomt
+severity: high
+enabled: true
+confidence: medium
+
+description: |
+  A medical device is running an end-of-life operating system or firmware
+  that no longer receives security patches. Many medical devices run embedded
+  Windows XP, Windows 7, or outdated Linux kernels due to FDA certification
+  constraints. These devices are permanently vulnerable to known exploits.
+
+detection:
+  type: banner-match
+  patterns:
+    - pattern: "Windows XP|Windows Server 2003|Windows CE"
+      product: "Microsoft Windows"
+      vulnerable: true
+    - pattern: "Windows 7|Windows Server 2008"
+      product: "Microsoft Windows"
+      vulnerable: true
+    - pattern: "Linux 2\\.6\\.|Linux 3\\.[0-9]\\."
+      product: "Linux Kernel"
+      vulnerable: true
+
+device_classes:
+  - medical_imaging
+  - patient_monitor
+  - infusion_pump
+  - ventilator
+  - clinical_analyzer
+
+remediation: |
+  1. Contact device manufacturer about firmware/OS upgrade path.
+  2. If upgrade not available, implement compensating controls:
+     a. Network isolation (dedicated VLAN with strict ACLs)
+     b. Application whitelisting where supported
+     c. USB port disable/lockdown
+     d. Enhanced monitoring for anomalous behavior
+  3. Document as accepted risk with compensating controls in risk register.
+  4. Plan for device replacement during next capital budget cycle.
+
+remediation_effort: high
+
+tags:
+  - end-of-life
+  - legacy
+  - medical-device
+  - iomt
+  - compensating-controls
+
+nist_controls:
+  - "SI-2"
+  - "CM-6"
+  - "RA-5"
+
+hipaa_refs:
+  - "§164.308(a)(1)(ii)(B)"
+
+enabled_by_default: true

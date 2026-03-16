@@ -1,0 +1,68 @@
+# ForgeScan Check Definition
+# FDA Class II/III Device Without Security Patches
+
+id: "FSC-IoMT-FDA-0001"
+name: "FDA-Regulated Device With Unpatched Critical Vulnerability"
+category: iomt
+severity: critical
+enabled: true
+confidence: medium
+
+description: |
+  An FDA Class II or Class III medical device has a known critical vulnerability
+  (CVSS >= 9.0 or CISA KEV) without an available vendor-approved patch. The FDA
+  requires manufacturers to address cybersecurity vulnerabilities in medical
+  devices under 21 CFR 820 and the 2023 Omnibus appropriations cybersecurity
+  requirements (Section 524B of the FD&C Act).
+
+impact: |
+  Patient safety risk due to unpatched critical vulnerability in a regulated
+  medical device. Potential for device compromise affecting diagnosis,
+  treatment delivery, or vital sign monitoring.
+
+detection:
+  type: version-match
+  check: fda_regulated_device_vuln
+  condition: |
+    device.fda_class in [class_ii, class_iii]
+    AND vulnerability.cvss >= 9.0
+    AND patch_status = unavailable
+
+device_classes:
+  - medical_imaging
+  - patient_monitor
+  - infusion_pump
+  - ventilator
+  - clinical_analyzer
+
+remediation: |
+  1. Contact device manufacturer for SBOM and vulnerability disclosure.
+  2. Request manufacturer's cybersecurity remediation timeline.
+  3. Implement compensating controls:
+     a. Network isolation / micro-segmentation
+     b. Enhanced monitoring (IDS/IPS rules for known exploits)
+     c. Physical access restrictions
+  4. Document in risk register with compensating controls.
+  5. Report to FDA MedWatch if patient safety impact suspected.
+  6. Include in next HIPAA risk assessment.
+
+references:
+  - "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/cybersecurity-medical-devices-quality-system-considerations-and-content-premarket-submissions"
+
+tags:
+  - fda
+  - regulatory
+  - patient-safety
+  - iomt
+  - critical
+
+nist_controls:
+  - "SI-2"
+  - "RA-5"
+  - "PM-5"
+
+hipaa_refs:
+  - "§164.308(a)(1)(ii)(A)"
+  - "§164.308(a)(1)(ii)(B)"
+
+enabled_by_default: true
