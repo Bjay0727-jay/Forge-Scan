@@ -1,0 +1,44 @@
+# ForgeScan Check Definition
+# SNMP v1/v2c with Default Community String
+
+id: "FSC-NET-0004"
+name: "SNMP v1/v2c with Default Community String"
+category: network
+severity: critical
+enabled: true
+confidence: high
+
+description: |
+  SNMP v1/v2c uses community strings as plaintext passwords. Default community
+  strings (public/private) provide read or read-write access to device
+  configuration.
+
+detection:
+  type: port-check
+  port: 161
+  protocol: udp
+  supplemental:
+    - type: banner-match
+      protocol: udp
+      snmp_community_check: ["public", "private"]
+
+remediation: |
+  1. Upgrade to SNMPv3 with authentication and encryption.
+  2. If v2c required, change community strings.
+  3. Restrict SNMP access via ACL to management stations only.
+
+tags:
+  - snmp
+  - default-credentials
+  - network-device
+
+platforms:
+  - network_device
+  - linux
+
+nist_controls:
+  - "IA-5"
+  - "SC-8"
+  - "CM-6"
+
+enabled_by_default: true

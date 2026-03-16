@@ -1,0 +1,38 @@
+# ForgeScan Check Definition
+# Password Authentication Enabled for SSH
+
+id: "FSC-CFG-0002"
+name: "Password Authentication Enabled for SSH"
+category: configuration
+severity: medium
+enabled: true
+confidence: high
+
+description: |
+  SSH allows password-based authentication. Key-based authentication is more
+  secure and resistant to brute-force attacks.
+
+detection:
+  type: config-check
+  service: sshd
+  file: "/etc/ssh/sshd_config"
+  parameter: "PasswordAuthentication"
+  expected: "no"
+
+remediation: |
+  Set 'PasswordAuthentication no' in /etc/ssh/sshd_config. Ensure SSH keys
+  are deployed before disabling passwords.
+
+tags:
+  - ssh
+  - hardening
+  - authentication
+
+platforms:
+  - linux
+
+nist_controls:
+  - "IA-2"
+  - "IA-5"
+
+enabled_by_default: true

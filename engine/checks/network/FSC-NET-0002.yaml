@@ -1,0 +1,41 @@
+# ForgeScan Check Definition
+# Telnet Service Exposed
+
+id: "FSC-NET-0002"
+name: "Telnet Service Exposed"
+category: network
+severity: high
+enabled: true
+confidence: high
+
+description: |
+  Telnet transmits all data including credentials in plaintext. Any network
+  observer can capture login credentials.
+
+detection:
+  type: port-check
+  port: 23
+  protocol: tcp
+  verify_service: true
+  expected_banner_contains: "telnet"
+
+remediation: |
+  Disable Telnet and use SSH instead. If Telnet is required for legacy
+  devices, restrict access via firewall rules and use only on isolated
+  management networks.
+
+tags:
+  - telnet
+  - plaintext
+  - legacy-protocol
+
+platforms:
+  - linux
+  - windows
+  - network_device
+
+nist_controls:
+  - "SC-8"
+  - "CM-7"
+
+enabled_by_default: true

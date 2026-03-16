@@ -1,0 +1,35 @@
+# ForgeScan Check Definition
+# SSL/TLS Self-Signed Certificate
+
+id: "FSC-VULN-0012"
+name: "SSL/TLS Self-Signed Certificate"
+category: vulnerability
+severity: medium
+enabled: true
+confidence: high
+
+description: |
+  This service uses a self-signed SSL/TLS certificate. Self-signed certificates
+  cannot be validated by clients and may indicate a man-in-the-middle risk.
+
+detection:
+  type: tls-check
+  check: certificate_issuer
+  condition: self_signed
+
+remediation: |
+  Replace with a certificate from a trusted Certificate Authority.
+  Use Let's Encrypt for free certificates.
+
+remediation_effort: low
+
+tags:
+  - ssl
+  - tls
+  - certificate
+  - self-signed
+
+nist_controls:
+  - "SC-17"
+
+enabled_by_default: true

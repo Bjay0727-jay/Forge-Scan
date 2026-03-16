@@ -1,0 +1,68 @@
+# ForgeScan Check Definition
+# Default Credentials on Network Service
+
+id: "FSC-NET-0001"
+name: "Default Credentials on Network Service"
+category: network
+severity: critical
+enabled: true
+confidence: medium
+false_positive_rate: low
+
+description: |
+  Service is running with vendor default credentials. Default credentials
+  are publicly known and provide immediate unauthorized access.
+
+detection:
+  type: banner-match
+  services:
+    - ssh
+    - ftp
+    - telnet
+    - http
+    - snmp
+    - mysql
+    - postgresql
+    - mongodb
+    - redis
+  default_credentials:
+    - service: ssh
+      pairs: [["admin","admin"], ["root","root"], ["admin","password"], ["admin","123456"]]
+    - service: ftp
+      pairs: [["anonymous",""], ["ftp","ftp"], ["admin","admin"]]
+    - service: mysql
+      pairs: [["root",""], ["root","root"], ["root","mysql"]]
+    - service: postgresql
+      pairs: [["postgres","postgres"], ["postgres",""]]
+    - service: mongodb
+      pairs: [["",""], ["admin","admin"]]
+    - service: redis
+      pairs: [["",""]]
+    - service: snmp
+      community_strings: ["public", "private", "community"]
+  max_attempts: 3
+  timeout_ms: 5000
+
+remediation: |
+  Change all default credentials immediately. Implement strong, unique
+  passwords. Consider certificate-based authentication where possible.
+
+tags:
+  - default-credentials
+  - critical
+  - network
+
+platforms:
+  - linux
+  - windows
+  - network_device
+
+nist_controls:
+  - "IA-5"
+  - "IA-5(1)"
+  - "CM-6"
+
+hipaa_refs:
+  - "§164.312(d)"
+
+enabled_by_default: true

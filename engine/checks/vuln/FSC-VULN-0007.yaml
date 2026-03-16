@@ -1,0 +1,55 @@
+# ForgeScan Check Definition
+# CVE-2017-0144 - SMBv1 Enabled (EternalBlue/WannaCry Attack Vector)
+
+id: "FSC-VULN-0007"
+name: "SMBv1 Enabled (EternalBlue/WannaCry Attack Vector)"
+category: vulnerability
+severity: critical
+enabled: true
+confidence: high
+
+cve_ids:
+  - CVE-2017-0144
+  - CVE-2017-0145
+
+cwe_ids:
+  - CWE-119
+
+description: |
+  SMBv1 protocol is enabled on this host. SMBv1 has multiple critical
+  vulnerabilities including EternalBlue, used in WannaCry and NotPetya attacks.
+
+detection:
+  type: port-check
+  port: 445
+  protocol: tcp
+  supplemental:
+    - type: banner-match
+      pattern: "SMBv1"
+    - type: version-match
+      cpe: "cpe:2.3:o:microsoft:windows:*"
+      check_smb_version: true
+      affected_versions:
+        - smb_v1_enabled: true
+
+remediation: |
+  Disable SMBv1:
+  PowerShell: Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol
+  Apply MS17-010 patches.
+
+remediation_effort: medium
+
+tags:
+  - smb
+  - ransomware
+  - eternalblue
+  - legacy-protocol
+
+platforms:
+  - windows
+
+nist_controls:
+  - "CM-7"
+  - "SI-2"
+
+enabled_by_default: true

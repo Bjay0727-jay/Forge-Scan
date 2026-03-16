@@ -1,0 +1,42 @@
+# ForgeScan Check Definition
+# FTP Service Exposed (Cleartext)
+
+id: "FSC-NET-0003"
+name: "FTP Service Exposed (Cleartext)"
+category: network
+severity: high
+enabled: true
+confidence: high
+
+description: |
+  FTP transmits credentials and data in cleartext. Use SFTP or FTPS instead.
+
+detection:
+  type: port-check
+  port: 21
+  protocol: tcp
+  verify_service: true
+  supplemental:
+    - type: tls-check
+      port: 21
+      check: ftps_supported
+      condition: false
+
+remediation: |
+  Replace FTP with SFTP (SSH-based) or FTPS (TLS-encrypted FTP).
+  Disable cleartext FTP.
+
+tags:
+  - ftp
+  - plaintext
+  - legacy-protocol
+
+platforms:
+  - linux
+  - windows
+
+nist_controls:
+  - "SC-8"
+  - "CM-7"
+
+enabled_by_default: true

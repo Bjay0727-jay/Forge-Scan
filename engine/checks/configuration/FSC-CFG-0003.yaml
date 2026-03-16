@@ -1,0 +1,48 @@
+# ForgeScan Check Definition
+# Firewall Disabled
+
+id: "FSC-CFG-0003"
+name: "Firewall Disabled"
+category: configuration
+severity: critical
+enabled: true
+confidence: high
+
+description: |
+  The host-based firewall is not active. All network services are directly
+  accessible without filtering.
+
+detection:
+  type: command-check
+  commands:
+    linux:
+      - command: "systemctl is-active ufw || systemctl is-active firewalld || iptables -L -n | grep -c 'ACCEPT\\|DROP\\|REJECT'"
+        expected_exit_code: 0
+        expected_output_contains: "active"
+    windows:
+      - command: "netsh advfirewall show allprofiles state"
+        expected_output_contains: "ON"
+
+remediation: |
+  Enable the host-based firewall.
+  Linux: systemctl enable --now ufw/firewalld.
+  Windows: Enable Windows Firewall for all profiles.
+
+tags:
+  - firewall
+  - hardening
+  - critical
+  - hipaa
+
+platforms:
+  - linux
+  - windows
+
+nist_controls:
+  - "SC-7"
+  - "SC-7(5)"
+
+hipaa_refs:
+  - "§164.312(e)(1)"
+
+enabled_by_default: true

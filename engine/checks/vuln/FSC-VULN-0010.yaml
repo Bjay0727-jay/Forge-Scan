@@ -1,0 +1,45 @@
+# ForgeScan Check Definition
+# SSL/TLS Certificate Expired
+
+id: "FSC-VULN-0010"
+name: "SSL/TLS Certificate Expired"
+category: vulnerability
+severity: high
+enabled: true
+confidence: high
+
+description: |
+  The SSL/TLS certificate on this service has expired. Expired certificates
+  cause browser warnings and may indicate abandoned or unmaintained services.
+
+detection:
+  type: tls-check
+  check: certificate_expiry
+  condition: expired
+
+remediation: |
+  Renew the SSL/TLS certificate. Use Let's Encrypt for automated renewal,
+  or contact your CA.
+
+remediation_effort: low
+
+tags:
+  - ssl
+  - tls
+  - certificate
+  - expired
+
+platforms:
+  - linux
+  - windows
+  - macos
+  - network_device
+
+nist_controls:
+  - "SC-17"
+  - "SC-8"
+
+hipaa_refs:
+  - "§164.312(e)(1)"
+
+enabled_by_default: true

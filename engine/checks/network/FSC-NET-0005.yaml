@@ -1,0 +1,50 @@
+# ForgeScan Check Definition
+# Database Service Exposed to Network
+
+id: "FSC-NET-0005"
+name: "Database Service Exposed to Network"
+category: network
+severity: high
+enabled: true
+confidence: high
+
+description: |
+  A database service is directly accessible on the network. Databases should
+  be behind application servers, not directly exposed.
+
+detection:
+  type: port-check
+  ports: [3306, 5432, 1433, 1521, 27017, 6379, 9200, 5984]
+  protocol: tcp
+  service_names:
+    - mysql
+    - postgresql
+    - mssql
+    - oracle
+    - mongodb
+    - redis
+    - elasticsearch
+    - couchdb
+  condition: accessible_from_scanner
+
+remediation: |
+  Restrict database access to application servers only via firewall rules.
+  Bind databases to localhost or private interface. Use network segmentation.
+
+tags:
+  - database
+  - exposure
+  - network-segmentation
+
+platforms:
+  - linux
+  - windows
+
+nist_controls:
+  - "SC-7"
+  - "AC-3"
+
+hipaa_refs:
+  - "§164.312(e)(1)"
+
+enabled_by_default: true
