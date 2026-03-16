@@ -1,5 +1,7 @@
 # ForgeScan Scanner Configuration
 # Copy this file to /etc/forgescan/scanner.toml and customize
+#
+# Run: forgescan-scanner --config /etc/forgescan/scanner.toml
 
 [platform]
 # Platform gRPC endpoint
@@ -17,9 +19,16 @@ request_timeout_seconds = 30
 # Enable TLS (should always be true in production)
 use_tls = true
 
+# How often to push findings to platform (seconds)
+report_interval_seconds = 30
+
 [scanner]
 # Unique scanner ID (auto-generated if not set)
 # scanner_id = "scanner-01"
+
+# Scanner name and location (for identification in platform)
+# scanner_name = "ForgeScan Primary Scanner"
+# scanner_location = "HQ Datacenter"
 
 # Maximum concurrent scans
 max_concurrent_scans = 5
@@ -34,7 +43,96 @@ default_timeout_seconds = 3600
 checks_dir = "/etc/forgescan/checks"
 
 # Enabled check categories (empty = all)
-# enabled_categories = ["vulnerability", "configuration", "webapp"]
+# enabled_categories = ["vulnerability", "configuration", "network"]
+
+# Working directories
+data_dir = "/var/lib/forgescan"
+log_dir = "/var/log/forgescan"
+
+# ============================================================================
+# Scan Targets
+# ============================================================================
+
+[targets]
+# Define target networks/hosts to scan
+# Supports CIDR notation, ranges, and individual IPs
+
+# Network ranges to scan
+networks = [
+    # "10.0.0.0/24",
+    # "172.16.0.0/16",
+]
+
+# Individual hosts (hostnames or IPs)
+hosts = [
+    # "web-server-01.internal",
+    # "db-server-01.internal",
+]
+
+# Exclusions (never scan these, even if in range)
+exclude = [
+    # "10.0.0.1",        # Gateway - do not scan
+    # "10.0.0.250/30",   # Network management
+]
+
+# Port scanning configuration
+[targets.ports]
+# Scan mode: "top100", "top1000", "full" (1-65535), or "custom"
+mode = "top1000"
+
+# Custom port list (used when mode = "custom")
+custom_ports = [22, 80, 443, 8080, 8443, 3389, 5432, 3306, 1433, 27017]
+
+# UDP scanning (slower, enable selectively)
+udp_enabled = false
+udp_ports = [53, 123, 161, 500, 1900]
+
+# Timing: "paranoid" (T0), "sneaky" (T1), "polite" (T2),
+#          "normal" (T3), "aggressive" (T4), "insane" (T5)
+timing = "normal"
+
+# Maximum concurrent connections per host
+max_connections_per_host = 100
+
+# Connection timeout in milliseconds
+connect_timeout_ms = 3000
+
+# Maximum hosts to scan in parallel
+max_parallel_hosts = 50
+
+# ============================================================================
+# Discovery Settings
+# ============================================================================
+
+[discovery]
+# Host discovery methods (run before port scanning)
+ping_sweep = true
+arp_scan = true
+tcp_syn_discovery = true
+tcp_syn_ports = [80, 443, 22]
+
+# OS fingerprinting
+os_detection = true
+os_detection_method = "tcp_fingerprint"  # tcp_fingerprint | banner_grab | both
+
+# Service detection
+service_detection = true
+service_version_detection = true
+service_detection_intensity = 7  # 0-9, higher = more probes, slower
+
+# Banner grabbing
+banner_grab = true
+banner_timeout_ms = 5000
+banner_max_length = 4096
+
+# DNS resolution
+dns_resolution = true
+dns_reverse_lookup = true
+# dns_servers = ["8.8.8.8", "1.1.1.1"]  # Override system DNS
+
+# ============================================================================
+# Vulnerability Detection
+# ============================================================================
 
 [nvd]
 # Path to NVD SQLite database
@@ -49,6 +147,74 @@ update_interval_hours = 24
 # NVD API key (optional, for higher rate limits)
 # api_key = "your-nvd-api-key"
 
+[vulnerability]
+# CVE matching
+cve_matching_enabled = true
+cve_match_confidence_threshold = 0.7  # 0.0-1.0, higher = fewer false positives
+
+# Version matching strictness
+# "strict"  - exact version match required
+# "normal"  - version range matching with CPE
+# "fuzzy"   - includes banner-based heuristic matching
+version_match_mode = "normal"
+
+# Severity filter (only report findings at or above this level)
+min_severity = "low"  # low | medium | high | critical
+
+# Exploit availability checking
+check_exploit_availability = true
+
+# ============================================================================
+# Check Definitions
+# ============================================================================
+
+[checks]
+# Directory containing YAML check definitions
+checks_dir = "/var/lib/forgescan/checks"
+
+# Check categories to enable
+enabled_categories = [
+    "vulnerability",
+    "configuration",
+    "network",
+]
+
+# Custom checks directory (additional checks beyond built-in)
+# custom_checks_dir = "/etc/forgescan/custom-checks"
+
+# Check timeout (per individual check, in seconds)
+check_timeout_seconds = 30
+
+# ============================================================================
+# Reporting
+# ============================================================================
+
+[reporting]
+# Output format for local reports
+output_format = "json"  # json | csv | html | pdf | sarif
+
+# Output directory for reports
+output_dir = "/var/lib/forgescan/reports"
+
+# Report naming
+report_prefix = "forgescan"
+include_timestamp = true
+
+# Findings deduplication
+deduplicate = true
+dedup_window_hours = 168  # 7 days
+
+# SARIF output (for GitHub Advanced Security / CI integration)
+sarif_enabled = true
+
+# Forge Risk Score (FRS) calculation
+frs_enabled = true
+frs_weights = { cvss = 0.4, exploitability = 0.25, asset_criticality = 0.2, age = 0.15 }
+
+# ============================================================================
+# TLS
+# ============================================================================
+
 [tls]
 # CA certificate for platform verification
 # ca_cert_path = "/etc/forgescan/certs/ca.pem"
@@ -62,6 +228,30 @@ update_interval_hours = 24
 # Skip server verification (NOT recommended for production)
 insecure_skip_verify = false
 
+# ============================================================================
+# Performance & Resource Limits
+# ============================================================================
+
+[limits]
+# Maximum memory usage (in MB) - scanner will throttle if exceeded
+max_memory_mb = 2048
+
+# Maximum CPU usage percentage
+max_cpu_percent = 80
+
+# Maximum scan duration (in minutes) - 0 = unlimited
+max_scan_duration_minutes = 480  # 8 hours
+
+# Maximum findings per scan (safety limit)
+max_findings = 100000
+
+# Rate limiting for network operations
+max_packets_per_second = 10000
+
+# ============================================================================
+# Logging
+# ============================================================================
+
 [logging]
 # Log level: trace, debug, info, warn, error
 level = "info"
@@ -71,3 +261,7 @@ format = "pretty"
 
 # Log file path (optional, logs to stdout if not set)
 # file = "/var/log/forgescan/scanner.log"
+
+# Log rotation
+# max_size_mb = 100
+# max_files = 10

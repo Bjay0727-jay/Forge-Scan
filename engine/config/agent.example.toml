@@ -1,6 +1,9 @@
 # ForgeScan Agent Configuration
 # Linux: Copy to /etc/forgescan/agent.toml
 # Windows: Copy to C:\ProgramData\ForgeScan\agent.toml
+#
+# Install: forgescan-agent install --platform https://forge.example.com:8443
+# Start:   systemctl start forgescan-agent
 
 [platform]
 # Platform gRPC endpoint
@@ -22,8 +25,15 @@ use_tls = true
 # Agent ID (assigned during registration, do not modify)
 # agent_id = "agent-uuid-here"
 
+# Agent name and group (for organization in platform)
+# agent_name = ""
+# agent_group = "default"
+
 # Heartbeat interval in seconds
 heartbeat_interval_seconds = 300
+
+# Check-in interval (how often agent reports health to platform)
+checkin_interval_seconds = 300
 
 # Maximum CPU usage during scanning (percent)
 scan_cpu_limit_percent = 20
@@ -33,6 +43,77 @@ scan_memory_limit_mb = 256
 
 # Enable auto-updates
 auto_update = true
+# update_channel = "stable"  # stable | beta
+
+# ============================================================================
+# Local Inspection
+# ============================================================================
+
+[inspection]
+# What the agent inspects on this host
+
+# Installed software inventory
+software_inventory = true
+software_inventory_interval_hours = 24
+
+# Patch status checking
+patch_status = true
+patch_status_interval_hours = 12
+
+# Running services
+service_enumeration = true
+
+# Open ports (local perspective)
+local_port_scan = true
+
+# User account enumeration
+user_enumeration = true
+
+# Scheduled tasks / cron jobs
+scheduled_tasks = true
+
+# File integrity monitoring
+[inspection.fim]
+enabled = false
+# Directories to monitor for changes
+monitored_paths = [
+    "/etc",
+    "/usr/bin",
+    "/usr/sbin",
+    "/boot",
+]
+# File extensions to monitor
+monitored_extensions = [".conf", ".cfg", ".ini", ".key", ".pem", ".crt"]
+# Check interval
+interval_seconds = 3600  # 1 hour
+# Baseline file (generated on first run)
+baseline_path = "/var/lib/forgescan-agent/fim-baseline.json"
+
+# ============================================================================
+# Configuration Compliance (local checks)
+# ============================================================================
+
+[compliance]
+enabled = true
+
+# Checks to run locally
+checks = [
+    "password-policy",
+    "ssh-config",
+    "firewall-status",
+    "audit-logging",
+    "disk-encryption",
+    "antivirus-status",
+    "auto-updates",
+    "unnecessary-services",
+]
+
+# Check interval
+interval_hours = 24
+
+# ============================================================================
+# TLS
+# ============================================================================
 
 [tls]
 # CA certificate for platform verification
@@ -44,6 +125,42 @@ auto_update = true
 # Agent private key
 # key_path = "/etc/forgescan/certs/agent-key.pem"
 
+# Minimum TLS version
+tls_min_version = "1.2"
+
+# ============================================================================
+# Resource Limits
+# ============================================================================
+
+[limits]
+# Agent should be invisible to the host's primary workload
+max_cpu_percent = 5
+max_memory_mb = 128
+max_disk_mb = 500  # For local cache and baselines
+
+# Network bandwidth limit for platform communication
+max_bandwidth_kbps = 1024  # 1 Mbps
+
+# ============================================================================
+# Security
+# ============================================================================
+
+[security]
+# Agent binary self-verification
+verify_binary_signature = true
+
+# Agent auto-update
+auto_update = true
+
+# Tamper detection
+tamper_detection = true
+tamper_alert_on_config_change = true
+tamper_alert_on_binary_change = true
+
+# ============================================================================
+# Logging
+# ============================================================================
+
 [logging]
 # Log level: trace, debug, info, warn, error
 level = "info"
@@ -54,3 +171,7 @@ format = "pretty"
 # Log file path
 # Linux: /var/log/forgescan/agent.log
 # Windows: C:\ProgramData\ForgeScan\logs\agent.log
+
+# Log rotation
+# max_size_mb = 50
+# max_files = 5

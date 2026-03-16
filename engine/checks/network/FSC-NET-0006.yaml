@@ -1,0 +1,44 @@
+# ForgeScan Check Definition
+# RDP Exposed to Internet
+
+id: "FSC-NET-0006"
+name: "RDP Exposed to Internet"
+category: network
+severity: critical
+enabled: true
+confidence: high
+
+description: |
+  Remote Desktop Protocol (RDP) is exposed. RDP is the #1 initial access
+  vector for ransomware attacks in healthcare.
+
+detection:
+  type: port-check
+  port: 3389
+  protocol: tcp
+  verify_service: true
+
+remediation: |
+  1. Never expose RDP directly to the internet.
+  2. Use a VPN or Zero Trust solution for remote access.
+  3. Enable Network Level Authentication (NLA).
+  4. Enforce MFA for all RDP sessions.
+
+tags:
+  - rdp
+  - ransomware
+  - critical
+  - healthcare
+
+platforms:
+  - windows
+
+nist_controls:
+  - "AC-17"
+  - "SC-7"
+  - "IA-2"
+
+hipaa_refs:
+  - "§164.312(e)(1)"
+
+enabled_by_default: true

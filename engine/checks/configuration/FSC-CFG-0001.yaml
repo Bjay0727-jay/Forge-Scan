@@ -1,0 +1,43 @@
+# ForgeScan Check Definition
+# SSH Root Login Enabled
+
+id: "FSC-CFG-0001"
+name: "SSH Root Login Enabled"
+category: configuration
+severity: high
+enabled: true
+confidence: high
+
+description: |
+  SSH permits direct root login. This violates least-privilege principles
+  and makes audit attribution impossible.
+
+detection:
+  type: config-check
+  service: sshd
+  file: "/etc/ssh/sshd_config"
+  parameter: "PermitRootLogin"
+  expected: "no"
+  regex_check: "^\\s*PermitRootLogin\\s+(yes|without-password|prohibit-password)"
+
+remediation: |
+  Set 'PermitRootLogin no' in /etc/ssh/sshd_config and restart sshd.
+  Use sudo for privilege escalation.
+
+tags:
+  - ssh
+  - hardening
+  - cis
+  - hipaa
+
+platforms:
+  - linux
+
+nist_controls:
+  - "AC-6"
+  - "AC-6(2)"
+
+hipaa_refs:
+  - "§164.312(a)(1)"
+
+enabled_by_default: true

@@ -1,0 +1,52 @@
+# ForgeScan Check Definition
+# Disk Encryption Not Enabled
+
+id: "FSC-CFG-0005"
+name: "Disk Encryption Not Enabled"
+category: configuration
+severity: high
+enabled: true
+confidence: high
+
+description: |
+  Full disk encryption is not enabled on this system. If the system stores
+  ePHI, unencrypted disks are a HIPAA violation under the Act.
+
+detection:
+  type: command-check
+  commands:
+    linux:
+      - command: "lsblk -o NAME,FSTYPE,TYPE | grep -i crypt || dmsetup status | grep -c crypt"
+        expected_exit_code: 0
+    windows:
+      - command: "manage-bde -status C:"
+        expected_output_contains: "Fully Encrypted"
+    macos:
+      - command: "fdesetup status"
+        expected_output_contains: "FileVault is On"
+
+remediation: |
+  Enable full disk encryption.
+  Linux: LUKS/dm-crypt. Windows: BitLocker. macOS: FileVault.
+  Required by the Healthcare Cybersecurity Act for all ePHI systems.
+
+tags:
+  - encryption
+  - disk
+  - hipaa
+  - critical
+
+platforms:
+  - linux
+  - windows
+  - macos
+
+nist_controls:
+  - "SC-28"
+  - "SC-28(1)"
+
+hipaa_refs:
+  - "§164.312(a)(2)(iv)"
+  - "§164.312(e)(2)(ii)"
+
+enabled_by_default: true

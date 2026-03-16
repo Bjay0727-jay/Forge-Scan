@@ -1,0 +1,47 @@
+# ForgeScan Check Definition
+# Audit Logging Not Enabled
+
+id: "FSC-CFG-0004"
+name: "Audit Logging Not Enabled"
+category: configuration
+severity: high
+enabled: true
+confidence: high
+
+description: |
+  System audit logging (auditd/Windows Security Auditing) is not enabled.
+  This prevents forensic investigation and violates HIPAA audit requirements.
+
+detection:
+  type: command-check
+  commands:
+    linux:
+      - command: "systemctl is-active auditd"
+        expected_output_contains: "active"
+    windows:
+      - command: "auditpol /get /category:*"
+        expected_output_not_contains: "No Auditing"
+
+remediation: |
+  Linux: Install and enable auditd (apt install auditd && systemctl enable --now auditd).
+  Windows: Enable Security Auditing via Group Policy.
+
+tags:
+  - audit
+  - logging
+  - hipaa
+  - compliance
+
+platforms:
+  - linux
+  - windows
+
+nist_controls:
+  - "AU-2"
+  - "AU-3"
+  - "AU-12"
+
+hipaa_refs:
+  - "§164.312(b)"
+
+enabled_by_default: true

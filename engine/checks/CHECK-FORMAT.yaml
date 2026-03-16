@@ -1,0 +1,55 @@
+# ============================================================================
+# ForgeScan - Check Definition Format Specification
+#
+# Check definitions are YAML files that describe what the scanner looks for.
+# This format allows security researchers to create detection signatures
+# without writing Rust code.
+#
+# File naming: FSC-{CATEGORY}-{NUMBER}.yaml
+#   Categories: VULN (vulnerability), CFG (configuration), NET (network),
+#               WEB (web application), CLD (cloud)
+#
+# Place in: engine/checks/{category}/
+# ============================================================================
+
+# ── Required Fields ──────────────────────────────────────────────────
+#
+# id:          Unique check identifier (FSC-VULN-0001 format)
+# name:        Human-readable name
+# category:    vulnerability | configuration | network | webapp | cloud
+# severity:    critical | high | medium | low | info
+# detection:   How to detect the issue (see Detection Types below)
+# remediation: How to fix it
+#
+# ── Optional Fields ──────────────────────────────────────────────────
+#
+# cve_ids:     List of CVE identifiers
+# cwe_ids:     List of CWE identifiers
+# description: Detailed description
+# impact:      Business impact description
+# references:  URLs for more information
+# tags:        Searchable tags
+# platforms:   Target platforms (linux, windows, macos, network_device)
+# enabled:     true/false (default: true)
+# confidence:  Detection confidence (high, medium, low)
+# false_positive_rate: Expected FP rate (low, medium, high)
+# nist_controls: Mapped NIST 800-53 controls
+# hipaa_refs:  Mapped HIPAA Security Rule sections
+#
+# ── Detection Types ──────────────────────────────────────────────────
+#
+# version-match:     Match service version against affected version ranges
+# banner-match:      Match service banner against regex pattern
+# port-check:        Check if specific port is open/closed
+# config-check:      Check system configuration value
+# http-check:        HTTP request and response analysis
+# tls-check:         TLS/SSL certificate and protocol analysis
+# dns-check:         DNS record analysis
+# command-check:     Run command and check output (agent-only)
+# file-check:        Check file existence/permissions (agent-only)
+
+# ============================================================================
+# This file serves as the format reference. See the example checks in
+# checks/vulnerability/, checks/configuration/, and checks/network/
+# for real detection signatures.
+# ============================================================================

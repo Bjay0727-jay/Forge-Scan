@@ -1,0 +1,46 @@
+# ForgeScan Check Definition
+# Automatic Screen Lock Not Configured
+
+id: "FSC-CFG-0006"
+name: "Automatic Screen Lock Not Configured"
+category: configuration
+severity: medium
+enabled: true
+confidence: medium
+
+description: |
+  Automatic screen lock is not configured or set to more than 15 minutes.
+  Unattended sessions in clinical environments risk unauthorized access to ePHI.
+
+detection:
+  type: command-check
+  commands:
+    linux:
+      - command: "gsettings get org.gnome.desktop.session idle-delay 2>/dev/null || echo 'not configured'"
+        expected_output_max_value: 900
+    windows:
+      - command: "reg query \"HKCU\\Control Panel\\Desktop\" /v ScreenSaveTimeOut"
+        expected_output_max_value: 900
+
+remediation: |
+  Configure automatic screen lock to 15 minutes or less.
+  Group Policy: Computer Configuration > Windows Settings > Security Settings >
+  Local Policies > Security Options > Interactive logon: Machine inactivity limit.
+
+tags:
+  - access-control
+  - screen-lock
+  - hipaa
+
+platforms:
+  - linux
+  - windows
+
+nist_controls:
+  - "AC-11"
+  - "AC-11(1)"
+
+hipaa_refs:
+  - "§164.312(a)(2)(iii)"
+
+enabled_by_default: true

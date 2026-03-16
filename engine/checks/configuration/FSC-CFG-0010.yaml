@@ -1,0 +1,48 @@
+# ForgeScan Check Definition
+# Password Complexity Requirements Not Enforced
+
+id: "FSC-CFG-0010"
+name: "Password Complexity Requirements Not Enforced"
+category: configuration
+severity: high
+enabled: true
+confidence: high
+
+description: |
+  System password policy does not enforce minimum complexity requirements
+  (length, uppercase, lowercase, numbers, special characters).
+
+detection:
+  type: command-check
+  commands:
+    linux:
+      - command: "grep -E '^minlen|^dcredit|^ucredit|^lcredit|^ocredit' /etc/security/pwquality.conf 2>/dev/null || echo 'not configured'"
+        expected_output_contains: "minlen"
+    windows:
+      - command: "net accounts"
+        expected_output_contains: "Minimum password length"
+        expected_output_min_value: 12
+
+remediation: |
+  Configure password policy: minimum 12 characters, require uppercase,
+  lowercase, numbers, and special characters.
+  Linux: /etc/security/pwquality.conf.
+  Windows: Group Policy password policy.
+
+tags:
+  - password
+  - authentication
+  - hipaa
+
+platforms:
+  - linux
+  - windows
+
+nist_controls:
+  - "IA-5"
+  - "IA-5(1)"
+
+hipaa_refs:
+  - "§164.312(d)"
+
+enabled_by_default: true
