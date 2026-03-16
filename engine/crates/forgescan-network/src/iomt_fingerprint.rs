@@ -111,9 +111,7 @@ impl IoMTFingerprinter {
         for banner in banners {
             if let Some(mfr_match) = self.detect_manufacturer_from_banner(&banner.text) {
                 manufacturer = Some(mfr_match.manufacturer.to_string());
-                if device_class.is_none()
-                    || mfr_match.confidence > confidence
-                {
+                if device_class.is_none() || mfr_match.confidence > confidence {
                     device_class = Some(mfr_match.device_class);
                 }
                 if let Some(m) = mfr_match.model {
@@ -188,11 +186,7 @@ impl IoMTFingerprinter {
         let banner_lower = banner.to_lowercase();
 
         for pattern in &self.manufacturer_patterns {
-            if pattern
-                .keywords
-                .iter()
-                .all(|kw| banner_lower.contains(kw))
-            {
+            if pattern.keywords.iter().all(|kw| banner_lower.contains(kw)) {
                 return Some(ManufacturerMatch {
                     manufacturer: pattern.manufacturer,
                     device_class: pattern.device_class,
@@ -469,11 +463,7 @@ pub fn is_medical_network_segment(hosts_ports: &[(std::net::IpAddr, Vec<u16>)]) 
         for port in ports {
             if matches!(
                 *port,
-                ports::DICOM
-                    | ports::DICOM_TLS
-                    | ports::HL7_MLLP
-                    | ports::BACNET
-                    | ports::MODBUS
+                ports::DICOM | ports::DICOM_TLS | ports::HL7_MLLP | ports::BACNET | ports::MODBUS
             ) {
                 medical_port_count += 1;
             }
