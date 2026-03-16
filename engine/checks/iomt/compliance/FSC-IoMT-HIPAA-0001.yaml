@@ -1,0 +1,65 @@
+# ForgeScan Check Definition
+# Medical Device ePHI Encryption in Transit
+
+id: "FSC-IoMT-HIPAA-0001"
+name: "Medical Device ePHI Not Encrypted in Transit"
+category: iomt
+severity: critical
+enabled: true
+confidence: high
+
+description: |
+  A medical device transmitting ePHI (electronic Protected Health Information)
+  is using an unencrypted protocol. Under HIPAA §164.312(e)(1), covered entities
+  must implement technical security measures to guard against unauthorized access
+  to ePHI transmitted over an electronic communications network.
+
+impact: |
+  Direct HIPAA Security Rule violation. ePHI exposure includes patient
+  demographics, diagnoses, lab results, vital signs, and medication orders.
+  Penalties range from $100 to $50,000 per violation, up to $1.5M annually.
+
+detection:
+  type: port-check
+  ports: [2575, 104, 502, 1883]
+  protocol: tcp
+  supplemental:
+    - type: tls-check
+      check: tls_supported
+      condition: false  # Flag unencrypted services carrying ePHI
+
+device_classes:
+  - hl7_router
+  - dicom_server
+  - patient_monitor
+  - ehr_system
+
+remediation: |
+  1. Implement TLS encryption for all ePHI-carrying protocols:
+     - HL7: MLLP over TLS (MLLP/S)
+     - DICOM: DICOM over TLS (port 2762)
+     - FHIR: HTTPS only (TLS 1.2+)
+  2. Deploy network encryption (IPsec, VPN) where protocol-native TLS unavailable.
+  3. At minimum: network segmentation with encrypted inter-VLAN communication.
+  4. Document encryption status in HIPAA risk assessment.
+
+remediation_effort: medium
+
+tags:
+  - hipaa
+  - encryption
+  - ephi
+  - compliance
+  - iomt
+
+nist_controls:
+  - "SC-8"
+  - "SC-8(1)"
+  - "SC-13"
+
+hipaa_refs:
+  - "§164.312(e)(1)"
+  - "§164.312(e)(2)(ii)"
+  - "§164.306(a)(1)"
+
+enabled_by_default: true

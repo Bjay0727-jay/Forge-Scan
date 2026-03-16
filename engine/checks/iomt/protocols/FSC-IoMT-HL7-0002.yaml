@@ -1,0 +1,59 @@
+# ForgeScan Check Definition
+# HL7 Interface Engine Default Credentials
+
+id: "FSC-IoMT-HL7-0002"
+name: "HL7 Interface Engine Default Credentials"
+category: iomt
+severity: critical
+enabled: true
+confidence: medium
+
+description: |
+  The HL7 interface engine administrative console is accessible with vendor
+  default credentials. Interface engines (Mirth Connect, Rhapsody, Ensemble)
+  control all clinical data flows between systems. Compromise allows message
+  interception, modification, or injection of false clinical data.
+
+detection:
+  type: http-check
+  ports: [8080, 8443, 9090, 443]
+  method: GET
+  paths:
+    - "/api/login"
+    - "/admin"
+    - "/dashboard"
+  match_response:
+    - "Mirth Connect"
+    - "Rhapsody"
+    - "InterSystems"
+    - "TrakCare"
+  default_credentials:
+    - ["admin", "admin"]
+    - ["admin", "password"]
+    - ["admin", "mirth"]
+
+device_classes:
+  - hl7_router
+
+remediation: |
+  1. Change all default credentials immediately.
+  2. Implement LDAP/AD integration for authentication.
+  3. Enable MFA for administrative access.
+  4. Restrict admin console access to management VLAN.
+
+remediation_effort: low
+
+tags:
+  - hl7
+  - default-credentials
+  - critical
+  - iomt
+
+nist_controls:
+  - "IA-5"
+  - "IA-5(1)"
+
+hipaa_refs:
+  - "§164.312(d)"
+
+enabled_by_default: true

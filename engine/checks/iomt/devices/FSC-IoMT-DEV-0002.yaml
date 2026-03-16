@@ -1,0 +1,58 @@
+# ForgeScan Check Definition
+# Medical Device With Known FDA Recall
+
+id: "FSC-IoMT-DEV-0002"
+name: "Medical Device With Active FDA Recall or Safety Alert"
+category: iomt
+severity: critical
+enabled: true
+confidence: medium
+
+description: |
+  This medical device has an active FDA recall or safety communication
+  related to cybersecurity vulnerabilities. FDA recalls involving
+  cybersecurity issues indicate manufacturer-confirmed exploitable
+  vulnerabilities that may directly impact patient safety.
+
+detection:
+  type: version-match
+  check: fda_recall_database
+  # Cross-reference detected manufacturer/model/firmware against
+  # FDA MAUDE database and Safety Communications
+
+device_classes:
+  - medical_imaging
+  - patient_monitor
+  - infusion_pump
+  - ventilator
+  - clinical_analyzer
+
+remediation: |
+  1. Follow the specific FDA recall instructions for your device model.
+  2. Contact the device manufacturer for the remediation patch/update.
+  3. Implement interim compensating controls (network isolation, monitoring).
+  4. Document compliance with recall instructions for regulatory audits.
+  5. Report to your organization's biomedical engineering team immediately.
+
+remediation_effort: medium
+
+references:
+  - "https://www.fda.gov/medical-devices/medical-device-recalls"
+  - "https://www.fda.gov/medical-devices/digital-health-center-excellence/cybersecurity"
+  - "https://www.cisa.gov/news-events/ics-medical-advisories"
+
+tags:
+  - fda-recall
+  - critical
+  - patient-safety
+  - iomt
+  - regulatory
+
+nist_controls:
+  - "SI-2"
+  - "RA-5"
+
+hipaa_refs:
+  - "§164.308(a)(1)(ii)(A)"
+
+enabled_by_default: true

@@ -1,0 +1,64 @@
+# ForgeScan Check Definition
+# Safe Medical Device Discovery (Passive)
+
+id: "FSC-IoMT-SAFE-0001"
+name: "Safe Medical Device Discovery"
+category: iomt
+severity: info
+enabled: true
+confidence: medium
+
+description: |
+  Non-disruptive discovery of medical devices on the network using passive
+  and lightweight techniques only. This check uses DNS queries, SNMP reads,
+  and TCP SYN probes on known-safe ports to identify medical equipment without
+  risk of disrupting clinical operations.
+
+  This check is designed for use on clinical VLANs where active scanning
+  may disrupt life-critical devices (ventilators, infusion pumps, monitors).
+
+scan_modes:
+  - safe-scan
+
+detection:
+  type: passive-probe
+  methods:
+    - reverse_dns
+    - snmp_query
+    - tcp_syn_scan
+  safe_ports_only:
+    - 22    # SSH
+    - 80    # HTTP
+    - 104   # DICOM
+    - 161   # SNMP
+    - 443   # HTTPS
+    - 2575  # HL7
+    - 8080  # Web admin
+    - 47808 # BACnet
+  excluded_probes:
+    - syn_flood
+    - crafted_packets
+    - exploit_attempts
+    - version_exploitation
+  max_rate_pps: 10   # Maximum 10 packets per second
+  inter_probe_delay_ms: 500
+
+device_classes:
+  - medical_imaging
+  - patient_monitor
+  - infusion_pump
+  - ventilator
+  - clinical_analyzer
+  - hl7_router
+  - dicom_server
+
+remediation: "Informational - no action required. Review device inventory for accuracy."
+
+tags:
+  - safe-scan
+  - discovery
+  - iomt
+  - medical-device
+  - passive
+
+enabled_by_default: true

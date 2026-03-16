@@ -1,0 +1,219 @@
+# ============================================================================
+# ForgeScan - Medical Device Fingerprint Database
+#
+# Maps device manufacturers, models, firmware versions, and known CVEs
+# to enable accurate IoMT device identification and vulnerability correlation.
+#
+# Each entry contains:
+#   manufacturer: Device manufacturer name
+#   product_line: Product family/line
+#   models: Specific model numbers and their characteristics
+#   protocols: Medical protocols used by this device
+#   default_ports: Common ports open on this device
+#   known_cves: CVEs affecting specific firmware versions
+#   fda_class: FDA device classification (I, II, III)
+#   device_class: ForgeScan device classification
+#
+# Sources: FDA MAUDE, CISA ICS-CERT, NVD, manufacturer disclosures
+# ============================================================================
+
+# ── Medical Imaging (PACS / Modalities) ─────────────────────────────
+
+- manufacturer: "Philips"
+  product_line: "IntelliSpace PACS"
+  device_class: medical_imaging
+  fda_class: class_ii
+  protocols: [dicom, hl7v2]
+  default_ports: [104, 443, 8080]
+  banner_keywords: ["philips", "intellispace"]
+  known_cves:
+    - cve: "CVE-2021-39369"
+      affected_firmware: [">= 9.0", "< 9.0.35"]
+      severity: high
+    - cve: "CVE-2018-5474"
+      affected_firmware: ["< 4.4.551"]
+      severity: critical
+
+- manufacturer: "GE Healthcare"
+  product_line: "Centricity PACS"
+  device_class: medical_imaging
+  fda_class: class_ii
+  protocols: [dicom, hl7v2, fhir]
+  default_ports: [104, 443, 8080, 4100]
+  banner_keywords: ["ge", "centricity"]
+
+- manufacturer: "Siemens Healthineers"
+  product_line: "syngo.plaza"
+  device_class: medical_imaging
+  fda_class: class_ii
+  protocols: [dicom]
+  default_ports: [104, 443, 2762]
+  banner_keywords: ["siemens", "syngo"]
+
+# ── Patient Monitors ────────────────────────────────────────────────
+
+- manufacturer: "Philips"
+  product_line: "IntelliVue"
+  device_class: patient_monitor
+  fda_class: class_ii
+  protocols: [hl7v2]
+  default_ports: [80, 443, 161]
+  banner_keywords: ["philips", "intellivue"]
+  known_cves:
+    - cve: "CVE-2020-16228"
+      affected_firmware: ["*"]
+      severity: medium
+      description: "Patient monitor data exposure via unauthenticated access"
+
+- manufacturer: "GE Healthcare"
+  product_line: "CARESCAPE"
+  device_class: patient_monitor
+  fda_class: class_ii
+  protocols: [hl7v2]
+  default_ports: [80, 443, 22, 161]
+  banner_keywords: ["ge", "carescape"]
+  known_cves:
+    - cve: "CVE-2020-6961"
+      affected_firmware: ["< 3.2"]
+      severity: critical
+      description: "Hardcoded SSH credentials in CARESCAPE monitors"
+
+- manufacturer: "Mindray"
+  product_line: "BeneVision"
+  device_class: patient_monitor
+  fda_class: class_ii
+  protocols: [hl7v2]
+  default_ports: [80, 443]
+  banner_keywords: ["mindray"]
+
+# ── Infusion Pumps ──────────────────────────────────────────────────
+
+- manufacturer: "BD (Becton Dickinson)"
+  product_line: "Alaris"
+  device_class: infusion_pump
+  fda_class: class_ii
+  protocols: [hl7v2]
+  default_ports: [80, 443, 22]
+  banner_keywords: ["alaris", "bd"]
+  known_cves:
+    - cve: "CVE-2020-25165"
+      affected_firmware: ["< 12.1.3"]
+      severity: critical
+      description: "Authentication bypass in Alaris Infusion Central"
+    - cve: "CVE-2022-26393"
+      affected_firmware: ["< 12.1.3"]
+      severity: high
+
+- manufacturer: "Baxter"
+  product_line: "Sigma Spectrum"
+  device_class: infusion_pump
+  fda_class: class_ii
+  protocols: [hl7v2]
+  default_ports: [80, 22]
+  banner_keywords: ["baxter", "sigma"]
+  known_cves:
+    - cve: "CVE-2020-12036"
+      affected_firmware: ["< 8.0"]
+      severity: high
+      description: "Cleartext transmission of patient data"
+
+- manufacturer: "B. Braun"
+  product_line: "Infusomat Space"
+  device_class: infusion_pump
+  fda_class: class_ii
+  protocols: []
+  default_ports: [80, 443]
+  banner_keywords: ["b. braun", "infusomat"]
+  known_cves:
+    - cve: "CVE-2021-33886"
+      affected_firmware: ["< 028U000061"]
+      severity: critical
+      description: "Remote code execution via unvalidated firmware update"
+
+# ── Ventilators ─────────────────────────────────────────────────────
+
+- manufacturer: "Dräger"
+  product_line: "Evita/Savina"
+  device_class: ventilator
+  fda_class: class_iii
+  protocols: [hl7v2]
+  default_ports: [80, 22]
+  banner_keywords: ["draeger", "drager"]
+
+- manufacturer: "Hamilton Medical"
+  product_line: "Hamilton C6/G5"
+  device_class: ventilator
+  fda_class: class_iii
+  protocols: [hl7v2]
+  default_ports: [80]
+  banner_keywords: ["hamilton"]
+
+- manufacturer: "Medtronic"
+  product_line: "Puritan Bennett"
+  device_class: ventilator
+  fda_class: class_iii
+  protocols: []
+  default_ports: [80]
+  banner_keywords: ["medtronic", "puritan"]
+
+# ── HL7 Interface Engines ──────────────────────────────────────────
+
+- manufacturer: "NextGen Healthcare"
+  product_line: "Mirth Connect"
+  device_class: hl7_router
+  fda_class: not_regulated
+  protocols: [hl7v2, fhir]
+  default_ports: [8080, 8443, 2575]
+  banner_keywords: ["mirth", "connect"]
+
+- manufacturer: "InterSystems"
+  product_line: "HealthShare / Ensemble"
+  device_class: hl7_router
+  fda_class: not_regulated
+  protocols: [hl7v2, fhir]
+  default_ports: [443, 52773, 2575]
+  banner_keywords: ["intersystems", "ensemble", "healthshare"]
+
+- manufacturer: "Rhapsody"
+  product_line: "Rhapsody Integration Engine"
+  device_class: hl7_router
+  fda_class: not_regulated
+  protocols: [hl7v2, fhir]
+  default_ports: [8444, 8081, 2575]
+  banner_keywords: ["rhapsody"]
+
+# ── DICOM Servers ───────────────────────────────────────────────────
+
+- manufacturer: "Orthanc"
+  product_line: "Orthanc DICOM Server"
+  device_class: dicom_server
+  fda_class: not_regulated
+  protocols: [dicom]
+  default_ports: [104, 8042, 4242]
+  banner_keywords: ["orthanc"]
+
+- manufacturer: "dcm4che.org"
+  product_line: "dcm4chee"
+  device_class: dicom_server
+  fda_class: not_regulated
+  protocols: [dicom, hl7v2]
+  default_ports: [104, 8080, 11112]
+  banner_keywords: ["dcm4chee", "dcm4che"]
+
+# ── Clinical Lab Analyzers ──────────────────────────────────────────
+
+- manufacturer: "Roche"
+  product_line: "cobas"
+  device_class: clinical_analyzer
+  fda_class: class_ii
+  protocols: [hl7v2]
+  default_ports: [80, 23, 2575]
+  banner_keywords: ["roche", "cobas"]
+
+- manufacturer: "Siemens Healthineers"
+  product_line: "ADVIA"
+  device_class: clinical_analyzer
+  fda_class: class_ii
+  protocols: [hl7v2]
+  default_ports: [80, 2575]
+  banner_keywords: ["advia"]

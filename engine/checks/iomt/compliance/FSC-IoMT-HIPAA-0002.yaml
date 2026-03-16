@@ -1,0 +1,56 @@
+# ForgeScan Check Definition
+# Medical Device Missing Audit Logging
+
+id: "FSC-IoMT-HIPAA-0002"
+name: "Medical Device Missing Audit Logging for ePHI Access"
+category: iomt
+severity: high
+enabled: true
+confidence: medium
+
+description: |
+  A medical device or clinical system does not have audit logging enabled for
+  ePHI access events. HIPAA §164.312(b) requires that covered entities
+  implement hardware, software, and procedural mechanisms to record and
+  examine activity in information systems containing ePHI.
+
+detection:
+  type: http-check
+  paths:
+    - "/api/audit"
+    - "/admin/audit"
+    - "/settings/logging"
+  check: audit_logging_status
+
+device_classes:
+  - hl7_router
+  - dicom_server
+  - ehr_system
+
+remediation: |
+  1. Enable audit logging on the medical device/system.
+  2. Configure IHE ATNA (Audit Trail and Node Authentication) where supported.
+  3. Forward audit logs to centralized SIEM for retention and monitoring.
+  4. Retain logs for minimum 6 years (HIPAA requirement).
+  5. Document logging configuration in HIPAA compliance documentation.
+
+remediation_effort: medium
+
+tags:
+  - hipaa
+  - audit
+  - logging
+  - compliance
+  - iomt
+
+nist_controls:
+  - "AU-2"
+  - "AU-3"
+  - "AU-6"
+  - "AU-12"
+
+hipaa_refs:
+  - "§164.312(b)"
+  - "§164.308(a)(1)(ii)(D)"
+
+enabled_by_default: true

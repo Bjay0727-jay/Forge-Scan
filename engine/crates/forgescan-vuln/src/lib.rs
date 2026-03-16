@@ -10,5 +10,8 @@ pub mod frs;
 pub mod matcher;
 
 pub use detector::{DetectedService, DetectionResult, VulnDetector};
-pub use frs::{FrsCalculator, FrsScore, RiskFactors};
+pub use frs::{
+    FrsCalculator, FrsScore, MedicalFrsCalculator, MedicalFrsScore, MedicalRiskFactors,
+    RiskFactors,
+};
 pub use matcher::{MatchResult, VersionMatcher};

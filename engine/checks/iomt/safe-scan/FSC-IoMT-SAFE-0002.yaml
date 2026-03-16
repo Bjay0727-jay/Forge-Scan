@@ -1,0 +1,57 @@
+# ForgeScan Check Definition
+# Life-Critical Device on Non-Isolated Network
+
+id: "FSC-IoMT-SAFE-0002"
+name: "Life-Critical Device on Non-Isolated Network Segment"
+category: iomt
+severity: critical
+enabled: true
+confidence: high
+
+description: |
+  A life-critical medical device (ventilator, infusion pump, or patient
+  monitor) has been detected on a network segment that is not properly
+  isolated from general IT traffic. Life-critical devices must be on
+  dedicated clinical VLANs with strict access control.
+
+scan_modes:
+  - safe-scan
+  - agentless
+
+detection:
+  type: passive-probe
+  methods:
+    - network_segment_analysis
+  condition: |
+    device_class in [ventilator, infusion_pump, patient_monitor]
+    AND network_segment is NOT clinical_vlan
+
+device_classes:
+  - ventilator
+  - infusion_pump
+  - patient_monitor
+
+remediation: |
+  1. Move life-critical devices to a dedicated clinical VLAN immediately.
+  2. Implement micro-segmentation or VLAN ACLs to restrict access.
+  3. Deploy a clinical network firewall between IT and biomedical segments.
+  4. Allow only necessary traffic (e.g., HL7 to interface engine, DICOM to PACS).
+  5. Block all internet-bound traffic from clinical device VLANs.
+
+remediation_effort: high
+
+tags:
+  - safe-scan
+  - network-segmentation
+  - life-critical
+  - iomt
+  - critical
+
+nist_controls:
+  - "SC-7"
+  - "SC-7(5)"
+
+hipaa_refs:
+  - "§164.312(e)(1)"
+
+enabled_by_default: true

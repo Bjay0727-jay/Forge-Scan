@@ -1,0 +1,67 @@
+# ForgeScan Check Definition
+# HL7 Interface Over Unencrypted Channel
+
+id: "FSC-IoMT-HL7-0001"
+name: "HL7 Messages Transmitted Over Unencrypted Channel"
+category: iomt
+severity: critical
+enabled: true
+confidence: high
+false_positive_rate: low
+
+description: |
+  HL7 messages containing ePHI are being transmitted over an unencrypted MLLP
+  connection (port 2575). HL7v2 MLLP does not provide built-in encryption.
+  All patient data (ADT, ORM, ORU messages) is transmitted in cleartext,
+  exposing PII, diagnoses, medications, and lab results to network observers.
+
+impact: |
+  Full exposure of ePHI in transit. Any network observer on the same segment
+  can capture patient names, MRNs, diagnoses, lab results, and medication
+  orders. Direct HIPAA Security Rule violation.
+
+detection:
+  type: port-check
+  port: 2575
+  protocol: tcp
+  verify_service: true
+  supplemental:
+    - type: tls-check
+      port: 2575
+      check: tls_supported
+      condition: false  # Flag if TLS is NOT supported
+
+device_classes:
+  - hl7_router
+  - ehr_system
+
+remediation: |
+  1. Implement HL7 over TLS (MLLP/S) on port 2575 or migrate to a TLS-enabled port.
+  2. If MLLP/S is not supported by the interface engine, use a VPN tunnel or
+     TLS termination proxy between HL7 endpoints.
+  3. For new integrations, prefer HL7 FHIR over HTTPS (RESTful, TLS by default).
+  4. As an interim measure, ensure HL7 traffic is on an isolated VLAN.
+
+remediation_effort: medium
+
+tags:
+  - hl7
+  - ephi
+  - encryption
+  - hipaa
+  - iomt
+
+platforms:
+  - linux
+  - windows
+
+nist_controls:
+  - "SC-8"
+  - "SC-8(1)"
+  - "SC-13"
+
+hipaa_refs:
+  - "§164.312(e)(1)"
+  - "§164.312(e)(2)(ii)"
+
+enabled_by_default: true

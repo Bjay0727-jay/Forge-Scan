@@ -2,8 +2,8 @@
 
 use crate::error::Result;
 use crate::finding::{ComplianceRef, Finding};
-use crate::severity::{CheckCategory, Severity};
-use crate::target::{ScanMode, ScanTarget};
+use crate::severity::{CheckCategory, DeviceClass, FdaDeviceClass, PatientImpact, Severity};
+use crate::target::{SafeScanProfile, ScanMode, ScanTarget};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -208,6 +208,92 @@ pub struct CheckContext {
 
     /// Credentials for authenticated checks
     pub credentials: Option<Arc<dyn CredentialProvider>>,
+
+    /// IoMT device context (set when target is identified as a medical/IoT device)
+    pub device_context: Option<DeviceContext>,
+
+    /// Safe-scan profile (controls probe intensity for medical/IoT devices)
+    pub safe_scan_profile: Option<SafeScanProfile>,
+}
+
+/// Context for IoMT/medical device scanning
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeviceContext {
+    /// Detected device class
+    pub device_class: DeviceClass,
+    /// Detected manufacturer/vendor
+    pub manufacturer: Option<String>,
+    /// Device model
+    pub model: Option<String>,
+    /// Firmware version
+    pub firmware_version: Option<String>,
+    /// Patient safety impact level
+    pub patient_impact: PatientImpact,
+    /// FDA device classification
+    pub fda_class: FdaDeviceClass,
+    /// Detected medical protocols running on this device
+    pub medical_protocols: Vec<MedicalProtocol>,
+    /// Confidence in device classification (0-100)
+    pub classification_confidence: u8,
+}
+
+impl DeviceContext {
+    /// Create a new device context with minimal information
+    pub fn new(device_class: DeviceClass) -> Self {
+        let patient_impact = match device_class {
+            DeviceClass::Ventilator | DeviceClass::InfusionPump => PatientImpact::LifeSupport,
+            DeviceClass::PatientMonitor => PatientImpact::DirectCare,
+            DeviceClass::MedicalImaging | DeviceClass::ClinicalAnalyzer => {
+                PatientImpact::DirectCare
+            }
+            DeviceClass::HL7Router | DeviceClass::DICOMServer | DeviceClass::EHRSystem => {
+                PatientImpact::Indirect
+            }
+            _ => PatientImpact::None,
+        };
+
+        let fda_class = match device_class {
+            DeviceClass::Ventilator => FdaDeviceClass::ClassIII,
+            DeviceClass::InfusionPump | DeviceClass::PatientMonitor => FdaDeviceClass::ClassII,
+            DeviceClass::MedicalImaging | DeviceClass::ClinicalAnalyzer => FdaDeviceClass::ClassII,
+            _ => FdaDeviceClass::NotRegulated,
+        };
+
+        Self {
+            device_class,
+            manufacturer: None,
+            model: None,
+            firmware_version: None,
+            patient_impact,
+            fda_class,
+            medical_protocols: Vec::new(),
+            classification_confidence: 0,
+        }
+    }
+
+    /// Whether safe-scan mode should be enforced for this device
+    pub fn requires_safe_scan(&self) -> bool {
+        self.device_class.is_life_critical()
+            || self.patient_impact.is_time_critical()
+    }
+}
+
+/// Medical/IoT protocol types detected on a device
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MedicalProtocol {
+    /// Health Level 7 v2.x messaging
+    HL7v2,
+    /// HL7 FHIR (REST-based)
+    FHIR,
+    /// DICOM (medical imaging)
+    DICOM,
+    /// BACnet (building automation)
+    BACnet,
+    /// Modbus (industrial control)
+    Modbus,
+    /// MQTT (IoT messaging)
+    MQTT,
 }
 
 impl std::fmt::Debug for CheckContext {
@@ -226,6 +312,8 @@ impl std::fmt::Debug for CheckContext {
             .field("extra", &self.extra)
             .field("nvd_db", &self.nvd_db.as_ref().map(|_| "..."))
             .field("credentials", &self.credentials.as_ref().map(|_| "..."))
+            .field("device_context", &self.device_context)
+            .field("safe_scan_profile", &self.safe_scan_profile)
             .finish()
     }
 }
@@ -247,6 +335,8 @@ impl CheckContext {
             extra: std::collections::HashMap::new(),
             nvd_db: None,
             credentials: None,
+            device_context: None,
+            safe_scan_profile: None,
         }
     }
 

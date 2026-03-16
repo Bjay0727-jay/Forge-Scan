@@ -21,6 +21,7 @@ enum ScanMode {
     SCAN_MODE_AGENTLESS = 1;
     SCAN_MODE_AGENT = 2;
     SCAN_MODE_HYBRID = 3;
+    SCAN_MODE_SAFE_SCAN = 4; // Non-disruptive passive detection for life-critical devices
 }
 
 // Scan intensity levels
@@ -40,6 +41,7 @@ enum CheckCategory {
     CHECK_CATEGORY_CONFIGURATION = 3;
     CHECK_CATEGORY_WEBAPP = 4;
     CHECK_CATEGORY_CLOUD = 5;
+    CHECK_CATEGORY_IOMT = 6; // IoT/IoMT medical device checks
 }
 
 // Exploit maturity levels
@@ -57,6 +59,84 @@ message ComplianceRef {
     string control_id = 2;   // "SI-2", "1.1.1", "V-12345"
     string control_name = 3; // Human-readable name
     int32 level = 4;         // For CIS: Level 1 or Level 2
+}
+
+// IoMT device classification
+enum DeviceClass {
+    DEVICE_CLASS_UNSPECIFIED = 0;
+    DEVICE_CLASS_MEDICAL_IMAGING = 1;
+    DEVICE_CLASS_PATIENT_MONITOR = 2;
+    DEVICE_CLASS_INFUSION_PUMP = 3;
+    DEVICE_CLASS_VENTILATOR = 4;
+    DEVICE_CLASS_CLINICAL_ANALYZER = 5;
+    DEVICE_CLASS_HL7_ROUTER = 6;
+    DEVICE_CLASS_DICOM_SERVER = 7;
+    DEVICE_CLASS_EHR_SYSTEM = 8;
+    DEVICE_CLASS_BUILDING_AUTOMATION = 9;
+    DEVICE_CLASS_INDUSTRIAL_CONTROL = 10;
+    DEVICE_CLASS_GENERIC_IOT = 11;
+}
+
+// Patient safety impact level
+enum PatientImpact {
+    PATIENT_IMPACT_UNSPECIFIED = 0;
+    PATIENT_IMPACT_NONE = 1;
+    PATIENT_IMPACT_INDIRECT = 2;
+    PATIENT_IMPACT_DIRECT_CARE = 3;
+    PATIENT_IMPACT_LIFE_SUPPORT = 4;
+}
+
+// FDA device classification
+enum FdaDeviceClass {
+    FDA_DEVICE_CLASS_UNSPECIFIED = 0;
+    FDA_DEVICE_CLASS_I = 1;
+    FDA_DEVICE_CLASS_II = 2;
+    FDA_DEVICE_CLASS_III = 3;
+    FDA_DEVICE_CLASS_NOT_REGULATED = 4;
+}
+
+// Medical protocol types
+enum MedicalProtocol {
+    MEDICAL_PROTOCOL_UNSPECIFIED = 0;
+    MEDICAL_PROTOCOL_HL7V2 = 1;
+    MEDICAL_PROTOCOL_FHIR = 2;
+    MEDICAL_PROTOCOL_DICOM = 3;
+    MEDICAL_PROTOCOL_BACNET = 4;
+    MEDICAL_PROTOCOL_MODBUS = 5;
+    MEDICAL_PROTOCOL_MQTT = 6;
+}
+
+// Safe-scan profile
+enum SafeScanProfile {
+    SAFE_SCAN_PROFILE_UNSPECIFIED = 0;
+    SAFE_SCAN_PROFILE_PASSIVE_ONLY = 1;
+    SAFE_SCAN_PROFILE_LIGHTWEIGHT = 2;
+    SAFE_SCAN_PROFILE_MEDICAL_DEVICE = 3;
+    SAFE_SCAN_PROFILE_INDUSTRIAL = 4;
+}
+
+// IoMT device context attached to findings/assets
+message DeviceContext {
+    DeviceClass device_class = 1;
+    string manufacturer = 2;
+    string model = 3;
+    string firmware_version = 4;
+    PatientImpact patient_impact = 5;
+    FdaDeviceClass fda_class = 6;
+    repeated MedicalProtocol protocols = 7;
+    uint32 classification_confidence = 8;
+}
+
+// Medical-adjusted FRS score
+message MedicalFrsScore {
+    double base_score = 1;
+    double medical_score = 2;
+    PatientImpact patient_impact = 3;
+    FdaDeviceClass fda_class = 4;
+    bool is_regulatory_violation = 5;
+    bool has_fda_recall = 6;
+    string workflow_context = 7;
+    uint32 medical_sla_days = 8;
 }
 
 // Timestamp wrapper
