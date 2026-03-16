@@ -152,9 +152,7 @@ impl DeviceClass {
     pub fn is_life_critical(&self) -> bool {
         matches!(
             self,
-            DeviceClass::Ventilator
-                | DeviceClass::InfusionPump
-                | DeviceClass::PatientMonitor
+            DeviceClass::Ventilator | DeviceClass::InfusionPump | DeviceClass::PatientMonitor
         )
     }
 

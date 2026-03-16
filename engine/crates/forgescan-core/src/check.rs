@@ -273,8 +273,7 @@ impl DeviceContext {
 
     /// Whether safe-scan mode should be enforced for this device
     pub fn requires_safe_scan(&self) -> bool {
-        self.device_class.is_life_critical()
-            || self.patient_impact.is_time_critical()
+        self.device_class.is_life_critical() || self.patient_impact.is_time_critical()
     }
 }
 
