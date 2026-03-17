@@ -19,7 +19,6 @@ sha2 = { workspace = true }
 hex = { workspace = true }
 rcgen = { workspace = true }
 rustls = { workspace = true }
-rustls-pemfile = { workspace = true }
 pem = "3.0"
 uuid = { workspace = true }
 rand = "0.8"
