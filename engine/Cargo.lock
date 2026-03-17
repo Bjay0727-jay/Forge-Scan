@@ -1401,6 +1401,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "forgescan-hipaa"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "forgescan-core",
+ "forgescan-vuln",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "forgescan-ingest"
 version = "0.1.0"
 dependencies = [
