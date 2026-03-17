@@ -14,6 +14,7 @@ members = [
     "crates/forgescan-ingest",
     "crates/forgescan-scanner",
     "crates/forgescan-agent",
+    "crates/forgescan-hipaa",
 ]
 
 [workspace.package]

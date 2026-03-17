@@ -1,0 +1,19 @@
+[package]
+name = "forgescan-hipaa"
+description = "HIPAA-native compliance mapping engine for ForgeScan"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+forgescan-core = { path = "../forgescan-core" }
+forgescan-vuln = { path = "../forgescan-vuln" }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+reqwest = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
