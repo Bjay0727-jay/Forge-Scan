@@ -227,7 +227,12 @@ impl AlertGenerator {
         }
 
         // Sort by severity (critical first)
-        alerts.sort_by(|a, b| a.severity.cef_level().cmp(&b.severity.cef_level()).reverse());
+        alerts.sort_by(|a, b| {
+            a.severity
+                .cef_level()
+                .cmp(&b.severity.cef_level())
+                .reverse()
+        });
 
         alerts
     }
@@ -280,15 +285,24 @@ impl AlertGenerator {
     /// Convert a lateral movement path to a ForgeSOC alert
     fn lateral_path_to_alert(&self, path: &LateralMovementPath) -> SegmentationAlert {
         let severity = AlertSeverity::from_finding_severity(path.severity);
-        let src_ip = path.hops.first().map(|h| h.ip).unwrap_or(IpAddr::from([0, 0, 0, 0]));
-        let dst_ip = path.hops.last().map(|h| h.ip).unwrap_or(IpAddr::from([0, 0, 0, 0]));
+        let src_ip = path
+            .hops
+            .first()
+            .map(|h| h.ip)
+            .unwrap_or(IpAddr::from([0, 0, 0, 0]));
+        let dst_ip = path
+            .hops
+            .last()
+            .map(|h| h.ip)
+            .unwrap_or(IpAddr::from([0, 0, 0, 0]));
         let dst_port = path.hops.last().map(|h| h.port).unwrap_or(0);
 
         let mut compliance_refs = vec![
             ComplianceReference {
                 framework: "HIPAA".into(),
                 control_id: "§164.312(a)(1)".into(),
-                description: "Access Control — lateral path enables unauthorized ePHI access".into(),
+                description: "Access Control — lateral path enables unauthorized ePHI access"
+                    .into(),
             },
             ComplianceReference {
                 framework: "HCCRA".into(),
@@ -381,9 +395,7 @@ impl AlertGenerator {
             ViolationType::LateralMovementPath => {
                 Some("T1021 — Remote Services (Lateral Movement)".into())
             }
-            ViolationType::GuestEscalation => {
-                Some("T1078 — Valid Accounts / Network Pivot".into())
-            }
+            ViolationType::GuestEscalation => Some("T1078 — Valid Accounts / Network Pivot".into()),
             ViolationType::MedDeviceExposure => {
                 Some("T1557 — Adversary-in-the-Middle (Medical Protocol)".into())
             }
@@ -723,7 +735,9 @@ mod tests {
             .map_to_mitre(ViolationType::GuestEscalation)
             .unwrap()
             .contains("T1078"));
-        assert!(gen.map_to_mitre(ViolationType::UnauthorizedCrossZone).is_none());
+        assert!(gen
+            .map_to_mitre(ViolationType::UnauthorizedCrossZone)
+            .is_none());
     }
 
     #[test]
@@ -750,7 +764,10 @@ mod tests {
             ),
         ];
 
-        let alerts: Vec<_> = violations.iter().map(|v| gen.violation_to_alert(v)).collect();
+        let alerts: Vec<_> = violations
+            .iter()
+            .map(|v| gen.violation_to_alert(v))
+            .collect();
         let summary = AlertGenerator::generate_alert_summary(&alerts);
 
         assert_eq!(summary.total_alerts, 3);

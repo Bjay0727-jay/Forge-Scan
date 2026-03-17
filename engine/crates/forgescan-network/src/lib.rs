@@ -37,8 +37,7 @@ pub use segmentation::{
     SegmentationViolation, ViolationType, ZoneSubnet,
 };
 pub use segmentation_alert::{
-    AlertGenerator, AlertSeverity, AlertSummary, AlertType, ComplianceReference,
-    SegmentationAlert,
+    AlertGenerator, AlertSeverity, AlertSummary, AlertType, ComplianceReference, SegmentationAlert,
 };
 pub use segmentation_report::{
     ControlStatus, HipaaSegmentationControl, Nist800171Control, SegmentationComplianceReport,

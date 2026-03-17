@@ -586,26 +586,20 @@ impl SegmentationValidator {
     }
 
     /// Classify host zone based on observed ports and IoMT fingerprinting
-    pub fn auto_classify_hosts(
-        &mut self,
-        host_ports: &[(IpAddr, Vec<u16>)],
-    ) {
+    pub fn auto_classify_hosts(&mut self, host_ports: &[(IpAddr, Vec<u16>)]) {
         for (ip, ports) in host_ports {
             if self.host_zone_map.contains_key(ip) {
                 continue; // Already classified
             }
 
             // Check if this looks like a medical device subnet
-            let has_medical = ports.iter().any(|p| {
-                matches!(
-                    *p,
-                    104 | 2762 | 2575 | 47808 | 502 | 1883 | 8883
-                )
-            });
+            let has_medical = ports
+                .iter()
+                .any(|p| matches!(*p, 104 | 2762 | 2575 | 47808 | 502 | 1883 | 8883));
 
-            let has_clinical = ports.iter().any(|p| {
-                matches!(*p, 1433 | 5432 | 3306 | 443 | 8443)
-            });
+            let has_clinical = ports
+                .iter()
+                .any(|p| matches!(*p, 1433 | 5432 | 3306 | 443 | 8443));
 
             let has_web_facing = ports.iter().any(|p| matches!(*p, 80 | 443 | 8080 | 8443));
 
@@ -652,8 +646,16 @@ impl SegmentationValidator {
                     id: Uuid::new_v4(),
                     violation_type: ViolationType::LateralMovementPath,
                     severity: path.severity,
-                    source_ip: path.hops.first().map(|h| h.ip).unwrap_or(IpAddr::from([0, 0, 0, 0])),
-                    destination_ip: path.hops.last().map(|h| h.ip).unwrap_or(IpAddr::from([0, 0, 0, 0])),
+                    source_ip: path
+                        .hops
+                        .first()
+                        .map(|h| h.ip)
+                        .unwrap_or(IpAddr::from([0, 0, 0, 0])),
+                    destination_ip: path
+                        .hops
+                        .last()
+                        .map(|h| h.ip)
+                        .unwrap_or(IpAddr::from([0, 0, 0, 0])),
                     destination_port: path.hops.last().map(|h| h.port).unwrap_or(0),
                     source_zone: path.origin_zone,
                     destination_zone: path.target_zone,
@@ -716,7 +718,9 @@ impl SegmentationValidator {
                 continue; // Same-zone traffic is fine
             }
 
-            let verdict = self.policy.evaluate_flow(src_zone, dst_zone, flow.destination_port);
+            let verdict = self
+                .policy
+                .evaluate_flow(src_zone, dst_zone, flow.destination_port);
 
             match verdict {
                 FlowVerdict::Allowed => {} // OK
@@ -829,16 +833,19 @@ impl SegmentationValidator {
                     }
                 }
 
-                let total_possible =
-                    untrusted_hosts.len().saturating_mul(ephi_hosts.len());
+                let total_possible = untrusted_hosts.len().saturating_mul(ephi_hosts.len());
                 if total_possible > 0 && cross_zone_flows > total_possible / 2 {
                     // More than half of possible pairs can communicate = flat network
-                    let sample_src = untrusted_hosts.iter().next().copied().unwrap_or(
-                        IpAddr::from([0, 0, 0, 0]),
-                    );
-                    let sample_dst = ephi_hosts.iter().next().copied().unwrap_or(
-                        IpAddr::from([0, 0, 0, 0]),
-                    );
+                    let sample_src = untrusted_hosts
+                        .iter()
+                        .next()
+                        .copied()
+                        .unwrap_or(IpAddr::from([0, 0, 0, 0]));
+                    let sample_dst = ephi_hosts
+                        .iter()
+                        .next()
+                        .copied()
+                        .unwrap_or(IpAddr::from([0, 0, 0, 0]));
 
                     violations.push(SegmentationViolation {
                         id: Uuid::new_v4(),
@@ -917,9 +924,7 @@ impl SegmentationValidator {
 
                 // BFS from each source host
                 for src_ip in &src_hosts {
-                    if let Some(path) =
-                        self.bfs_path(*src_ip, &tgt_hosts, src_zone, tgt_zone)
-                    {
+                    if let Some(path) = self.bfs_path(*src_ip, &tgt_hosts, src_zone, tgt_zone) {
                         paths.push(path);
                     }
                 }
@@ -982,14 +987,10 @@ impl SegmentationValidator {
                     })
                     .collect();
 
-                let zone_crossings = hops
-                    .windows(2)
-                    .filter(|w| w[0].zone != w[1].zone)
-                    .count() as u32;
+                let zone_crossings =
+                    hops.windows(2).filter(|w| w[0].zone != w[1].zone).count() as u32;
 
-                let involves_medical = hops
-                    .iter()
-                    .any(|h| h.device_class.is_some());
+                let involves_medical = hops.iter().any(|h| h.device_class.is_some());
 
                 let reaches_ephi = tgt_zone.handles_ephi();
 
@@ -1067,11 +1068,7 @@ impl SegmentationValidator {
             if window[0].zone != window[1].zone {
                 mitigations.push(format!(
                     "Add ACL at {}/{} boundary to block port {} from {} to {}",
-                    window[0].zone,
-                    window[1].zone,
-                    window[1].port,
-                    window[0].ip,
-                    window[1].ip,
+                    window[0].zone, window[1].zone, window[1].port, window[0].ip, window[1].ip,
                 ));
             }
         }
@@ -1128,9 +1125,7 @@ impl SegmentationValidator {
                 let reachable: Vec<ReachablePort> = self
                     .flows
                     .iter()
-                    .filter(|f| {
-                        f.source_ip == src_ip && f.destination_ip == dst_ip && f.successful
-                    })
+                    .filter(|f| f.source_ip == src_ip && f.destination_ip == dst_ip && f.successful)
                     .map(|f| ReachablePort {
                         port: f.destination_port,
                         protocol: f.protocol.clone(),
@@ -1181,7 +1176,8 @@ impl SegmentationValidator {
             impacts.push(
                 "HIPAA §164.312(a)(1): Access Control — unauthorized access path to ePHI systems",
             );
-            impacts.push("HCCRA Control 3: Network Segmentation — ePHI systems not properly isolated");
+            impacts
+                .push("HCCRA Control 3: Network Segmentation — ePHI systems not properly isolated");
         }
 
         if src.is_untrusted() {
@@ -1323,18 +1319,23 @@ mod tests {
 
     fn sample_zones() -> Vec<ZoneSubnet> {
         vec![
-            ZoneSubnet::new("10.10.1.0/24", NetworkZone::Clinical, "Clinical Workstations")
-                .with_vlan(100),
-            ZoneSubnet::new("10.10.2.0/24", NetworkZone::MedicalDevice, "ICU Medical Devices")
-                .with_vlan(200),
+            ZoneSubnet::new(
+                "10.10.1.0/24",
+                NetworkZone::Clinical,
+                "Clinical Workstations",
+            )
+            .with_vlan(100),
+            ZoneSubnet::new(
+                "10.10.2.0/24",
+                NetworkZone::MedicalDevice,
+                "ICU Medical Devices",
+            )
+            .with_vlan(200),
             ZoneSubnet::new("10.10.3.0/24", NetworkZone::Administrative, "Admin Network")
                 .with_vlan(300),
-            ZoneSubnet::new("10.10.4.0/24", NetworkZone::Guest, "Guest Wi-Fi")
-                .with_vlan(400),
-            ZoneSubnet::new("10.10.5.0/24", NetworkZone::ServerRoom, "Data Center")
-                .with_vlan(500),
-            ZoneSubnet::new("172.16.0.0/24", NetworkZone::Dmz, "DMZ")
-                .with_vlan(600),
+            ZoneSubnet::new("10.10.4.0/24", NetworkZone::Guest, "Guest Wi-Fi").with_vlan(400),
+            ZoneSubnet::new("10.10.5.0/24", NetworkZone::ServerRoom, "Data Center").with_vlan(500),
+            ZoneSubnet::new("172.16.0.0/24", NetworkZone::Dmz, "DMZ").with_vlan(600),
         ]
     }
 
@@ -1442,7 +1443,10 @@ mod tests {
             .violations
             .iter()
             .find(|v| v.severity == Severity::Critical);
-        assert!(critical.is_some(), "Should have critical violation for guest→clinical");
+        assert!(
+            critical.is_some(),
+            "Should have critical violation for guest→clinical"
+        );
 
         let v = critical.unwrap();
         assert!(matches!(
@@ -1477,7 +1481,10 @@ mod tests {
                 ViolationType::MedDeviceExposure | ViolationType::UntrustedToEphi
             )
         });
-        assert!(has_meddev_violation, "Should detect DMZ→MedDevice violation");
+        assert!(
+            has_meddev_violation,
+            "Should detect DMZ→MedDevice violation"
+        );
     }
 
     #[test]
@@ -1550,12 +1557,9 @@ mod tests {
         let assessment = validator.assess();
 
         // Should find lateral movement path from Guest→Clinical via Admin
-        let guest_to_clinical = assessment
-            .lateral_movement_paths
-            .iter()
-            .find(|p| {
-                p.origin_zone == NetworkZone::Guest && p.target_zone == NetworkZone::Clinical
-            });
+        let guest_to_clinical = assessment.lateral_movement_paths.iter().find(|p| {
+            p.origin_zone == NetworkZone::Guest && p.target_zone == NetworkZone::Clinical
+        });
         assert!(
             guest_to_clinical.is_some(),
             "Should detect Guest→Admin→Clinical lateral path"
@@ -1573,7 +1577,7 @@ mod tests {
         let mut validator = SegmentationValidator::with_healthcare_defaults(zones);
 
         let host_ports: Vec<(IpAddr, Vec<u16>)> = vec![
-            ("10.10.2.21".parse().unwrap(), vec![104, 80]),  // DICOM = MedDevice
+            ("10.10.2.21".parse().unwrap(), vec![104, 80]), // DICOM = MedDevice
             ("10.10.3.31".parse().unwrap(), vec![22, 80, 443, 3389]), // Admin
             ("10.10.2.22".parse().unwrap(), vec![2575, 8080]), // HL7 = MedDevice
         ];
@@ -1642,12 +1646,9 @@ mod tests {
         }]);
 
         let assessment = validator.assess();
-        let guest_clinical_test = assessment
-            .isolation_tests
-            .iter()
-            .find(|t| {
-                t.source_zone == NetworkZone::Guest && t.target_zone == NetworkZone::Clinical
-            });
+        let guest_clinical_test = assessment.isolation_tests.iter().find(|t| {
+            t.source_zone == NetworkZone::Guest && t.target_zone == NetworkZone::Clinical
+        });
 
         assert!(guest_clinical_test.is_some());
         let test = guest_clinical_test.unwrap();
@@ -1686,8 +1687,7 @@ mod tests {
 
     #[test]
     fn test_zone_subnet_builder() {
-        let subnet = ZoneSubnet::new("10.10.1.0/24", NetworkZone::Clinical, "ICU")
-            .with_vlan(100);
+        let subnet = ZoneSubnet::new("10.10.1.0/24", NetworkZone::Clinical, "ICU").with_vlan(100);
         assert_eq!(subnet.vlan_id, Some(100));
         assert_eq!(subnet.zone, NetworkZone::Clinical);
     }

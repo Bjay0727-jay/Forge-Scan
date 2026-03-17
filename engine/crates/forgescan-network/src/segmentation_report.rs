@@ -119,11 +119,17 @@ impl Nist800171Control {
     pub fn name(&self) -> &'static str {
         match self {
             Self::BoundaryProtection => "Boundary Protection",
-            Self::ArchitecturalDesigns => "Architectural Designs, Software Development, and Systems Engineering",
-            Self::SubnetworkSeparation => "Implement Subnetworks for Publicly Accessible Components",
+            Self::ArchitecturalDesigns => {
+                "Architectural Designs, Software Development, and Systems Engineering"
+            }
+            Self::SubnetworkSeparation => {
+                "Implement Subnetworks for Publicly Accessible Components"
+            }
             Self::NetworkByException => "Deny Network Communication by Default",
             Self::CuiInTransit => "Implement Cryptographic Mechanisms to Protect CUI in Transit",
-            Self::MonitorBoundaries => "Monitor Communications at External and Key Internal Boundaries",
+            Self::MonitorBoundaries => {
+                "Monitor Communications at External and Key Internal Boundaries"
+            }
         }
     }
 
@@ -324,11 +330,8 @@ impl SegmentationReportGenerator {
         let key_findings = self.extract_key_findings(assessment);
         let remediation = self.build_remediation_plan(assessment);
 
-        let overall_score = self.calculate_overall_score(
-            &hipaa_controls,
-            &nist_controls,
-            &hccra_status,
-        );
+        let overall_score =
+            self.calculate_overall_score(&hipaa_controls, &nist_controls, &hccra_status);
 
         SegmentationComplianceReport {
             id: Uuid::new_v4(),
@@ -379,7 +382,14 @@ impl SegmentationReportGenerator {
         &self,
         control: HipaaSegmentationControl,
         assessment: &SegmentationAssessment,
-    ) -> (ControlStatus, f64, u32, Vec<String>, Vec<String>, Vec<String>) {
+    ) -> (
+        ControlStatus,
+        f64,
+        u32,
+        Vec<String>,
+        Vec<String>,
+        Vec<String>,
+    ) {
         let relevant_violations: Vec<&SegmentationViolation> = match control {
             HipaaSegmentationControl::AccessControl => assessment
                 .violations
@@ -396,9 +406,7 @@ impl SegmentationReportGenerator {
             HipaaSegmentationControl::TransmissionSecurity => assessment
                 .violations
                 .iter()
-                .filter(|v| {
-                    v.source_zone.is_untrusted() || v.destination_zone.handles_ephi()
-                })
+                .filter(|v| v.source_zone.is_untrusted() || v.destination_zone.handles_ephi())
                 .collect(),
             HipaaSegmentationControl::RiskManagement => assessment
                 .violations
@@ -413,12 +421,7 @@ impl SegmentationReportGenerator {
             HipaaSegmentationControl::WorkstationUse => assessment
                 .violations
                 .iter()
-                .filter(|v| {
-                    matches!(
-                        v.violation_type,
-                        ViolationType::UnauthorizedCrossZone
-                    )
-                })
+                .filter(|v| matches!(v.violation_type, ViolationType::UnauthorizedCrossZone))
                 .collect(),
         };
 
@@ -472,7 +475,14 @@ impl SegmentationReportGenerator {
         let gaps = self.identify_hipaa_gaps(control, &relevant_violations);
         let recommendations = self.recommend_hipaa(control, violation_count);
 
-        (status, score, violation_count, evidence, gaps, recommendations)
+        (
+            status,
+            score,
+            violation_count,
+            evidence,
+            gaps,
+            recommendations,
+        )
     }
 
     /// Identify gaps for a HIPAA control
@@ -497,9 +507,9 @@ impl SegmentationReportGenerator {
                 "Network architecture allows lateral movement between zones".into(),
                 "Segmentation gaps create unacceptable risk to ePHI".into(),
             ],
-            HipaaSegmentationControl::WorkstationUse => vec![
-                "Workstations in unauthorized zones can access protected resources".into(),
-            ],
+            HipaaSegmentationControl::WorkstationUse => {
+                vec!["Workstations in unauthorized zones can access protected resources".into()]
+            }
         }
     }
 
@@ -564,7 +574,14 @@ impl SegmentationReportGenerator {
         &self,
         control: Nist800171Control,
         assessment: &SegmentationAssessment,
-    ) -> (ControlStatus, f64, u32, Vec<String>, Vec<String>, Vec<String>) {
+    ) -> (
+        ControlStatus,
+        f64,
+        u32,
+        Vec<String>,
+        Vec<String>,
+        Vec<String>,
+    ) {
         let relevant_violations: Vec<&SegmentationViolation> = match control {
             Nist800171Control::BoundaryProtection => assessment
                 .violations
@@ -597,8 +614,7 @@ impl SegmentationReportGenerator {
                     .filter(|v| {
                         matches!(
                             v.violation_type,
-                            ViolationType::UnauthorizedCrossZone
-                                | ViolationType::FlatNetwork
+                            ViolationType::UnauthorizedCrossZone | ViolationType::FlatNetwork
                         )
                     })
                     .collect()
@@ -608,9 +624,7 @@ impl SegmentationReportGenerator {
                 assessment
                     .violations
                     .iter()
-                    .filter(|v| {
-                        matches!(v.violation_type, ViolationType::LateralMovementPath)
-                    })
+                    .filter(|v| matches!(v.violation_type, ViolationType::LateralMovementPath))
                     .collect()
             }
             _ => assessment.violations.iter().collect(),
@@ -645,7 +659,10 @@ impl SegmentationReportGenerator {
         };
 
         let evidence = if violation_count == 0 {
-            vec![format!("NIST {} requirements met — no violations detected", control.control_id())]
+            vec![format!(
+                "NIST {} requirements met — no violations detected",
+                control.control_id()
+            )]
         } else {
             relevant_violations
                 .iter()
@@ -666,14 +683,25 @@ impl SegmentationReportGenerator {
 
         let recommendations = if violation_count > 0 {
             vec![
-                format!("Address {} violations to restore {} compliance", violation_count, control.control_id()),
+                format!(
+                    "Address {} violations to restore {} compliance",
+                    violation_count,
+                    control.control_id()
+                ),
                 "Conduct follow-up segmentation assessment after remediation".into(),
             ]
         } else {
             vec!["Continue current monitoring and periodic assessment".into()]
         };
 
-        (status, score, violation_count, evidence, gaps, recommendations)
+        (
+            status,
+            score,
+            violation_count,
+            evidence,
+            gaps,
+            recommendations,
+        )
     }
 
     /// Assess HCCRA Control 3 (Network Segmentation)
@@ -734,8 +762,11 @@ impl SegmentationReportGenerator {
             );
         }
         if recommendations.is_empty() {
-            recommendations.push("Network segmentation meets HCCRA requirements. \
-                                  Maintain with quarterly validation.".into());
+            recommendations.push(
+                "Network segmentation meets HCCRA requirements. \
+                                  Maintain with quarterly validation."
+                    .into(),
+            );
         }
 
         HccraNetSegStatus {
@@ -966,7 +997,10 @@ impl SegmentationReportGenerator {
             "AT RISK"
         };
 
-        out.push_str(&format!("  OVERALL SCORE: {:.0}/100 — {}\n\n", report.overall_score, posture));
+        out.push_str(&format!(
+            "  OVERALL SCORE: {:.0}/100 — {}\n\n",
+            report.overall_score, posture
+        ));
 
         // Assessment Summary
         let s = &report.assessment_summary;
@@ -974,7 +1008,10 @@ impl SegmentationReportGenerator {
         out.push_str(&format!("  Network Zones:       {}\n", s.total_zones));
         out.push_str(&format!("  Hosts Scanned:       {}\n", s.total_hosts));
         out.push_str(&format!("  Total Violations:    {}\n", s.total_violations));
-        out.push_str(&format!("  Critical:            {}\n", s.critical_violations));
+        out.push_str(&format!(
+            "  Critical:            {}\n",
+            s.critical_violations
+        ));
         out.push_str(&format!("  High:                {}\n", s.high_violations));
         out.push_str(&format!("  Lateral Move Paths:  {}\n", s.lateral_paths));
         out.push_str(&format!("  Paths to ePHI:       {}\n", s.paths_to_ephi));
@@ -1067,7 +1104,11 @@ impl SegmentationReportGenerator {
                     "  {:<20} {:<20} {:<15} {}\n",
                     entry.source_zone,
                     entry.destination_zone,
-                    if entry.compliant { "Isolated" } else { "BREACH" },
+                    if entry.compliant {
+                        "Isolated"
+                    } else {
+                        "BREACH"
+                    },
                     if entry.compliant { "Yes" } else { "NO" },
                 ));
             }
@@ -1328,10 +1369,7 @@ mod tests {
         let report = gen.generate(&assessment);
 
         assert!(!report.zone_isolation_matrix.is_empty());
-        let failed = report
-            .zone_isolation_matrix
-            .iter()
-            .find(|e| !e.compliant);
+        let failed = report.zone_isolation_matrix.iter().find(|e| !e.compliant);
         assert!(failed.is_some());
     }
 
