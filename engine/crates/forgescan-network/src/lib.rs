@@ -13,6 +13,9 @@ pub mod fingerprint;
 pub mod iomt_fingerprint;
 pub mod passive;
 pub mod port_scan;
+pub mod segmentation;
+pub mod segmentation_alert;
+pub mod segmentation_report;
 pub mod service_detect;
 
 pub use banner::{BannerGrabber, BannerResult, ProbeType};
@@ -28,4 +31,17 @@ pub use passive::{
     ProtocolAnalyzer, RingPcapWriter, SecurityEvent,
 };
 pub use port_scan::{PortResult, PortScanner, PortState, ScanType};
+pub use segmentation::{
+    FlowVerdict, IsolationTestResult, LateralMovementPath, NetworkZone, ObservedFlow, PathHop,
+    PolicyAction, ReachablePort, SegmentationAssessment, SegmentationPolicy, SegmentationValidator,
+    SegmentationViolation, ViolationType, ZoneSubnet,
+};
+pub use segmentation_alert::{
+    AlertGenerator, AlertSeverity, AlertSummary, AlertType, ComplianceReference,
+    SegmentationAlert,
+};
+pub use segmentation_report::{
+    ControlStatus, HipaaSegmentationControl, Nist800171Control, SegmentationComplianceReport,
+    SegmentationReportGenerator,
+};
 pub use service_detect::{ServiceDetector, ServiceInfo};
