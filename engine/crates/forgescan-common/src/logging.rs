@@ -165,4 +165,33 @@ mod tests {
         assert!(config.with_spans);
         assert!(config.with_file);
     }
+
+    #[test]
+    fn test_log_config_defaults() {
+        let config = LogConfig::default();
+        assert_eq!(config.level, "info");
+        assert!(matches!(config.format, LogFormat::Pretty));
+        assert!(!config.with_spans);
+        assert!(!config.with_file);
+        assert!(config.with_target);
+        assert!(!config.with_thread_ids);
+    }
+
+    #[test]
+    fn test_log_format_variants() {
+        let pretty = LogFormat::Pretty;
+        let json = LogFormat::Json;
+        let compact = LogFormat::Compact;
+
+        // Verify all three variants are distinct using matches!
+        assert!(matches!(pretty, LogFormat::Pretty));
+        assert!(!matches!(pretty, LogFormat::Json));
+        assert!(!matches!(pretty, LogFormat::Compact));
+
+        assert!(matches!(json, LogFormat::Json));
+        assert!(!matches!(json, LogFormat::Pretty));
+
+        assert!(matches!(compact, LogFormat::Compact));
+        assert!(!matches!(compact, LogFormat::Pretty));
+    }
 }

@@ -488,4 +488,249 @@ mod tests {
         assert_eq!(config.platform.api_key, Some(String::from("key123")));
         assert_eq!(config.logging.level, "warn");
     }
+
+    #[test]
+    fn test_config_default() {
+        let config = Config::default();
+        assert!(config.platform.endpoint.contains("localhost"));
+        assert_eq!(config.scanner.max_concurrent_scans, 5);
+        assert_eq!(config.logging.level, "info");
+        assert_eq!(config.logging.format, "pretty");
+        assert!(config.platform.use_tls);
+        assert_eq!(config.agent.heartbeat_interval_seconds, 300);
+        assert!(!config.capture.enabled);
+    }
+
+    #[test]
+    fn test_config_from_toml_minimal() {
+        let config = Config::from_toml("").unwrap();
+        assert_eq!(config.platform.endpoint, "https://localhost:8443");
+        assert_eq!(config.scanner.max_concurrent_scans, 5);
+        assert_eq!(config.logging.level, "info");
+    }
+
+    #[test]
+    fn test_config_from_toml_invalid() {
+        let result = Config::from_toml("this is not valid [[[toml");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_from_file_missing() {
+        let result = Config::from_file("nonexistent.toml");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_merge_env() {
+        let config = Config::default();
+
+        std::env::set_var(
+            "FORGESCAN_PLATFORM_ENDPOINT",
+            "https://env.example.com:9999",
+        );
+        std::env::set_var("FORGESCAN_LOG_LEVEL", "trace");
+        std::env::set_var("FORGESCAN_MAX_CONCURRENT_SCANS", "42");
+
+        let config = config.merge_env();
+
+        assert_eq!(config.platform.endpoint, "https://env.example.com:9999");
+        assert_eq!(config.logging.level, "trace");
+        assert_eq!(config.scanner.max_concurrent_scans, 42);
+
+        std::env::remove_var("FORGESCAN_PLATFORM_ENDPOINT");
+        std::env::remove_var("FORGESCAN_LOG_LEVEL");
+        std::env::remove_var("FORGESCAN_MAX_CONCURRENT_SCANS");
+    }
+
+    #[test]
+    fn test_platform_config_default() {
+        let pc = PlatformConfig::default();
+        assert!(pc.endpoint.contains("localhost"));
+        assert!(pc.use_tls);
+        assert_eq!(pc.connect_timeout_seconds, 10);
+        assert_eq!(pc.request_timeout_seconds, 30);
+        assert!(pc.api_key.is_none());
+    }
+
+    #[test]
+    fn test_scanner_config_default() {
+        let sc = ScannerConfig::default();
+        assert_eq!(sc.max_concurrent_scans, 5);
+        assert_eq!(sc.max_concurrent_targets, 100);
+        assert_eq!(sc.default_timeout_seconds, 3600);
+        assert!(sc.checks_dir.is_some());
+    }
+
+    #[test]
+    fn test_agent_config_default() {
+        let ac = AgentConfig::default();
+        assert_eq!(ac.heartbeat_interval_seconds, 300);
+        assert_eq!(ac.scan_cpu_limit_percent, 20);
+        assert_eq!(ac.scan_memory_limit_mb, 256);
+        assert!(ac.auto_update);
+        assert!(ac.agent_id.is_none());
+    }
+
+    #[test]
+    fn test_nvd_config_default() {
+        let nc = NvdConfig::default();
+        assert_eq!(nc.update_interval_hours, 24);
+        assert!(nc.api_url.contains("nvd.nist.gov"));
+        assert!(nc.api_key.is_none());
+    }
+
+    #[test]
+    fn test_logging_config_default() {
+        let lc = LoggingConfig::default();
+        assert_eq!(lc.level, "info");
+        assert_eq!(lc.format, "pretty");
+        assert!(lc.file.is_none());
+    }
+
+    #[test]
+    fn test_capture_settings_default() {
+        let cs = CaptureSettings::default();
+        assert!(!cs.enabled);
+        assert_eq!(cs.max_capture_size_mb, 50);
+        assert_eq!(cs.retention_days, 7);
+        assert!(cs.default_interface.is_none());
+        assert!(!cs.passive_mode_enabled);
+        assert!(!cs.correlate_with_scans);
+    }
+
+    #[test]
+    fn test_tls_config_default() {
+        let tc = TlsConfig::default();
+        assert!(tc.ca_cert_path.is_none());
+        assert!(tc.cert_path.is_none());
+        assert!(tc.key_path.is_none());
+        assert!(!tc.insecure_skip_verify);
+    }
+
+    #[test]
+    fn test_config_builder_all_methods() {
+        let config = Config::builder()
+            .platform_endpoint("https://builder.test:443")
+            .api_key("builder-key")
+            .scanner_id("scanner-001")
+            .agent_id("agent-001")
+            .log_level("debug")
+            .nvd_path("/tmp/nvd.db")
+            .build();
+
+        assert_eq!(config.platform.endpoint, "https://builder.test:443");
+        assert_eq!(config.platform.api_key, Some(String::from("builder-key")));
+        assert_eq!(config.scanner.scanner_id, Some(String::from("scanner-001")));
+        assert_eq!(config.agent.agent_id, Some(String::from("agent-001")));
+        assert_eq!(config.logging.level, "debug");
+        assert_eq!(config.nvd.database_path, "/tmp/nvd.db");
+    }
+
+    #[test]
+    fn test_config_full_toml() {
+        let toml = r#"
+            [platform]
+            endpoint = "https://forge.prod.com:8443"
+            api_key = "prod-key"
+            connect_timeout_seconds = 20
+            request_timeout_seconds = 60
+            use_tls = true
+
+            [scanner]
+            scanner_id = "sc-1"
+            max_concurrent_scans = 8
+            max_concurrent_targets = 50
+            default_timeout_seconds = 1800
+            checks_dir = "/opt/checks"
+            enabled_categories = ["network", "web"]
+
+            [agent]
+            agent_id = "ag-1"
+            heartbeat_interval_seconds = 120
+            scan_cpu_limit_percent = 50
+            scan_memory_limit_mb = 512
+            auto_update = false
+
+            [nvd]
+            database_path = "/data/nvd.db"
+            api_url = "https://custom-nvd.example.com/api"
+            update_interval_hours = 12
+            api_key = "nvd-key"
+
+            [logging]
+            level = "trace"
+            format = "json"
+            file = "/var/log/forgescan.log"
+
+            [tls]
+            ca_cert_path = "/etc/ssl/ca.pem"
+            cert_path = "/etc/ssl/cert.pem"
+            key_path = "/etc/ssl/key.pem"
+            insecure_skip_verify = false
+
+            [capture]
+            enabled = true
+            default_interface = "eth0"
+            capture_dir = "/data/captures"
+            max_capture_size_mb = 100
+            max_capture_duration_sec = 600
+            retention_days = 14
+            passive_mode_enabled = true
+            correlate_with_scans = true
+        "#;
+
+        let config = Config::from_toml(toml).unwrap();
+
+        assert_eq!(config.platform.endpoint, "https://forge.prod.com:8443");
+        assert_eq!(config.platform.api_key, Some(String::from("prod-key")));
+        assert_eq!(config.platform.connect_timeout_seconds, 20);
+        assert_eq!(config.platform.request_timeout_seconds, 60);
+        assert!(config.platform.use_tls);
+
+        assert_eq!(config.scanner.scanner_id, Some(String::from("sc-1")));
+        assert_eq!(config.scanner.max_concurrent_scans, 8);
+        assert_eq!(config.scanner.max_concurrent_targets, 50);
+        assert_eq!(config.scanner.default_timeout_seconds, 1800);
+        assert_eq!(config.scanner.checks_dir, Some(String::from("/opt/checks")));
+        assert_eq!(config.scanner.enabled_categories, vec!["network", "web"]);
+
+        assert_eq!(config.agent.agent_id, Some(String::from("ag-1")));
+        assert_eq!(config.agent.heartbeat_interval_seconds, 120);
+        assert_eq!(config.agent.scan_cpu_limit_percent, 50);
+        assert_eq!(config.agent.scan_memory_limit_mb, 512);
+        assert!(!config.agent.auto_update);
+
+        assert_eq!(config.nvd.database_path, "/data/nvd.db");
+        assert_eq!(config.nvd.api_url, "https://custom-nvd.example.com/api");
+        assert_eq!(config.nvd.update_interval_hours, 12);
+        assert_eq!(config.nvd.api_key, Some(String::from("nvd-key")));
+
+        assert_eq!(config.logging.level, "trace");
+        assert_eq!(config.logging.format, "json");
+        assert_eq!(
+            config.logging.file,
+            Some(String::from("/var/log/forgescan.log"))
+        );
+
+        assert_eq!(
+            config.tls.ca_cert_path,
+            Some(String::from("/etc/ssl/ca.pem"))
+        );
+        assert_eq!(
+            config.tls.cert_path,
+            Some(String::from("/etc/ssl/cert.pem"))
+        );
+        assert_eq!(config.tls.key_path, Some(String::from("/etc/ssl/key.pem")));
+        assert!(!config.tls.insecure_skip_verify);
+
+        assert!(config.capture.enabled);
+        assert_eq!(config.capture.default_interface, Some(String::from("eth0")));
+        assert_eq!(config.capture.capture_dir, "/data/captures");
+        assert_eq!(config.capture.max_capture_size_mb, 100);
+        assert_eq!(config.capture.max_capture_duration_sec, 600);
+        assert_eq!(config.capture.retention_days, 14);
+        assert!(config.capture.passive_mode_enabled);
+        assert!(config.capture.correlate_with_scans);
+    }
 }

@@ -196,3 +196,109 @@ impl Error {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_error_is_retryable() {
+        assert!(Error::ConnectionTimeout {
+            target: "10.0.0.1".to_string(),
+            port: 22,
+        }
+        .is_retryable());
+        assert!(Error::ConnectionLost.is_retryable());
+        assert!(Error::RateLimited {
+            retry_after_seconds: 30,
+        }
+        .is_retryable());
+        assert!(Error::Transport("timeout".to_string()).is_retryable());
+
+        // Not retryable
+        assert!(!Error::ScanFailed("bad".to_string()).is_retryable());
+        assert!(!Error::Configuration("bad".to_string()).is_retryable());
+        assert!(!Error::AgentNotRegistered.is_retryable());
+    }
+
+    #[test]
+    fn test_error_is_fatal() {
+        assert!(Error::ScanCancelled {
+            reason: "user request".to_string(),
+        }
+        .is_fatal());
+        assert!(Error::Configuration("bad config".to_string()).is_fatal());
+        assert!(Error::MissingConfig {
+            key: "api_key".to_string(),
+        }
+        .is_fatal());
+        assert!(Error::AgentNotRegistered.is_fatal());
+        assert!(Error::CertificateExpired.is_fatal());
+
+        // Not fatal
+        assert!(!Error::ScanFailed("something".to_string()).is_fatal());
+        assert!(!Error::ConnectionLost.is_fatal());
+        assert!(!Error::Transport("err".to_string()).is_fatal());
+    }
+
+    #[test]
+    fn test_error_code() {
+        assert_eq!(Error::ScanFailed("x".to_string()).code(), "SCAN_FAILED");
+        assert_eq!(
+            Error::ConnectionTimeout {
+                target: "t".to_string(),
+                port: 80,
+            }
+            .code(),
+            "CONNECTION_TIMEOUT"
+        );
+        assert_eq!(Error::ConnectionLost.code(), "CONNECTION_LOST");
+        assert_eq!(Error::AgentNotRegistered.code(), "AGENT_NOT_REG");
+        assert_eq!(Error::CertificateExpired.code(), "CERT_EXPIRED");
+        assert_eq!(
+            Error::RateLimited {
+                retry_after_seconds: 10,
+            }
+            .code(),
+            "RATE_LIMITED"
+        );
+        assert_eq!(Error::Internal("x".to_string()).code(), "INTERNAL_ERROR");
+        assert_eq!(
+            Error::MissingConfig {
+                key: "k".to_string(),
+            }
+            .code(),
+            "MISSING_CONFIG"
+        );
+    }
+
+    #[test]
+    fn test_error_display() {
+        assert_eq!(
+            format!("{}", Error::ScanFailed("disk full".to_string())),
+            "Scan failed: disk full"
+        );
+        assert_eq!(
+            format!(
+                "{}",
+                Error::ConnectionTimeout {
+                    target: "10.0.0.1".to_string(),
+                    port: 443,
+                }
+            ),
+            "Connection timeout to 10.0.0.1:443"
+        );
+        assert_eq!(
+            format!("{}", Error::ConnectionLost),
+            "Connection lost to platform"
+        );
+        assert_eq!(
+            format!("{}", Error::CertificateExpired),
+            "Certificate expired"
+        );
+        assert_eq!(
+            format!("{}", Error::AgentNotRegistered),
+            "Agent not registered"
+        );
+    }
+}
