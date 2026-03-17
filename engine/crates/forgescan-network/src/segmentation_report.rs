@@ -429,16 +429,10 @@ impl SegmentationReportGenerator {
         let has_critical = relevant_violations
             .iter()
             .any(|v| v.severity == Severity::Critical);
-        let has_high = relevant_violations
-            .iter()
-            .any(|v| v.severity == Severity::High);
-
         let status = if violation_count == 0 {
             ControlStatus::Compliant
         } else if has_critical {
             ControlStatus::NonCompliant
-        } else if has_high {
-            ControlStatus::PartiallyCompliant
         } else {
             ControlStatus::PartiallyCompliant
         };
