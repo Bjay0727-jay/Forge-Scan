@@ -743,7 +743,7 @@ mod tests {
     #[test]
     fn test_alert_summary() {
         let gen = AlertGenerator::new("org", "sensor");
-        let violations = vec![
+        let violations = [
             make_violation(
                 ViolationType::GuestEscalation,
                 NetworkZone::Guest,

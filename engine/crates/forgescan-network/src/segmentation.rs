@@ -264,21 +264,23 @@ impl SegmentationPolicy {
 
         // Check explicit denials first
         for rule in &self.denied_flows {
-            if rule.source_zone == source_zone && rule.destination_zone == dest_zone {
-                if rule.ports.is_empty() || rule.ports.contains(&dest_port) {
-                    return FlowVerdict::ExplicitlyDenied {
-                        reason: rule.justification.clone(),
-                    };
-                }
+            if rule.source_zone == source_zone
+                && rule.destination_zone == dest_zone
+                && (rule.ports.is_empty() || rule.ports.contains(&dest_port))
+            {
+                return FlowVerdict::ExplicitlyDenied {
+                    reason: rule.justification.clone(),
+                };
             }
         }
 
         // Check allowed flows
         for rule in &self.allowed_flows {
-            if rule.source_zone == source_zone && rule.destination_zone == dest_zone {
-                if rule.ports.is_empty() || rule.ports.contains(&dest_port) {
-                    return FlowVerdict::Allowed;
-                }
+            if rule.source_zone == source_zone
+                && rule.destination_zone == dest_zone
+                && (rule.ports.is_empty() || rule.ports.contains(&dest_port))
+            {
+                return FlowVerdict::Allowed;
             }
         }
 
@@ -1152,10 +1154,8 @@ impl SegmentationValidator {
 
     /// Classify the type of violation based on zone pair
     fn classify_violation(&self, src: NetworkZone, dst: NetworkZone) -> ViolationType {
-        if src == NetworkZone::Guest {
-            if dst.handles_ephi() {
-                return ViolationType::GuestEscalation;
-            }
+        if src == NetworkZone::Guest && dst.handles_ephi() {
+            return ViolationType::GuestEscalation;
         }
         if src.is_untrusted() && dst.handles_ephi() {
             return ViolationType::UntrustedToEphi;
@@ -1264,7 +1264,7 @@ impl SegmentationValidator {
             }
         }
 
-        score.max(0.0).min(100.0)
+        score.clamp(0.0, 100.0)
     }
 
     /// Build assessment summary
