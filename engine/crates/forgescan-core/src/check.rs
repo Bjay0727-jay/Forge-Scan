@@ -494,4 +494,169 @@ mod tests {
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].check_id, "TEST-001");
     }
+
+    #[test]
+    fn test_check_metadata_new() {
+        let meta = CheckMetadata::new(
+            "FSC-001",
+            "Test Check",
+            CheckCategory::Vulnerability,
+            Severity::High,
+        );
+        assert_eq!(meta.id, "FSC-001");
+        assert_eq!(meta.name, "Test Check");
+        assert_eq!(meta.category, CheckCategory::Vulnerability);
+        assert_eq!(meta.severity, Severity::High);
+        assert_eq!(meta.description, "");
+        assert!(meta.cve_ids.is_empty());
+        assert!(meta.cwe_ids.is_empty());
+        assert!(meta.compliance.is_empty());
+        assert!(meta.references.is_empty());
+        assert_eq!(meta.version, "1.0.0");
+        assert!(meta.author.is_none());
+        assert!(meta.enabled_by_default);
+        assert!(meta.tags.is_empty());
+        assert_eq!(
+            meta.supported_modes,
+            vec![ScanMode::Agentless, ScanMode::Agent]
+        );
+    }
+
+    #[test]
+    fn test_check_metadata_builders() {
+        let meta = CheckMetadata::new(
+            "FSC-002",
+            "Builder Test",
+            CheckCategory::Network,
+            Severity::Medium,
+        )
+        .with_description("A test description")
+        .with_cve("CVE-2024-1111")
+        .with_cwe("CWE-89")
+        .with_compliance(ComplianceRef::new("PCI-DSS", "6.2"))
+        .with_reference("https://example.com")
+        .with_tag("network")
+        .agent_only();
+
+        assert_eq!(meta.description, "A test description");
+        assert_eq!(meta.cve_ids, vec!["CVE-2024-1111"]);
+        assert_eq!(meta.cwe_ids, vec!["CWE-89"]);
+        assert_eq!(meta.compliance.len(), 1);
+        assert_eq!(meta.compliance[0].framework, "PCI-DSS");
+        assert_eq!(meta.references, vec!["https://example.com"]);
+        assert_eq!(meta.tags, vec!["network"]);
+        assert_eq!(meta.supported_modes, vec![ScanMode::Agent]);
+
+        // Test agentless_only
+        let meta2 = CheckMetadata::new("FSC-003", "Agentless", CheckCategory::Cloud, Severity::Low)
+            .agentless_only();
+        assert_eq!(meta2.supported_modes, vec![ScanMode::Agentless]);
+    }
+
+    #[test]
+    fn test_check_context_new_defaults() {
+        let ctx = CheckContext::new(ScanTarget::parse("192.168.1.1").unwrap());
+        assert_eq!(ctx.scan_mode, ScanMode::Agentless);
+        assert_eq!(ctx.timeout_ms, 5000);
+        assert!(ctx.extra.is_empty());
+        assert!(ctx.resolved_ip.is_none());
+        assert!(ctx.port.is_none());
+        assert!(ctx.protocol.is_none());
+        assert!(ctx.service.is_none());
+        assert!(ctx.service_version.is_none());
+        assert!(ctx.banner.is_none());
+        assert!(ctx.cpe.is_none());
+        assert!(ctx.nvd_db.is_none());
+        assert!(ctx.credentials.is_none());
+        assert!(ctx.device_context.is_none());
+        assert!(ctx.safe_scan_profile.is_none());
+    }
+
+    #[test]
+    fn test_check_context_builders() {
+        let ip: std::net::IpAddr = "10.0.0.1".parse().unwrap();
+        let ctx = CheckContext::new(ScanTarget::parse("server.example.com").unwrap())
+            .with_resolved_ip(ip)
+            .with_port(443, "tcp")
+            .with_service(
+                "https",
+                Some("1.1".to_string()),
+                Some("Server: nginx".to_string()),
+            )
+            .with_mode(ScanMode::Agent)
+            .with_timeout(10000)
+            .with_extra("key1", "value1");
+
+        assert_eq!(ctx.resolved_ip, Some(ip));
+        assert_eq!(ctx.port, Some(443));
+        assert_eq!(ctx.protocol, Some("tcp".to_string()));
+        assert_eq!(ctx.service, Some("https".to_string()));
+        assert_eq!(ctx.service_version, Some("1.1".to_string()));
+        assert_eq!(ctx.banner, Some("Server: nginx".to_string()));
+        assert_eq!(ctx.scan_mode, ScanMode::Agent);
+        assert_eq!(ctx.timeout_ms, 10000);
+        assert_eq!(ctx.extra.get("key1"), Some(&"value1".to_string()));
+    }
+
+    #[test]
+    fn test_check_context_target_str_with_resolved_ip() {
+        let ip: std::net::IpAddr = "10.0.0.1".parse().unwrap();
+        let ctx = CheckContext::new(ScanTarget::parse("server.example.com").unwrap())
+            .with_resolved_ip(ip);
+        assert_eq!(ctx.target_str(), "10.0.0.1");
+    }
+
+    #[test]
+    fn test_check_context_target_str_without_resolved_ip() {
+        let ctx = CheckContext::new(ScanTarget::parse("server.example.com").unwrap());
+        assert_eq!(ctx.target_str(), "server.example.com");
+    }
+
+    #[test]
+    fn test_device_context_new_ventilator() {
+        let dc = DeviceContext::new(DeviceClass::Ventilator);
+        assert_eq!(dc.device_class, DeviceClass::Ventilator);
+        assert_eq!(dc.patient_impact, PatientImpact::LifeSupport);
+        assert_eq!(dc.fda_class, FdaDeviceClass::ClassIII);
+        assert!(dc.manufacturer.is_none());
+        assert!(dc.model.is_none());
+        assert!(dc.firmware_version.is_none());
+        assert!(dc.medical_protocols.is_empty());
+        assert_eq!(dc.classification_confidence, 0);
+    }
+
+    #[test]
+    fn test_device_context_new_infusion_pump() {
+        let dc = DeviceContext::new(DeviceClass::InfusionPump);
+        assert_eq!(dc.patient_impact, PatientImpact::LifeSupport);
+        assert_eq!(dc.fda_class, FdaDeviceClass::ClassII);
+    }
+
+    #[test]
+    fn test_device_context_new_hl7_router() {
+        let dc = DeviceContext::new(DeviceClass::HL7Router);
+        assert_eq!(dc.patient_impact, PatientImpact::Indirect);
+        assert_eq!(dc.fda_class, FdaDeviceClass::NotRegulated);
+    }
+
+    #[test]
+    fn test_device_context_requires_safe_scan() {
+        assert!(DeviceContext::new(DeviceClass::Ventilator).requires_safe_scan());
+        assert!(DeviceContext::new(DeviceClass::InfusionPump).requires_safe_scan());
+        assert!(DeviceContext::new(DeviceClass::PatientMonitor).requires_safe_scan());
+        assert!(!DeviceContext::new(DeviceClass::GenericIoT).requires_safe_scan());
+        assert!(!DeviceContext::new(DeviceClass::Unknown).requires_safe_scan());
+    }
+
+    #[test]
+    fn test_check_default_implementations() {
+        let check = TestCheck;
+        let modes = check.supported_modes();
+        assert_eq!(modes, &[ScanMode::Agentless, ScanMode::Agent]);
+
+        let target = ScanTarget::parse("10.0.0.1").unwrap();
+        assert!(check.applies_to(&target));
+
+        assert_eq!(check.estimated_duration_ms(), 1000);
+    }
 }

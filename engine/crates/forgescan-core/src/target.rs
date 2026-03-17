@@ -263,4 +263,147 @@ mod tests {
         let target = ScanTarget::parse("192.168.1.1-192.168.1.10").unwrap();
         assert!(matches!(target, ScanTarget::Range(_)));
     }
+
+    #[test]
+    fn test_parse_ipv6() {
+        let target = ScanTarget::parse("::1").unwrap();
+        assert!(matches!(target, ScanTarget::Ip(_)));
+        if let ScanTarget::Ip(addr) = target {
+            assert!(addr.is_loopback());
+        }
+    }
+
+    #[test]
+    fn test_parse_http_url() {
+        let target = ScanTarget::parse("http://example.com").unwrap();
+        assert!(matches!(target, ScanTarget::Url(_)));
+        if let ScanTarget::Url(url) = target {
+            assert_eq!(url, "http://example.com");
+        }
+    }
+
+    #[test]
+    fn test_scan_target_display() {
+        assert_eq!(
+            ScanTarget::parse("192.168.1.1").unwrap().display(),
+            "192.168.1.1"
+        );
+        assert_eq!(
+            ScanTarget::parse("10.0.0.0/8").unwrap().display(),
+            "10.0.0.0/8"
+        );
+        assert_eq!(
+            ScanTarget::parse("example.com").unwrap().display(),
+            "example.com"
+        );
+        assert_eq!(
+            ScanTarget::parse("https://example.com").unwrap().display(),
+            "https://example.com"
+        );
+        assert_eq!(
+            ScanTarget::parse("192.168.1.1-192.168.1.3")
+                .unwrap()
+                .display(),
+            "192.168.1.1-192.168.1.3"
+        );
+    }
+
+    #[test]
+    fn test_scan_target_factory_methods() {
+        let ip: IpAddr = "10.0.0.1".parse().unwrap();
+        let t = ScanTarget::ip(ip);
+        assert!(matches!(t, ScanTarget::Ip(_)));
+
+        let t = ScanTarget::cidr("10.0.0.0/24");
+        assert!(matches!(t, ScanTarget::Cidr(_)));
+
+        let t = ScanTarget::hostname("server.local");
+        assert!(matches!(t, ScanTarget::Hostname(_)));
+
+        let t = ScanTarget::url("https://app.local");
+        assert!(matches!(t, ScanTarget::Url(_)));
+
+        let start: IpAddr = "10.0.0.1".parse().unwrap();
+        let end: IpAddr = "10.0.0.5".parse().unwrap();
+        let t = ScanTarget::range(start, end);
+        assert!(matches!(t, ScanTarget::Range(_)));
+    }
+
+    #[test]
+    fn test_ip_range_new() {
+        let start: IpAddr = "192.168.1.1".parse().unwrap();
+        let end: IpAddr = "192.168.1.10".parse().unwrap();
+        let range = IpRange::new(start, end);
+        assert_eq!(range.start, start);
+        assert_eq!(range.end, end);
+    }
+
+    #[test]
+    fn test_ip_range_iter() {
+        let start: IpAddr = "192.168.1.1".parse().unwrap();
+        let end: IpAddr = "192.168.1.3".parse().unwrap();
+        let range = IpRange::new(start, end);
+        let ips: Vec<IpAddr> = range.iter().collect();
+        assert_eq!(ips.len(), 3);
+        assert_eq!(ips[0], "192.168.1.1".parse::<IpAddr>().unwrap());
+        assert_eq!(ips[1], "192.168.1.2".parse::<IpAddr>().unwrap());
+        assert_eq!(ips[2], "192.168.1.3".parse::<IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn test_scan_mode_as_str() {
+        assert_eq!(ScanMode::Agentless.as_str(), "agentless");
+        assert_eq!(ScanMode::Agent.as_str(), "agent");
+        assert_eq!(ScanMode::Hybrid.as_str(), "hybrid");
+        assert_eq!(ScanMode::SafeScan.as_str(), "safe-scan");
+    }
+
+    #[test]
+    fn test_scan_mode_is_passive_only() {
+        assert!(ScanMode::SafeScan.is_passive_only());
+        assert!(!ScanMode::Agentless.is_passive_only());
+        assert!(!ScanMode::Agent.is_passive_only());
+        assert!(!ScanMode::Hybrid.is_passive_only());
+    }
+
+    #[test]
+    fn test_safe_scan_profile_as_str() {
+        assert_eq!(SafeScanProfile::PassiveOnly.as_str(), "passive_only");
+        assert_eq!(SafeScanProfile::Lightweight.as_str(), "lightweight");
+        assert_eq!(SafeScanProfile::MedicalDevice.as_str(), "medical_device");
+        assert_eq!(SafeScanProfile::Industrial.as_str(), "industrial");
+    }
+
+    #[test]
+    fn test_safe_scan_profile_max_concurrent() {
+        assert_eq!(SafeScanProfile::PassiveOnly.max_concurrent_connections(), 0);
+        assert_eq!(SafeScanProfile::Lightweight.max_concurrent_connections(), 5);
+        assert_eq!(
+            SafeScanProfile::MedicalDevice.max_concurrent_connections(),
+            3
+        );
+        assert_eq!(SafeScanProfile::Industrial.max_concurrent_connections(), 2);
+    }
+
+    #[test]
+    fn test_safe_scan_profile_safe_ports() {
+        assert!(SafeScanProfile::PassiveOnly.safe_ports().is_empty());
+        assert!(!SafeScanProfile::Lightweight.safe_ports().is_empty());
+        assert!(!SafeScanProfile::MedicalDevice.safe_ports().is_empty());
+        assert!(!SafeScanProfile::Industrial.safe_ports().is_empty());
+    }
+
+    #[test]
+    fn test_target_parse_error_display() {
+        assert_eq!(
+            format!("{}", TargetParseError::InvalidIpRange),
+            "Invalid IP range"
+        );
+        assert_eq!(
+            format!("{}", TargetParseError::InvalidCidr),
+            "Invalid CIDR notation"
+        );
+        assert_eq!(format!("{}", TargetParseError::InvalidUrl), "Invalid URL");
+        assert_eq!(format!("{}", TargetParseError::Empty), "Empty target");
+    }
 }

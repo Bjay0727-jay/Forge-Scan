@@ -407,4 +407,176 @@ mod tests {
         assert_eq!(finding.cve_ids, vec!["CVE-2021-44228"]);
         assert!(finding.cisa_kev);
     }
+
+    #[test]
+    fn test_finding_new_defaults() {
+        let finding = Finding::new("Test Finding", Severity::High);
+        assert_eq!(finding.title, "Test Finding");
+        assert_eq!(finding.severity, Severity::High);
+        assert_eq!(finding.check_id, "");
+        assert_eq!(finding.check_name, "");
+        assert_eq!(finding.target, "");
+        assert_eq!(finding.description, "");
+        assert!(finding.port.is_none());
+        assert!(finding.protocol.is_none());
+        assert!(finding.service.is_none());
+        assert!(finding.service_version.is_none());
+        assert_eq!(finding.category, CheckCategory::Vulnerability);
+        assert!(finding.cve_ids.is_empty());
+        assert!(finding.cwe_ids.is_empty());
+        assert!(finding.cvss_v3_score.is_none());
+        assert!(finding.cvss_v3_vector.is_none());
+        assert_eq!(finding.exploit_maturity, ExploitMaturity::None);
+        assert!(!finding.cisa_kev);
+        assert!(finding.affected_cpe.is_none());
+        assert_eq!(finding.evidence, "");
+        assert!(finding.remediation.is_none());
+        assert!(finding.references.is_empty());
+        assert!(finding.compliance_mappings.is_empty());
+        assert_eq!(finding.detection_method, "unknown");
+        assert!(finding.raw_evidence.is_none());
+    }
+
+    #[test]
+    fn test_finding_chain_methods() {
+        let finding = Finding::new("Test", Severity::Medium)
+            .with_description("A description")
+            .with_affected_asset("192.168.1.100")
+            .with_evidence("Found open port")
+            .with_remediation("Close the port")
+            .with_cve("CVE-2023-1234");
+
+        assert_eq!(finding.description, "A description");
+        assert_eq!(finding.target, "192.168.1.100");
+        assert_eq!(finding.evidence, "Found open port");
+        assert_eq!(finding.remediation, Some("Close the port".to_string()));
+        assert_eq!(finding.cve_ids, vec!["CVE-2023-1234"]);
+    }
+
+    #[test]
+    fn test_finding_builder_all_fields() {
+        let finding = Finding::builder("CHECK-001", "10.0.0.1")
+            .check_name("Full Builder Test")
+            .port(443, "tcp")
+            .service("https", Some("1.1.1".to_string()))
+            .title("Builder Test Finding")
+            .description("Testing all builder methods")
+            .severity(Severity::Critical)
+            .category(CheckCategory::Network)
+            .cve("CVE-2024-0001")
+            .cves(vec![
+                "CVE-2024-0002".to_string(),
+                "CVE-2024-0003".to_string(),
+            ])
+            .cwe("CWE-79")
+            .cvss(9.8, "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H")
+            .exploit_maturity(ExploitMaturity::Functional)
+            .cisa_kev(true)
+            .cpe("cpe:2.3:a:vendor:product:1.0")
+            .evidence("Detected vulnerability")
+            .raw_evidence(vec![0x48, 0x54, 0x54, 0x50])
+            .remediation("Upgrade immediately")
+            .reference("https://nvd.nist.gov/vuln/detail/CVE-2024-0002")
+            .compliance(ComplianceRef::new("PCI-DSS", "6.2"))
+            .detection_method("banner-grab")
+            .build();
+
+        assert_eq!(finding.check_id, "CHECK-001");
+        assert_eq!(finding.target, "10.0.0.1");
+        assert_eq!(finding.check_name, "Full Builder Test");
+        assert_eq!(finding.port, Some(443));
+        assert_eq!(finding.protocol, Some("tcp".to_string()));
+        assert_eq!(finding.service, Some("https".to_string()));
+        assert_eq!(finding.service_version, Some("1.1.1".to_string()));
+        assert_eq!(finding.title, "Builder Test Finding");
+        assert_eq!(finding.description, "Testing all builder methods");
+        assert_eq!(finding.severity, Severity::Critical);
+        assert_eq!(finding.category, CheckCategory::Network);
+        // cves() replaces the vec, so CVE-2024-0001 from cve() is overwritten
+        assert_eq!(finding.cve_ids, vec!["CVE-2024-0002", "CVE-2024-0003"]);
+        assert_eq!(finding.cwe_ids, vec!["CWE-79"]);
+        assert_eq!(finding.cvss_v3_score, Some(9.8));
+        assert_eq!(
+            finding.cvss_v3_vector,
+            Some("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H".to_string())
+        );
+        assert_eq!(finding.exploit_maturity, ExploitMaturity::Functional);
+        assert!(finding.cisa_kev);
+        assert_eq!(
+            finding.affected_cpe,
+            Some("cpe:2.3:a:vendor:product:1.0".to_string())
+        );
+        assert_eq!(finding.evidence, "Detected vulnerability");
+        assert_eq!(finding.raw_evidence, Some(vec![0x48, 0x54, 0x54, 0x50]));
+        assert_eq!(finding.remediation, Some("Upgrade immediately".to_string()));
+        assert_eq!(
+            finding.references,
+            vec!["https://nvd.nist.gov/vuln/detail/CVE-2024-0002"]
+        );
+        assert_eq!(finding.compliance_mappings.len(), 1);
+        assert_eq!(finding.compliance_mappings[0].framework, "PCI-DSS");
+        assert_eq!(finding.compliance_mappings[0].control_id, "6.2");
+        assert_eq!(finding.detection_method, "banner-grab");
+    }
+
+    #[test]
+    fn test_exploit_maturity_as_str() {
+        assert_eq!(ExploitMaturity::None.as_str(), "none");
+        assert_eq!(ExploitMaturity::Poc.as_str(), "poc");
+        assert_eq!(ExploitMaturity::Functional.as_str(), "functional");
+        assert_eq!(ExploitMaturity::Weaponized.as_str(), "weaponized");
+    }
+
+    #[test]
+    fn test_exploit_maturity_risk_multiplier() {
+        assert_eq!(ExploitMaturity::None.risk_multiplier(), 1.0);
+        assert_eq!(ExploitMaturity::Poc.risk_multiplier(), 1.2);
+        assert_eq!(ExploitMaturity::Functional.risk_multiplier(), 1.5);
+        assert_eq!(ExploitMaturity::Weaponized.risk_multiplier(), 2.0);
+    }
+
+    #[test]
+    fn test_exploit_maturity_default() {
+        let default: ExploitMaturity = Default::default();
+        assert_eq!(default, ExploitMaturity::None);
+    }
+
+    #[test]
+    fn test_compliance_ref_new() {
+        let cr = ComplianceRef::new("NIST-800-53", "SI-2")
+            .with_name("Flaw Remediation")
+            .with_level(1);
+        assert_eq!(cr.framework, "NIST-800-53");
+        assert_eq!(cr.control_id, "SI-2");
+        assert_eq!(cr.control_name, Some("Flaw Remediation".to_string()));
+        assert_eq!(cr.level, Some(1));
+    }
+
+    #[test]
+    fn test_port_state_as_str() {
+        assert_eq!(PortState::Open.as_str(), "open");
+        assert_eq!(PortState::Closed.as_str(), "closed");
+        assert_eq!(PortState::Filtered.as_str(), "filtered");
+        assert_eq!(PortState::OpenFiltered.as_str(), "open|filtered");
+    }
+
+    #[test]
+    fn test_finding_serialization_roundtrip() {
+        let finding = Finding::new("Roundtrip Test", Severity::High)
+            .with_description("Testing serialization")
+            .with_affected_asset("10.0.0.1")
+            .with_evidence("some evidence")
+            .with_cve("CVE-2023-9999");
+
+        let json = serde_json::to_string(&finding).expect("serialize");
+        let deserialized: Finding = serde_json::from_str(&json).expect("deserialize");
+
+        assert_eq!(deserialized.title, "Roundtrip Test");
+        assert_eq!(deserialized.severity, Severity::High);
+        assert_eq!(deserialized.description, "Testing serialization");
+        assert_eq!(deserialized.target, "10.0.0.1");
+        assert_eq!(deserialized.evidence, "some evidence");
+        assert_eq!(deserialized.cve_ids, vec!["CVE-2023-9999"]);
+        assert_eq!(deserialized.id, finding.id);
+    }
 }

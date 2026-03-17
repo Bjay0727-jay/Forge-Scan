@@ -127,4 +127,52 @@ mod tests {
         assert_ne!(id1, id2);
         assert_eq!(id1.len(), 36); // UUID format
     }
+
+    #[test]
+    fn test_sha256_empty() {
+        let hash = sha256_hex(b"");
+        assert_eq!(
+            hash,
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+    }
+
+    #[test]
+    fn test_sha256_hex_format() {
+        let hash = sha256_hex(b"some data");
+        assert_eq!(hash.len(), 64);
+        assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn test_verify_sha256_case_insensitive() {
+        let data = b"case test";
+        let hash = sha256_hex(data);
+        let upper = hash.to_uppercase();
+        assert!(verify_sha256(data, &upper));
+    }
+
+    #[test]
+    fn test_generate_api_key() {
+        let key1 = generate_api_key();
+        let key2 = generate_api_key();
+
+        assert_eq!(key1.len(), 64);
+        assert!(key1.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_ne!(key1, key2);
+    }
+
+    #[test]
+    fn test_load_certificate() {
+        let (cert_pem, _key_pem) = generate_self_signed_cert("test.local", 1).unwrap();
+        let cert_bytes = load_certificate(&cert_pem).unwrap();
+        assert!(!cert_bytes.is_empty());
+    }
+
+    #[test]
+    fn test_load_private_key() {
+        let (_cert_pem, key_pem) = generate_self_signed_cert("test.local", 1).unwrap();
+        let key_bytes = load_private_key(&key_pem).unwrap();
+        assert!(!key_bytes.is_empty());
+    }
 }
