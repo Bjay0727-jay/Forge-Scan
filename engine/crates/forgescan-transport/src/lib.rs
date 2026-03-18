@@ -23,6 +23,7 @@ pub mod proto {
         tonic::include_proto!("forgescan.results");
     }
     /// Scan service (ScanService, ScanTask, ScanEvent, etc.)
+    #[allow(clippy::large_enum_variant)]
     pub mod scan {
         tonic::include_proto!("forgescan.scan");
     }
