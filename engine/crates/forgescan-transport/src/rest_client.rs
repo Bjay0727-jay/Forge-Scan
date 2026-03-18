@@ -467,6 +467,17 @@ impl RestApiClient {
 
 impl From<&Finding> for FindingPayload {
     fn from(f: &Finding) -> Self {
+        // Calculate FRS score from finding attributes
+        let frs_calc = forgescan_vuln::FrsCalculator::new();
+        let has_exploit = f.exploit_maturity != forgescan_core::ExploitMaturity::None;
+        let frs = frs_calc.calculate(
+            f.cvss_v3_score.unwrap_or(0.0) as f64,
+            f.cisa_kev,
+            true, // assume internet-facing for agentless scanner findings
+            has_exploit,
+            0.5, // default asset criticality
+        );
+
         FindingPayload {
             title: f.title.clone(),
             description: f.description.clone(),
@@ -481,7 +492,7 @@ impl From<&Finding> for FindingPayload {
             solution: f.remediation.clone(),
             cve_ids: f.cve_ids.clone(),
             cvss_score: f.cvss_v3_score,
-            frs_score: None, // Will be calculated by platform
+            frs_score: Some(frs.score as f32),
             metadata: Some(serde_json::json!({
                 "check_name": f.check_name,
                 "category": f.category.as_str(),
@@ -491,6 +502,8 @@ impl From<&Finding> for FindingPayload {
                 "cwe_ids": f.cwe_ids,
                 "compliance_mappings": f.compliance_mappings,
                 "detected_at": f.detected_at.to_rfc3339(),
+                "frs_rating": frs.rating.as_str(),
+                "frs_sla_days": frs.sla_days(),
             })),
         }
     }

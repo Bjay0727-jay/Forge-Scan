@@ -9,6 +9,7 @@ license.workspace = true
 [dependencies]
 forgescan-core = { path = "../forgescan-core" }
 forgescan-common = { path = "../forgescan-common" }
+forgescan-vuln = { path = "../forgescan-vuln" }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
 tonic = { workspace = true }
