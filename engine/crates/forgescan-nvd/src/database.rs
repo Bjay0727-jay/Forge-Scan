@@ -75,6 +75,11 @@ impl NvdDb {
 
             CREATE INDEX IF NOT EXISTS idx_cpe_matches_cve ON cpe_matches(cve_id);
             CREATE INDEX IF NOT EXISTS idx_cpe_matches_cpe ON cpe_matches(cpe_uri);
+
+            CREATE TABLE IF NOT EXISTS sync_metadata (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
             "#,
         )
         .map_err(|e| Error::Database(format!("Failed to initialize schema: {}", e)))?;
@@ -257,6 +262,32 @@ impl NvdDb {
             .query_row("SELECT COUNT(*) FROM cves", [], |row| row.get(0))
             .map_err(|e| Error::Database(format!("Failed to count CVEs: {}", e)))?;
         Ok(count as u64)
+    }
+
+    /// Set a metadata key-value pair (e.g., last_sync_time, last_sync_cve_count)
+    pub fn set_metadata(&self, key: &str, value: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT OR REPLACE INTO sync_metadata (key, value) VALUES (?1, ?2)",
+            params![key, value],
+        )
+        .map_err(|e| Error::Database(format!("Failed to set metadata: {}", e)))?;
+        Ok(())
+    }
+
+    /// Get a metadata value by key
+    pub fn get_metadata(&self, key: &str) -> Result<Option<String>> {
+        let conn = self.conn.lock().unwrap();
+        let result = conn.query_row(
+            "SELECT value FROM sync_metadata WHERE key = ?1",
+            [key],
+            |row| row.get(0),
+        );
+        match result {
+            Ok(val) => Ok(Some(val)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(Error::Database(format!("Failed to get metadata: {}", e))),
+        }
     }
 
     /// Get KEV count

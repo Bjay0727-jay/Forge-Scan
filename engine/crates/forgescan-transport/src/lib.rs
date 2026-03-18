@@ -34,7 +34,7 @@ pub mod proto {
 }
 
 pub use client::ScannerClient;
-pub use grpc_server::ForgeScanGrpcServer;
+pub use grpc_server::{ForgeScanGrpcServer, GrpcTlsConfig};
 pub use rest_client::{
     ApiTask, AssetPayload, CaptureStatsPayload, FindingPayload, PortPayload, RestApiClient,
     RestClientConfig, RestClientError, TaskResultsPayload,

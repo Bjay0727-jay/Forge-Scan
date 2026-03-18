@@ -2,6 +2,9 @@
 //!
 //! Implements the `ScanService` gRPC service, allowing clients to subscribe
 //! to scan events as they are discovered during execution.
+//!
+//! Supports optional mTLS: when TLS cert/key/CA paths are provided, the server
+//! requires clients to present valid certificates signed by the trusted CA.
 
 use crate::proto::scan::scan_service_server::ScanService;
 use crate::proto::scan::{
@@ -11,8 +14,20 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
+use tonic::transport::{Identity, ServerTlsConfig as TonicTlsConfig};
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{info, warn};
+
+/// TLS configuration for gRPC mTLS
+#[derive(Debug, Clone)]
+pub struct GrpcTlsConfig {
+    /// PEM-encoded server certificate
+    pub server_cert_path: String,
+    /// PEM-encoded server private key
+    pub server_key_path: String,
+    /// PEM-encoded CA certificate for client verification (mTLS)
+    pub client_ca_cert_path: String,
+}
 
 /// ForgeScan gRPC streaming server
 ///
@@ -52,12 +67,44 @@ impl ForgeScanGrpcServer {
         self.event_tx.clone()
     }
 
-    /// Start the gRPC server on the given port
+    /// Start the gRPC server on the given port (plaintext, no TLS)
     pub async fn serve(self, port: u16) -> Result<(), Box<dyn std::error::Error>> {
         let addr = format!("0.0.0.0:{}", port).parse()?;
-        info!("Starting gRPC streaming server on {}", addr);
+        info!("Starting gRPC streaming server on {} (plaintext)", addr);
 
         tonic::transport::Server::builder()
+            .add_service(crate::proto::scan::scan_service_server::ScanServiceServer::new(self))
+            .serve(addr)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Start the gRPC server with mTLS on the given port.
+    ///
+    /// Requires clients to present a valid certificate signed by the trusted CA.
+    pub async fn serve_mtls(
+        self,
+        port: u16,
+        tls: &GrpcTlsConfig,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let addr = format!("0.0.0.0:{}", port).parse()?;
+
+        let server_cert = std::fs::read(&tls.server_cert_path)?;
+        let server_key = std::fs::read(&tls.server_key_path)?;
+        let client_ca = std::fs::read(&tls.client_ca_cert_path)?;
+
+        let identity = Identity::from_pem(server_cert, server_key);
+        let client_ca_cert = tonic::transport::Certificate::from_pem(client_ca);
+
+        let tls_config = TonicTlsConfig::new()
+            .identity(identity)
+            .client_ca_root(client_ca_cert);
+
+        info!("Starting gRPC streaming server on {} (mTLS enabled)", addr);
+
+        tonic::transport::Server::builder()
+            .tls_config(tls_config)?
             .add_service(crate::proto::scan::scan_service_server::ScanServiceServer::new(self))
             .serve(addr)
             .await?;
