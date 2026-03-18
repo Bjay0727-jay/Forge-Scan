@@ -15,6 +15,7 @@
 pub mod fc360;
 pub mod hccra;
 pub mod mapper;
+pub mod pdf;
 pub mod report;
 pub mod safeguards;
 

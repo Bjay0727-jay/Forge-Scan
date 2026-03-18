@@ -14,6 +14,7 @@ use clap::Parser;
 use tokio::sync::Semaphore;
 use tracing::{debug, error, info, warn};
 
+use forgescan_hipaa::{HipaaMapper, HipaaReportGenerator};
 use forgescan_network::capture::{build_host_filter, CaptureConfig, CaptureSession, CaptureStats};
 use forgescan_network::discovery::{self, HostDiscovery};
 use forgescan_network::passive::{PassiveConfig, PassiveMonitor};
@@ -77,6 +78,30 @@ struct Args {
     /// Network interface for passive monitoring (auto-detect if omitted)
     #[arg(long)]
     passive_interface: Option<String>,
+
+    /// Output path for compliance report (JSON or PDF based on --report-format)
+    #[arg(long)]
+    report: Option<String>,
+
+    /// Report output format (json or pdf)
+    #[arg(long, default_value = "json")]
+    report_format: String,
+
+    /// Organization name for report header
+    #[arg(long, default_value = "Healthcare Organization")]
+    organization: String,
+
+    /// Output path for ForgeComply 360 compatible JSON export
+    #[arg(long)]
+    fc360_export: Option<String>,
+
+    /// Port to start gRPC streaming server on
+    #[arg(long)]
+    grpc_port: Option<u16>,
+
+    /// Print timing benchmarks after one-shot scan
+    #[arg(long)]
+    benchmark: bool,
 }
 
 #[tokio::main]
@@ -942,10 +967,24 @@ async fn run_one_shot_scan(args: &Args, _api_base_url: &str) -> Result<()> {
         args.scan_type, target
     );
 
+    let scan_start = Instant::now();
+    let scan_start_time = chrono::Utc::now();
+
     let targets = vec![target.to_string()];
     let payload = Some(serde_json::json!({ "targets": targets }));
 
     let result = execute_task(&args.scan_type, payload).await?;
+
+    let scan_elapsed = scan_start.elapsed();
+
+    // Sort findings by FRS score (highest first)
+    let mut sorted_findings = result.findings.clone();
+    sorted_findings.sort_by(|a, b| {
+        b.frs_score
+            .unwrap_or(0.0)
+            .partial_cmp(&a.frs_score.unwrap_or(0.0))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     // Print results
     println!("\n{}", "=".repeat(60));
@@ -953,12 +992,17 @@ async fn run_one_shot_scan(args: &Args, _api_base_url: &str) -> Result<()> {
     println!("{}", "=".repeat(60));
     println!("Status: {}", result.status);
     println!("Summary: {}", result.result_summary);
-    println!("\nFindings ({}):", result.findings.len());
-    for (i, f) in result.findings.iter().enumerate() {
+    println!("\nFindings ({}):", sorted_findings.len());
+    for (i, f) in sorted_findings.iter().enumerate() {
+        let frs_str = f
+            .frs_score
+            .map(|s| format!(" FRS:{:.0}", s))
+            .unwrap_or_default();
         println!(
-            "  {}. [{}] {} ({})",
+            "  {}. [{}{}] {} ({})",
             i + 1,
             f.severity.to_uppercase(),
+            frs_str,
             f.title,
             f.vendor_id
         );
@@ -976,7 +1020,144 @@ async fn run_one_shot_scan(args: &Args, _api_base_url: &str) -> Result<()> {
         );
     }
 
+    // Generate HIPAA compliance report if --report is specified
+    if args.report.is_some() || args.fc360_export.is_some() {
+        let report_start = Instant::now();
+        let scan_end_time = chrono::Utc::now();
+
+        // Convert FindingPayloads back to core Findings for HIPAA mapping
+        let core_findings: Vec<forgescan_core::Finding> = sorted_findings
+            .iter()
+            .map(finding_payload_to_core)
+            .collect();
+
+        // Map findings to HIPAA safeguards
+        let mapper = HipaaMapper::new();
+        let compliance_result = mapper.map_findings(&core_findings);
+
+        // Generate HIPAA report
+        let generator = HipaaReportGenerator::new(&args.organization);
+        let report = generator.generate(&compliance_result, scan_start_time, scan_end_time);
+
+        let report_elapsed = report_start.elapsed();
+
+        // Write HIPAA report if --report specified
+        if let Some(ref report_path) = args.report {
+            match args.report_format.as_str() {
+                "pdf" => {
+                    let pdf_bytes = forgescan_hipaa::pdf::PdfReportRenderer::render(&report)?;
+                    std::fs::write(report_path, &pdf_bytes)
+                        .context("Failed to write PDF report")?;
+                    info!("PDF report written to {}", report_path);
+                }
+                _ => {
+                    let json = serde_json::to_string_pretty(&report)
+                        .context("Failed to serialize report")?;
+                    std::fs::write(report_path, &json).context("Failed to write JSON report")?;
+                    info!("JSON report written to {}", report_path);
+                }
+            }
+            println!("\nReport written to: {}", report_path);
+        }
+
+        // Write FC360 export if --fc360-export specified
+        if let Some(ref fc360_path) = args.fc360_export {
+            let evidence = forgescan_hipaa::Fc360Client::build_evidence(&compliance_result);
+            let status_update =
+                forgescan_hipaa::Fc360Client::build_status_update(&compliance_result, &report);
+            let export = forgescan_hipaa::fc360::Fc360Export {
+                evidence,
+                status_update,
+                report: report.clone(),
+            };
+            let json = serde_json::to_string_pretty(&export)
+                .context("Failed to serialize FC360 export")?;
+            std::fs::write(fc360_path, &json).context("Failed to write FC360 export")?;
+            info!("ForgeComply 360 export written to {}", fc360_path);
+            println!("FC360 export written to: {}", fc360_path);
+        }
+
+        if args.benchmark {
+            println!("\nReport generation: {:.1}ms", report_elapsed.as_millis());
+        }
+    }
+
+    // Print benchmark timing if --benchmark
+    if args.benchmark {
+        let high_frs_count = sorted_findings
+            .iter()
+            .filter(|f| f.frs_score.unwrap_or(0.0) > 70.0)
+            .count();
+        println!("\n{}", "-".repeat(40));
+        println!("  Benchmark Results");
+        println!("{}", "-".repeat(40));
+        println!(
+            "  Scan completed: {} target(s) in {:.1}s",
+            result.assets_discovered.len(),
+            scan_elapsed.as_secs_f64()
+        );
+        println!(
+            "  Findings: {} ({} with FRS > 70)",
+            sorted_findings.len(),
+            high_frs_count
+        );
+    }
+
     Ok(())
+}
+
+/// Convert a FindingPayload back to a core Finding for HIPAA mapping.
+/// This is a lossy conversion used only for report generation from one-shot scan results.
+fn finding_payload_to_core(fp: &FindingPayload) -> forgescan_core::Finding {
+    use forgescan_core::{CheckCategory, Severity};
+
+    let severity = match fp.severity.as_str() {
+        "critical" => Severity::Critical,
+        "high" => Severity::High,
+        "medium" => Severity::Medium,
+        "low" => Severity::Low,
+        _ => Severity::Info,
+    };
+
+    let mut finding =
+        forgescan_core::Finding::new(&fp.title, severity).with_description(&fp.description);
+    finding.check_id = fp.vendor_id.clone();
+    finding.port = fp.port;
+    finding.protocol = fp.protocol.clone();
+    finding.service = fp.service.clone();
+    finding.cve_ids = fp.cve_ids.clone();
+    finding.cvss_v3_score = fp.cvss_score;
+    if let Some(ref evidence) = fp.evidence {
+        finding.evidence = evidence.clone();
+    }
+    if let Some(ref solution) = fp.solution {
+        finding.remediation = Some(solution.clone());
+    }
+
+    // Extract CWE IDs and category from metadata if available
+    if let Some(ref meta) = fp.metadata {
+        if let Some(cwe_ids) = meta.get("cwe_ids").and_then(|v| v.as_array()) {
+            finding.cwe_ids = cwe_ids
+                .iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect();
+        }
+        if let Some(cat) = meta.get("category").and_then(|v| v.as_str()) {
+            finding.category = match cat {
+                "network" => CheckCategory::Network,
+                "webapp" | "web" => CheckCategory::WebApp,
+                "configuration" | "config" => CheckCategory::Configuration,
+                "vulnerability" | "vuln" => CheckCategory::Vulnerability,
+                "cloud" => CheckCategory::Cloud,
+                _ => CheckCategory::Vulnerability,
+            };
+        }
+        if let Some(kev) = meta.get("cisa_kev").and_then(|v| v.as_bool()) {
+            finding.cisa_kev = kev;
+        }
+    }
+
+    finding
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────

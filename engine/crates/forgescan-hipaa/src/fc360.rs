@@ -182,6 +182,18 @@ pub struct Fc360Thresholds {
     pub critical_sla_days: u32,
 }
 
+/// Complete FC360-compatible export payload for offline JSON export.
+/// Contains all compliance evidence, status update, and full HIPAA report.
+#[derive(Debug, Clone, Serialize)]
+pub struct Fc360Export {
+    /// Compliance evidence items (per-safeguard + per-HCCRA)
+    pub evidence: Vec<ComplianceEvidence>,
+    /// Overall compliance status update
+    pub status_update: Fc360StatusUpdate,
+    /// Full HIPAA compliance report
+    pub report: HipaaReport,
+}
+
 /// Bidirectional ForgeComply 360 integration client
 pub struct Fc360Client {
     config: Fc360Config,

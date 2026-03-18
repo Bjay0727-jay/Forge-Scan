@@ -20,6 +20,7 @@ forgescan-network = { path = "../forgescan-network" }
 forgescan-vuln = { path = "../forgescan-vuln" }
 forgescan-webapp = { path = "../forgescan-webapp" }
 forgescan-cloud = { path = "../forgescan-cloud" }
+forgescan-hipaa = { path = "../forgescan-hipaa" }
 
 tokio = { workspace = true }
 tonic = { workspace = true }
@@ -29,3 +30,11 @@ tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }
 serde_json = { workspace = true }
 url = { workspace = true }
+chrono = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "scan_bench"
+harness = false
