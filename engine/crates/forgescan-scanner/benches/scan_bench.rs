@@ -113,9 +113,7 @@ fn bench_yaml_check_loading(c: &mut Criterion) {
     if checks_dir.exists() {
         c.bench_function("yaml_load_all_checks", |b| {
             b.iter(|| {
-                black_box(
-                    forgescan_checks::loader::load_checks_from_dir(&checks_dir).unwrap(),
-                );
+                black_box(forgescan_checks::loader::load_checks_from_dir(&checks_dir).unwrap());
             });
         });
     }
