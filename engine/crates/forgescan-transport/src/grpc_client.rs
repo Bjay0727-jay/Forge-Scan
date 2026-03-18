@@ -2,7 +2,11 @@
 //!
 //! Wraps the generated tonic client with convenient methods for scan execution,
 //! heartbeat management, and configuration retrieval.
+//!
+//! Supports optional mTLS: when TLS config is provided, the client presents its
+//! certificate and validates the server certificate against the trusted CA.
 
+use crate::grpc_server::GrpcTlsConfig;
 use crate::proto::scan::scan_service_client::ScanServiceClient;
 use crate::proto::scan::{
     ConfigRequest, HeartbeatRequest, HeartbeatResponse, ScanEvent, ScanTask, ScannerConfig,
@@ -19,7 +23,7 @@ pub struct GrpcScannerClient {
 }
 
 impl GrpcScannerClient {
-    /// Connect to the gRPC server at the given address
+    /// Connect to the gRPC server at the given address (plaintext)
     pub async fn connect(
         addr: &str,
         scanner_id: impl Into<String>,
@@ -29,8 +33,48 @@ impl GrpcScannerClient {
         } else {
             format!("http://{}", addr)
         };
-        info!("Connecting to gRPC server at {}", endpoint);
+        info!("Connecting to gRPC server at {} (plaintext)", endpoint);
         let inner = ScanServiceClient::connect(endpoint).await?;
+        Ok(Self {
+            inner,
+            scanner_id: scanner_id.into(),
+        })
+    }
+
+    /// Connect to the gRPC server with mTLS
+    pub async fn connect_mtls(
+        addr: &str,
+        scanner_id: impl Into<String>,
+        tls: &GrpcTlsConfig,
+    ) -> Result<Self, tonic::transport::Error> {
+        let endpoint = if addr.starts_with("https") {
+            addr.to_string()
+        } else {
+            format!("https://{}", addr)
+        };
+        info!("Connecting to gRPC server at {} (mTLS)", endpoint);
+
+        let ca_cert = std::fs::read(&tls.client_ca_cert_path)
+            .expect("Failed to read CA certificate for mTLS client");
+        let client_cert = std::fs::read(&tls.server_cert_path)
+            .expect("Failed to read client certificate for mTLS");
+        let client_key =
+            std::fs::read(&tls.server_key_path).expect("Failed to read client key for mTLS");
+
+        let tls_config = tonic::transport::ClientTlsConfig::new()
+            .ca_certificate(tonic::transport::Certificate::from_pem(ca_cert))
+            .identity(tonic::transport::Identity::from_pem(
+                client_cert,
+                client_key,
+            ));
+
+        let channel = Channel::from_shared(endpoint)
+            .expect("Invalid endpoint URI")
+            .tls_config(tls_config)?
+            .connect()
+            .await?;
+
+        let inner = ScanServiceClient::new(channel);
         Ok(Self {
             inner,
             scanner_id: scanner_id.into(),

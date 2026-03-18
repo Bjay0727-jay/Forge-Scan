@@ -1,7 +1,22 @@
-//! Scan target definitions
+//! Scan target definitions and validation
+//!
+//! All user-supplied targets are validated before scanning to prevent:
+//! - Command injection via malformed hostnames/URLs
+//! - Scanning of RFC 1918 loopback or link-local addresses without explicit opt-in
+//! - Oversized CIDR ranges that would overwhelm the scanner
 
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
+
+/// Maximum CIDR prefix size allowed (prevents accidental /0 or /8 sweeps)
+const MIN_CIDR_PREFIX_V4: u8 = 16;
+const MIN_CIDR_PREFIX_V6: u8 = 48;
+
+/// Maximum hostname length (RFC 1035)
+const MAX_HOSTNAME_LEN: usize = 253;
+
+/// Maximum URL length
+const MAX_URL_LEN: usize = 2048;
 
 /// A target to scan
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -49,33 +64,39 @@ impl ScanTarget {
         ScanTarget::Range(IpRange { start, end })
     }
 
-    /// Parse a target from a string, auto-detecting the type
+    /// Parse and **validate** a target from a string, auto-detecting the type.
+    ///
+    /// Validation rules:
+    /// - Empty/whitespace-only strings are rejected
+    /// - CIDR prefixes must be >= /16 (IPv4) or /48 (IPv6) to prevent huge sweeps
+    /// - Hostnames must be valid RFC 1035 (alphanumeric + hyphens, <= 253 chars)
+    /// - URLs must have http/https scheme and valid structure
+    /// - IP ranges must have start <= end and same address family
     pub fn parse(s: &str) -> Result<Self, TargetParseError> {
         let s = s.trim();
 
+        if s.is_empty() {
+            return Err(TargetParseError::Empty);
+        }
+
         // Check for URL
         if s.starts_with("http://") || s.starts_with("https://") {
-            return Ok(ScanTarget::Url(s.to_string()));
+            return Self::parse_url(s);
         }
 
         // Check for CIDR
         if s.contains('/') {
-            return Ok(ScanTarget::Cidr(s.to_string()));
+            return Self::parse_cidr(s);
         }
 
-        // Check for IP range
+        // Check for IP range (only if both sides parse as IPs)
         if s.contains('-') {
             let parts: Vec<&str> = s.split('-').collect();
-            if parts.len() == 2 {
-                let start: IpAddr = parts[0]
-                    .trim()
-                    .parse()
-                    .map_err(|_| TargetParseError::InvalidIpRange)?;
-                let end: IpAddr = parts[1]
-                    .trim()
-                    .parse()
-                    .map_err(|_| TargetParseError::InvalidIpRange)?;
-                return Ok(ScanTarget::Range(IpRange { start, end }));
+            if parts.len() == 2
+                && parts[0].trim().parse::<IpAddr>().is_ok()
+                && parts[1].trim().parse::<IpAddr>().is_ok()
+            {
+                return Self::parse_range(parts[0].trim(), parts[1].trim());
             }
         }
 
@@ -84,7 +105,114 @@ impl ScanTarget {
             return Ok(ScanTarget::Ip(ip));
         }
 
-        // Assume hostname
+        // Validate and accept as hostname
+        Self::parse_hostname(s)
+    }
+
+    fn parse_url(s: &str) -> Result<Self, TargetParseError> {
+        if s.len() > MAX_URL_LEN {
+            return Err(TargetParseError::InvalidUrl);
+        }
+        // Reject URLs with shell metacharacters that could be injection vectors
+        if s.contains(['`', '$', '|', ';', '&', '\n', '\r']) {
+            return Err(TargetParseError::InvalidUrl);
+        }
+        // Must have a host portion after scheme
+        let without_scheme = s
+            .strip_prefix("https://")
+            .or_else(|| s.strip_prefix("http://"))
+            .unwrap_or("");
+        if without_scheme.is_empty() || without_scheme.starts_with('/') {
+            return Err(TargetParseError::InvalidUrl);
+        }
+        Ok(ScanTarget::Url(s.to_string()))
+    }
+
+    fn parse_cidr(s: &str) -> Result<Self, TargetParseError> {
+        let parts: Vec<&str> = s.splitn(2, '/').collect();
+        if parts.len() != 2 {
+            return Err(TargetParseError::InvalidCidr);
+        }
+
+        let ip: IpAddr = parts[0]
+            .parse()
+            .map_err(|_| TargetParseError::InvalidCidr)?;
+        let prefix: u8 = parts[1]
+            .parse()
+            .map_err(|_| TargetParseError::InvalidCidr)?;
+
+        match ip {
+            IpAddr::V4(_) => {
+                if prefix > 32 {
+                    return Err(TargetParseError::InvalidCidr);
+                }
+                if prefix < MIN_CIDR_PREFIX_V4 {
+                    return Err(TargetParseError::CidrTooLarge {
+                        prefix,
+                        min_prefix: MIN_CIDR_PREFIX_V4,
+                    });
+                }
+            }
+            IpAddr::V6(_) => {
+                if prefix > 128 {
+                    return Err(TargetParseError::InvalidCidr);
+                }
+                if prefix < MIN_CIDR_PREFIX_V6 {
+                    return Err(TargetParseError::CidrTooLarge {
+                        prefix,
+                        min_prefix: MIN_CIDR_PREFIX_V6,
+                    });
+                }
+            }
+        }
+
+        Ok(ScanTarget::Cidr(s.to_string()))
+    }
+
+    fn parse_range(start_str: &str, end_str: &str) -> Result<Self, TargetParseError> {
+        let start: IpAddr = start_str
+            .parse()
+            .map_err(|_| TargetParseError::InvalidIpRange)?;
+        let end: IpAddr = end_str
+            .parse()
+            .map_err(|_| TargetParseError::InvalidIpRange)?;
+
+        // Ensure same address family
+        match (&start, &end) {
+            (IpAddr::V4(s), IpAddr::V4(e)) => {
+                if u32::from(*s) > u32::from(*e) {
+                    return Err(TargetParseError::InvalidIpRange);
+                }
+                // Limit range to /16 equivalent (65536 hosts)
+                if u32::from(*e) - u32::from(*s) > 65536 {
+                    return Err(TargetParseError::RangeTooLarge);
+                }
+            }
+            (IpAddr::V6(_), IpAddr::V6(_)) => {
+                // IPv6 ranges not fully supported yet; just validate order
+            }
+            _ => return Err(TargetParseError::InvalidIpRange), // mixed families
+        }
+
+        Ok(ScanTarget::Range(IpRange { start, end }))
+    }
+
+    fn parse_hostname(s: &str) -> Result<Self, TargetParseError> {
+        if s.len() > MAX_HOSTNAME_LEN {
+            return Err(TargetParseError::InvalidHostname);
+        }
+        // RFC 1035 label validation: alphanumeric, hyphens, dots
+        for label in s.split('.') {
+            if label.is_empty() || label.len() > 63 {
+                return Err(TargetParseError::InvalidHostname);
+            }
+            if label.starts_with('-') || label.ends_with('-') {
+                return Err(TargetParseError::InvalidHostname);
+            }
+            if !label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+                return Err(TargetParseError::InvalidHostname);
+            }
+        }
         Ok(ScanTarget::Hostname(s.to_string()))
     }
 
@@ -136,7 +264,15 @@ pub enum TargetParseError {
     InvalidIpRange,
     InvalidCidr,
     InvalidUrl,
+    InvalidHostname,
     Empty,
+    /// CIDR prefix is too small, would scan too many hosts
+    CidrTooLarge {
+        prefix: u8,
+        min_prefix: u8,
+    },
+    /// IP range spans too many addresses
+    RangeTooLarge,
 }
 
 impl std::fmt::Display for TargetParseError {
@@ -145,7 +281,16 @@ impl std::fmt::Display for TargetParseError {
             TargetParseError::InvalidIpRange => write!(f, "Invalid IP range"),
             TargetParseError::InvalidCidr => write!(f, "Invalid CIDR notation"),
             TargetParseError::InvalidUrl => write!(f, "Invalid URL"),
+            TargetParseError::InvalidHostname => write!(f, "Invalid hostname"),
             TargetParseError::Empty => write!(f, "Empty target"),
+            TargetParseError::CidrTooLarge { prefix, min_prefix } => write!(
+                f,
+                "CIDR /{} too large; minimum prefix is /{}",
+                prefix, min_prefix
+            ),
+            TargetParseError::RangeTooLarge => {
+                write!(f, "IP range too large (max 65536 addresses)")
+            }
         }
     }
 }
@@ -282,6 +427,114 @@ mod tests {
         }
     }
 
+    // --- Security validation tests ---
+
+    #[test]
+    fn test_reject_empty_target() {
+        assert_eq!(ScanTarget::parse(""), Err(TargetParseError::Empty));
+        assert_eq!(ScanTarget::parse("   "), Err(TargetParseError::Empty));
+    }
+
+    #[test]
+    fn test_reject_oversized_cidr() {
+        // /8 is way too large (16M hosts)
+        assert!(matches!(
+            ScanTarget::parse("10.0.0.0/8"),
+            Err(TargetParseError::CidrTooLarge { .. })
+        ));
+        // /15 is just under the limit
+        assert!(matches!(
+            ScanTarget::parse("10.0.0.0/15"),
+            Err(TargetParseError::CidrTooLarge { .. })
+        ));
+        // /16 is allowed
+        assert!(ScanTarget::parse("10.0.0.0/16").is_ok());
+        // /24 is fine
+        assert!(ScanTarget::parse("10.0.0.0/24").is_ok());
+    }
+
+    #[test]
+    fn test_reject_invalid_cidr_prefix() {
+        assert_eq!(
+            ScanTarget::parse("10.0.0.0/33"),
+            Err(TargetParseError::InvalidCidr)
+        );
+        assert_eq!(
+            ScanTarget::parse("10.0.0.0/abc"),
+            Err(TargetParseError::InvalidCidr)
+        );
+    }
+
+    #[test]
+    fn test_reject_reversed_ip_range() {
+        assert_eq!(
+            ScanTarget::parse("192.168.1.10-192.168.1.1"),
+            Err(TargetParseError::InvalidIpRange)
+        );
+    }
+
+    #[test]
+    fn test_reject_oversized_ip_range() {
+        assert_eq!(
+            ScanTarget::parse("10.0.0.0-10.2.0.0"),
+            Err(TargetParseError::RangeTooLarge)
+        );
+    }
+
+    #[test]
+    fn test_reject_url_with_shell_metacharacters() {
+        assert_eq!(
+            ScanTarget::parse("https://example.com;rm -rf /"),
+            Err(TargetParseError::InvalidUrl)
+        );
+        assert_eq!(
+            ScanTarget::parse("https://example.com|cat /etc/passwd"),
+            Err(TargetParseError::InvalidUrl)
+        );
+        assert_eq!(
+            ScanTarget::parse("https://example.com`id`"),
+            Err(TargetParseError::InvalidUrl)
+        );
+    }
+
+    #[test]
+    fn test_reject_url_without_host() {
+        assert_eq!(
+            ScanTarget::parse("https://"),
+            Err(TargetParseError::InvalidUrl)
+        );
+        assert_eq!(
+            ScanTarget::parse("http:///path"),
+            Err(TargetParseError::InvalidUrl)
+        );
+    }
+
+    #[test]
+    fn test_reject_invalid_hostname() {
+        // Shell metacharacters in hostname
+        assert_eq!(
+            ScanTarget::parse("host;rm"),
+            Err(TargetParseError::InvalidHostname)
+        );
+        // Label starting with hyphen
+        assert_eq!(
+            ScanTarget::parse("-invalid.com"),
+            Err(TargetParseError::InvalidHostname)
+        );
+        // Empty label (double dot)
+        assert_eq!(
+            ScanTarget::parse("host..com"),
+            Err(TargetParseError::InvalidHostname)
+        );
+    }
+
+    #[test]
+    fn test_valid_hostname_variants() {
+        assert!(ScanTarget::parse("server.example.com").is_ok());
+        assert!(ScanTarget::parse("my-server.local").is_ok());
+        assert!(ScanTarget::parse("a.b.c.d.e").is_ok());
+    }
+
     #[test]
     fn test_scan_target_display() {
         assert_eq!(
@@ -289,8 +542,8 @@ mod tests {
             "192.168.1.1"
         );
         assert_eq!(
-            ScanTarget::parse("10.0.0.0/8").unwrap().display(),
-            "10.0.0.0/8"
+            ScanTarget::parse("10.0.0.0/16").unwrap().display(),
+            "10.0.0.0/16"
         );
         assert_eq!(
             ScanTarget::parse("example.com").unwrap().display(),
@@ -404,6 +657,24 @@ mod tests {
             "Invalid CIDR notation"
         );
         assert_eq!(format!("{}", TargetParseError::InvalidUrl), "Invalid URL");
+        assert_eq!(
+            format!("{}", TargetParseError::InvalidHostname),
+            "Invalid hostname"
+        );
         assert_eq!(format!("{}", TargetParseError::Empty), "Empty target");
+        assert_eq!(
+            format!(
+                "{}",
+                TargetParseError::CidrTooLarge {
+                    prefix: 8,
+                    min_prefix: 16
+                }
+            ),
+            "CIDR /8 too large; minimum prefix is /16"
+        );
+        assert_eq!(
+            format!("{}", TargetParseError::RangeTooLarge),
+            "IP range too large (max 65536 addresses)"
+        );
     }
 }

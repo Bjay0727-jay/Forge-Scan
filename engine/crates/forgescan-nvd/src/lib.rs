@@ -9,8 +9,10 @@
 
 pub mod cpe;
 pub mod database;
+pub mod scheduler;
 pub mod sync;
 
 pub use cpe::{compare_versions, Cpe, CpeMatch, CpeParseError, CpePart, VersionBoundType};
 pub use database::NvdDb;
+pub use scheduler::{spawn_nvd_scheduler, NvdCurrency, NvdScheduler};
 pub use sync::{NvdSync, SyncStats};

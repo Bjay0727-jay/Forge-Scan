@@ -5,6 +5,8 @@
 //! scan tasks, executes them using the scanning engine crates, and
 //! submits results back to the platform.
 
+pub mod accuracy;
+
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Instant;
@@ -98,6 +100,18 @@ struct Args {
     /// Port to start gRPC streaming server on
     #[arg(long)]
     grpc_port: Option<u16>,
+
+    /// TLS certificate path for gRPC mTLS
+    #[arg(long)]
+    grpc_tls_cert: Option<String>,
+
+    /// TLS private key path for gRPC mTLS
+    #[arg(long)]
+    grpc_tls_key: Option<String>,
+
+    /// CA certificate path for gRPC mTLS client verification
+    #[arg(long)]
+    grpc_tls_ca: Option<String>,
 
     /// Print timing benchmarks after one-shot scan
     #[arg(long)]
@@ -242,6 +256,35 @@ async fn run_daemon_mode(
     } else {
         None
     };
+
+    // Start gRPC streaming server if port specified
+    if let Some(port) = args.grpc_port {
+        let grpc_server = forgescan_transport::ForgeScanGrpcServer::new(scanner_id.to_string());
+
+        if let (Some(cert), Some(key), Some(ca)) = (
+            args.grpc_tls_cert.as_ref(),
+            args.grpc_tls_key.as_ref(),
+            args.grpc_tls_ca.as_ref(),
+        ) {
+            let tls = forgescan_transport::GrpcTlsConfig {
+                server_cert_path: cert.clone(),
+                server_key_path: key.clone(),
+                client_ca_cert_path: ca.clone(),
+            };
+            tokio::spawn(async move {
+                if let Err(e) = grpc_server.serve_mtls(port, &tls).await {
+                    error!("gRPC mTLS server failed: {}", e);
+                }
+            });
+        } else {
+            warn!("gRPC server starting WITHOUT TLS — use --grpc-tls-cert/key/ca for production");
+            tokio::spawn(async move {
+                if let Err(e) = grpc_server.serve(port).await {
+                    error!("gRPC server failed: {}", e);
+                }
+            });
+        }
+    }
 
     // Concurrency limiter for scan tasks
     let semaphore = Arc::new(Semaphore::new(config.scanner.max_concurrent_scans as usize));

@@ -86,3 +86,47 @@ jobs:
 
       - run: cargo audit
         working-directory: engine
+
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan for secrets in codebase
+        run: |
+          echo "Scanning for hardcoded secrets, API keys, and credentials..."
+          FOUND=0
+
+          # Detect common secret patterns in tracked files
+          PATTERNS=(
+            'AKIA[0-9A-Z]{16}'                     # AWS Access Key
+            'password\s*=\s*"[^"]{8,}"'             # Hardcoded passwords
+            'api[_-]?key\s*=\s*"[^"]{16,}"'         # API keys in config
+            'BEGIN (RSA|EC|DSA|OPENSSH) PRIVATE KEY' # Private keys
+            'ghp_[A-Za-z0-9]{36}'                   # GitHub PAT
+            'sk-[A-Za-z0-9]{32,}'                   # OpenAI/Stripe secret keys
+          )
+
+          for pattern in "${PATTERNS[@]}"; do
+            if git grep -lP "$pattern" -- ':(exclude)*.yml' ':(exclude)*.yaml' ':(exclude)*.md' ':(exclude).github/' 2>/dev/null; then
+              echo "::error::Potential secret found matching pattern: $pattern"
+              FOUND=1
+            fi
+          done
+
+          # Check for .env files or credential files that should not be committed
+          SENSITIVE_FILES=$(git ls-files | grep -iE '\.(env|pem|key|p12|pfx|jks)$|credentials|secrets\.json' || true)
+          if [ -n "$SENSITIVE_FILES" ]; then
+            echo "::error::Sensitive files found in repository: $SENSITIVE_FILES"
+            FOUND=1
+          fi
+
+          if [ "$FOUND" -eq 1 ]; then
+            echo "::error::Secret scan failed — review flagged files above"
+            exit 1
+          fi
+
+          echo "No secrets detected."
