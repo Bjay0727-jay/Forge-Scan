@@ -100,9 +100,6 @@ jobs:
           echo "Scanning for hardcoded secrets, API keys, and credentials..."
           FOUND=0
 
-          # Exclude patterns: CI workflows, docs, example configs
-          EXCLUDES="-- ':(exclude)*.yml' ':(exclude)*.yaml' ':(exclude)*.md' ':(exclude).github/' ':(exclude)*.example.toml'"
-
           # Detect common secret patterns in tracked files
           PATTERNS=(
             'AKIA[0-9A-Z]{16}'                     # AWS Access Key
@@ -113,7 +110,12 @@ jobs:
           )
 
           for pattern in "${PATTERNS[@]}"; do
-            if eval "git grep -lP '$pattern' $EXCLUDES" 2>/dev/null; then
+            if git grep -lP "$pattern" -- \
+                ':(exclude)*.yml' \
+                ':(exclude)*.yaml' \
+                ':(exclude)*.md' \
+                ':(exclude).github/' \
+                ':(exclude)*.example.toml' 2>/dev/null; then
               echo "::error::Potential secret found matching pattern: $pattern"
               FOUND=1
             fi
