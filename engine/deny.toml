@@ -1,4 +1,4 @@
-# cargo-deny configuration for ForgeScan
+# cargo-deny v2 configuration for ForgeScan
 # https://embarkstudios.github.io/cargo-deny/
 
 [graph]
@@ -8,14 +8,12 @@ targets = [
     "x86_64-pc-windows-gnu",
 ]
 
+# Advisory checking is handled by the separate cargo-audit CI job.
+# cargo-deny focuses on license compliance and dependency bans.
 [advisories]
-# Warn rather than deny: pre-existing transitive dep vulnerabilities
-# (rustls-webpki 0.102.8 via tonic 0.11) require major dep upgrades.
-# The separate cargo-audit CI job provides additional advisory coverage.
-vulnerability = "warn"
-unmaintained = "warn"
-yanked = "warn"
-notice = "warn"
+# Ignore pre-existing advisories that require major dep upgrades:
+# - RUSTSEC-2026-0049: rustls-webpki 0.102.8 (via tonic 0.11 -> rustls 0.22)
+ignore = ["RUSTSEC-2026-0049"]
 
 [licenses]
 unlicensed = "deny"
@@ -41,7 +39,6 @@ deny = [
     "AGPL-3.0-or-later",
     "SSPL-1.0",
 ]
-copyleft = "warn"
 confidence-threshold = 0.8
 
 # ring uses a non-standard license file; clarify for cargo-deny
