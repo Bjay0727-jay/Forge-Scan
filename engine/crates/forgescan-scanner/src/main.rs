@@ -16,6 +16,7 @@ use clap::Parser;
 use tokio::sync::Semaphore;
 use tracing::{debug, error, info, warn};
 
+use forgescan_common::config::ScannerConfig;
 use forgescan_hipaa::{HipaaMapper, HipaaReportGenerator};
 use forgescan_network::capture::{build_host_filter, CaptureConfig, CaptureSession, CaptureStats};
 use forgescan_network::discovery::{self, HostDiscovery};
@@ -167,7 +168,7 @@ async fn main() -> Result<()> {
         .unwrap_or_default();
 
     if args.one_shot {
-        run_one_shot_scan(&args, &api_base_url).await
+        run_one_shot_scan(&args, &api_base_url, &config).await
     } else {
         run_daemon_mode(&config, &api_base_url, &api_key, &scanner_id, &args).await
     }
@@ -189,6 +190,9 @@ async fn run_daemon_mode(
         "Max concurrent scans: {}",
         config.scanner.max_concurrent_scans
     );
+    if config.scanner.kill_switch {
+        anyhow::bail!("Scanner kill switch is enabled; refusing to execute scan tasks");
+    }
 
     if api_key.is_empty() {
         anyhow::bail!(
@@ -320,11 +324,18 @@ async fn run_daemon_mode(
                         let api_base = api_base_url.to_string();
                         let key = api_key.to_string();
                         let sid = scanner_id.to_string();
+                        let scanner_config = config.scanner.clone();
 
                         tokio::spawn(async move {
                             let _permit = permit; // held until task completes
                             if let Err(e) = execute_task_wrapper(
-                                &api_base, &key, &sid, &task_id, &task_type, task.task_payload,
+                                &api_base,
+                                &key,
+                                &sid,
+                                &task_id,
+                                &task_type,
+                                task.task_payload,
+                                scanner_config,
                             )
                             .await
                             {
@@ -368,6 +379,7 @@ async fn execute_task_wrapper(
     task_id: &str,
     task_type: &str,
     payload: Option<serde_json::Value>,
+    scanner_config: ScannerConfig,
 ) -> Result<()> {
     let rest_config = RestClientConfig {
         api_base_url: api_base_url.to_string(),
@@ -384,7 +396,7 @@ async fn execute_task_wrapper(
         .map_err(|e| anyhow::anyhow!("Failed to mark task as started: {}", e))?;
 
     // Execute the scan
-    let result = execute_task(task_type, payload).await;
+    let result = execute_task(task_type, payload, &scanner_config).await;
 
     match result {
         Ok(results_payload) => {
@@ -407,8 +419,10 @@ async fn execute_task_wrapper(
 async fn execute_task(
     task_type: &str,
     payload: Option<serde_json::Value>,
+    scanner_config: &ScannerConfig,
 ) -> Result<TaskResultsPayload> {
-    let targets = extract_targets(&payload)?;
+    let raw_targets = extract_targets(&payload)?;
+    let targets = apply_target_guardrails(raw_targets, scanner_config)?;
 
     match task_type {
         "network" | "network_scan" => execute_network_scan(&targets, &payload).await,
@@ -447,6 +461,116 @@ fn extract_targets(payload: &Option<serde_json::Value>) -> Result<Vec<String>> {
         }
     }
     anyhow::bail!("No targets found in task payload")
+}
+
+fn apply_target_guardrails(
+    targets: Vec<String>,
+    scanner_config: &ScannerConfig,
+) -> Result<Vec<String>> {
+    if scanner_config.kill_switch {
+        anyhow::bail!("Scanner kill switch is enabled");
+    }
+
+    if targets.len() as u32 > scanner_config.max_targets_per_task {
+        anyhow::bail!(
+            "Target count {} exceeds configured max_targets_per_task={}",
+            targets.len(),
+            scanner_config.max_targets_per_task
+        );
+    }
+
+    let filtered: Vec<String> = targets
+        .into_iter()
+        .filter(|target| target_allowed(target, scanner_config))
+        .collect();
+
+    if filtered.is_empty() {
+        anyhow::bail!("No targets allowed after guardrail filtering");
+    }
+
+    Ok(filtered)
+}
+
+fn target_allowed(target: &str, scanner_config: &ScannerConfig) -> bool {
+    if scanner_config
+        .denied_targets
+        .iter()
+        .any(|rule| rule_matches(rule, target))
+    {
+        warn!("Target '{}' blocked by denied_targets rule", target);
+        return false;
+    }
+
+    if scanner_config.allowed_cidrs.is_empty() {
+        return true;
+    }
+
+    let ip = match target.parse::<IpAddr>() {
+        Ok(ip) => ip,
+        Err(_) => {
+            warn!(
+                "Target '{}' rejected: allowed_cidrs is set and target is not a literal IP",
+                target
+            );
+            return false;
+        }
+    };
+
+    let allowed = scanner_config
+        .allowed_cidrs
+        .iter()
+        .any(|cidr| ip_in_cidr(ip, cidr));
+    if !allowed {
+        warn!("Target '{}' blocked by allowed_cidrs policy", target);
+    }
+    allowed
+}
+
+fn rule_matches(rule: &str, target: &str) -> bool {
+    if rule.eq_ignore_ascii_case(target) {
+        return true;
+    }
+    match target.parse::<IpAddr>() {
+        Ok(ip) => ip_in_cidr(ip, rule),
+        Err(_) => false,
+    }
+}
+
+fn ip_in_cidr(ip: IpAddr, cidr: &str) -> bool {
+    let (net_ip, prefix_len) = match cidr.split_once('/') {
+        Some((ip_part, prefix_part)) => {
+            let net_ip = match ip_part.parse::<IpAddr>() {
+                Ok(v) => v,
+                Err(_) => return false,
+            };
+            let prefix_len = match prefix_part.parse::<u8>() {
+                Ok(v) => v,
+                Err(_) => return false,
+            };
+            (net_ip, prefix_len)
+        }
+        None => return false,
+    };
+
+    match (ip, net_ip) {
+        (IpAddr::V4(ipv4), IpAddr::V4(netv4)) if prefix_len <= 32 => {
+            let mask = if prefix_len == 0 {
+                0
+            } else {
+                u32::MAX << (32 - prefix_len)
+            };
+            (u32::from(ipv4) & mask) == (u32::from(netv4) & mask)
+        }
+        (IpAddr::V6(ipv6), IpAddr::V6(netv6)) if prefix_len <= 128 => {
+            let mask = if prefix_len == 0 {
+                0
+            } else {
+                u128::MAX << (128 - prefix_len)
+            };
+            (u128::from(ipv6) & mask) == (u128::from(netv6) & mask)
+        }
+        _ => false,
+    }
 }
 
 // ── Scan Executors ──────────────────────────────────────────────────────────
@@ -999,7 +1123,11 @@ fn stats_to_payload(stats: &CaptureStats) -> CaptureStatsPayload {
 
 // ── One-Shot Mode ───────────────────────────────────────────────────────────
 
-async fn run_one_shot_scan(args: &Args, _api_base_url: &str) -> Result<()> {
+async fn run_one_shot_scan(
+    args: &Args,
+    _api_base_url: &str,
+    config: &forgescan_common::Config,
+) -> Result<()> {
     let target = args
         .target
         .as_deref()
@@ -1016,7 +1144,7 @@ async fn run_one_shot_scan(args: &Args, _api_base_url: &str) -> Result<()> {
     let targets = vec![target.to_string()];
     let payload = Some(serde_json::json!({ "targets": targets }));
 
-    let result = execute_task(&args.scan_type, payload).await?;
+    let result = execute_task(&args.scan_type, payload, &config.scanner).await?;
 
     let scan_elapsed = scan_start.elapsed();
 
@@ -1281,4 +1409,46 @@ fn extract_ports(payload: &Option<serde_json::Value>) -> Vec<u16> {
 
     // Default: top 100
     port_scan::ports::TOP_100.to_vec()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ip_in_cidr_ipv4() {
+        assert!(ip_in_cidr("10.0.0.5".parse().unwrap(), "10.0.0.0/24"));
+        assert!(!ip_in_cidr("10.0.1.5".parse().unwrap(), "10.0.0.0/24"));
+    }
+
+    #[test]
+    fn test_target_guardrails_allow_and_deny() {
+        let scanner_config = ScannerConfig {
+            allowed_cidrs: vec!["10.0.0.0/24".into()],
+            denied_targets: vec!["10.0.0.10".into()],
+            max_targets_per_task: 10,
+            ..Default::default()
+        };
+
+        let filtered = apply_target_guardrails(
+            vec!["10.0.0.10".into(), "10.0.0.20".into(), "192.168.1.1".into()],
+            &scanner_config,
+        )
+        .unwrap();
+
+        assert_eq!(filtered, vec!["10.0.0.20".to_string()]);
+    }
+
+    #[test]
+    fn test_target_guardrails_max_targets_per_task() {
+        let scanner_config = ScannerConfig {
+            max_targets_per_task: 1,
+            ..Default::default()
+        };
+
+        let err =
+            apply_target_guardrails(vec!["1.1.1.1".into(), "1.1.1.2".into()], &scanner_config)
+                .unwrap_err();
+        assert!(err.to_string().contains("max_targets_per_task"));
+    }
 }

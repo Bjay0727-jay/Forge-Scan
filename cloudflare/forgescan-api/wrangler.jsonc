@@ -10,42 +10,68 @@
     "command": "npm install && npm run build"
   },
 
-  // D1 Database binding
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "forgescan-db",
-      "database_id": "33c4ed36-32ac-4fff-b363-982a777108eb"
-    }
-  ],
-
-  // R2 Storage binding
-  "r2_buckets": [
-    {
-      "binding": "STORAGE",
-      "bucket_name": "forgescan-storage"
-    }
-  ],
-
-  // KV Cache binding
-  "kv_namespaces": [
-    {
-      "binding": "CACHE",
-      "id": "e8e1da19230448f0a5bb32245ac799db"
-    }
-  ],
-
-  // Environment variables
+  // Safe local defaults. Environment-specific values live under env.*.
   "vars": {
-    "ENVIRONMENT": "production",
+    "ENVIRONMENT": "development",
     "API_VERSION": "v1",
-    "CORS_ORIGIN": "https://app.forgescan.forgecyberdefense.com,https://forgescan-dashboard.pages.dev"
+    "CORS_ORIGIN": "http://localhost:3000,http://localhost:5173"
   },
 
   // Named environments
   "env": {
+    "staging": {
+      "name": "forgescan-api-staging",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "forgescan-db-staging",
+          "database_id": "REPLACE_WITH_STAGING_D1_DATABASE_ID"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "STORAGE",
+          "bucket_name": "forgescan-storage-staging"
+        }
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "CACHE",
+          "id": "REPLACE_WITH_STAGING_KV_NAMESPACE_ID"
+        }
+      ],
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "API_VERSION": "v1",
+        "CORS_ORIGIN": "https://staging-app.forgescan.example.com"
+      }
+    },
     "production": {
       "name": "forgescan-api",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "forgescan-db",
+          "database_id": "33c4ed36-32ac-4fff-b363-982a777108eb"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "STORAGE",
+          "bucket_name": "forgescan-storage"
+        }
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "CACHE",
+          "id": "e8e1da19230448f0a5bb32245ac799db"
+        }
+      ],
+      "vars": {
+        "ENVIRONMENT": "production",
+        "API_VERSION": "v1",
+        "CORS_ORIGIN": "https://app.forgescan.forgecyberdefense.com,https://forgescan-dashboard.pages.dev"
+      },
       "routes": [
         {
           "pattern": "api.forgescan.forgecyberdefense.com/*",
@@ -55,6 +81,25 @@
     },
     "dev": {
       "name": "forgescan-api-dev",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "forgescan-db-dev",
+          "database_id": "REPLACE_WITH_DEV_D1_DATABASE_ID"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "STORAGE",
+          "bucket_name": "forgescan-storage-dev"
+        }
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "CACHE",
+          "id": "REPLACE_WITH_DEV_KV_NAMESPACE_ID"
+        }
+      ],
       "vars": {
         "ENVIRONMENT": "development",
         "API_VERSION": "v1",
