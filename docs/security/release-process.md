@@ -39,11 +39,18 @@ Set these repository secrets to enable signed binary release assets:
 
 If these are not configured, binary archives are still released and keyless OIDC signatures are generated instead.
 
+## Additional CI controls
+
+- **Dependency review:** `ci.yml` runs `actions/dependency-review-action` on every pull request, blocking merges that introduce dependencies with HIGH+ vulnerabilities or copyleft licenses (GPL, AGPL, SSPL).
+- **License and advisory compliance (cargo-deny):** `ci.yml` runs `cargo-deny` against `engine/deny.toml` to enforce license allowlists, deny known-bad licenses, flag yanked or unmaintained crates, and warn on duplicate dependencies.
+- **Agent image pipeline:** `build-docker.yml` now builds both `forgescan-scanner` and `forgescan-agent` images with the same signing, SBOM, Trivy scanning, and provenance attestation controls.
+
 ## Operational follow-up
 
-1. Enforce branch protection requiring CI checks, including SAST/IaC scan jobs.
+1. Enforce branch protection requiring CI checks, including SAST/IaC scan, cargo-deny, and dependency-review jobs.
 2. Verify GHCR consumers pull by digest and optionally verify Sigstore signatures.
 3. Publish an internal verification playbook for:
-   - `cosign verify` on container images.
+   - `cosign verify` on container images (both scanner and agent).
    - `cosign verify-blob` on binary artifacts.
    - Attestation verification for provenance claims.
+4. Review `engine/deny.toml` license allowlist when adding new dependencies.

@@ -159,22 +159,25 @@ jobs:
         with:
           sarif_file: semgrep.sarif
 
-  sbom:
-    name: Generate SBOM (source snapshot)
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          deny-licenses: GPL-2.0, GPL-3.0, AGPL-3.0, SSPL-1.0
+
+  cargo-deny:
+    name: License & Advisory Check (cargo-deny)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Generate repository SBOM (SPDX JSON)
-        uses: anchore/sbom-action@v0
+      - uses: EmbarkStudios/cargo-deny-action@v2
         with:
-          path: .
-          format: spdx-json
-          output-file: sbom-repo.spdx.json
-      - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom-repo
-          path: sbom-repo.spdx.json
+          manifest-path: engine/Cargo.toml
 
   iac-scan:
     name: IaC and workflow scanning (Trivy misconfig)

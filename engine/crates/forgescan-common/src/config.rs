@@ -1,5 +1,6 @@
 //! Configuration management for ForgeScan components
 
+use crate::scope::ScopeConfig;
 use forgescan_core::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -34,6 +35,10 @@ pub struct Config {
     /// Packet capture settings
     #[serde(default)]
     pub capture: CaptureSettings,
+
+    /// Scope guardrails (allowed/denied CIDRs, kill switch)
+    #[serde(default)]
+    pub scope: ScopeConfig,
 }
 
 impl Config {
@@ -107,6 +112,17 @@ impl Config {
         }
         if let Ok(val) = std::env::var("FORGESCAN_LOG_FORMAT") {
             self.logging.format = val;
+        }
+
+        // Scope guardrails
+        if let Ok(val) = std::env::var("FORGESCAN_EMERGENCY_DISABLE") {
+            self.scope.emergency_disable = val == "true" || val == "1";
+        }
+        if let Ok(val) = std::env::var("FORGESCAN_ALLOWED_CIDRS") {
+            self.scope.allowed_cidrs = val.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+        }
+        if let Ok(val) = std::env::var("FORGESCAN_DENIED_CIDRS") {
+            self.scope.denied_cidrs = val.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
         }
 
         self
@@ -667,6 +683,52 @@ mod tests {
         assert_eq!(config.agent.agent_id, Some(String::from("agent-001")));
         assert_eq!(config.logging.level, "debug");
         assert_eq!(config.nvd.database_path, "/tmp/nvd.db");
+    }
+
+    #[test]
+    fn test_config_scope_defaults() {
+        let config = Config::default();
+        assert!(config.scope.allowed_cidrs.is_empty());
+        assert!(config.scope.denied_cidrs.is_empty());
+        assert!(!config.scope.emergency_disable);
+        assert_eq!(config.scope.max_targets_per_scan, 10000);
+    }
+
+    #[test]
+    fn test_config_scope_from_toml() {
+        let toml = r#"
+            [scope]
+            allowed_cidrs = ["10.0.0.0/8", "172.16.0.0/12"]
+            denied_cidrs = ["10.99.0.0/16"]
+            denied_hostnames = ["evil.example.com"]
+            emergency_disable = false
+            max_targets_per_scan = 5000
+        "#;
+
+        let config = Config::from_toml(toml).unwrap();
+        assert_eq!(config.scope.allowed_cidrs.len(), 2);
+        assert_eq!(config.scope.denied_cidrs.len(), 1);
+        assert_eq!(config.scope.denied_hostnames.len(), 1);
+        assert!(!config.scope.emergency_disable);
+        assert_eq!(config.scope.max_targets_per_scan, 5000);
+    }
+
+    #[test]
+    fn test_config_scope_env_merge() {
+        let config = Config::default();
+
+        std::env::set_var("FORGESCAN_EMERGENCY_DISABLE", "true");
+        std::env::set_var("FORGESCAN_ALLOWED_CIDRS", "10.0.0.0/8,172.16.0.0/12");
+        std::env::set_var("FORGESCAN_DENIED_CIDRS", "10.99.0.0/16");
+
+        let config = config.merge_env();
+        assert!(config.scope.emergency_disable);
+        assert_eq!(config.scope.allowed_cidrs, vec!["10.0.0.0/8", "172.16.0.0/12"]);
+        assert_eq!(config.scope.denied_cidrs, vec!["10.99.0.0/16"]);
+
+        std::env::remove_var("FORGESCAN_EMERGENCY_DISABLE");
+        std::env::remove_var("FORGESCAN_ALLOWED_CIDRS");
+        std::env::remove_var("FORGESCAN_DENIED_CIDRS");
     }
 
     #[test]

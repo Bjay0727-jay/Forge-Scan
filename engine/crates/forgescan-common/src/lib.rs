@@ -5,6 +5,8 @@
 pub mod config;
 pub mod crypto;
 pub mod logging;
+pub mod scope;
 
 pub use config::{Config, ConfigBuilder};
 pub use logging::init_logging;
+pub use scope::{ScopeConfig, ScopeValidator};
