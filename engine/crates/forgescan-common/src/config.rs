@@ -119,10 +119,18 @@ impl Config {
             self.scope.emergency_disable = val == "true" || val == "1";
         }
         if let Ok(val) = std::env::var("FORGESCAN_ALLOWED_CIDRS") {
-            self.scope.allowed_cidrs = val.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+            self.scope.allowed_cidrs = val
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
         }
         if let Ok(val) = std::env::var("FORGESCAN_DENIED_CIDRS") {
-            self.scope.denied_cidrs = val.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+            self.scope.denied_cidrs = val
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
         }
 
         self
@@ -723,7 +731,10 @@ mod tests {
 
         let config = config.merge_env();
         assert!(config.scope.emergency_disable);
-        assert_eq!(config.scope.allowed_cidrs, vec!["10.0.0.0/8", "172.16.0.0/12"]);
+        assert_eq!(
+            config.scope.allowed_cidrs,
+            vec!["10.0.0.0/8", "172.16.0.0/12"]
+        );
         assert_eq!(config.scope.denied_cidrs, vec!["10.99.0.0/16"]);
 
         std::env::remove_var("FORGESCAN_EMERGENCY_DISABLE");

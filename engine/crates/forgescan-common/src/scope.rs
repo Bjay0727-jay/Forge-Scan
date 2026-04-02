@@ -11,20 +11,20 @@ use std::net::IpAddr;
 /// Default CIDRs that are always denied unless explicitly overridden.
 /// Includes loopback, link-local, multicast, reserved, and IPv6 equivalents.
 const DEFAULT_DENIED_CIDRS: &[&str] = &[
-    "127.0.0.0/8",     // IPv4 loopback
-    "169.254.0.0/16",   // IPv4 link-local
-    "224.0.0.0/4",      // IPv4 multicast
-    "240.0.0.0/4",      // IPv4 reserved
-    "::1/128",          // IPv6 loopback
-    "fe80::/10",        // IPv6 link-local
-    "ff00::/8",         // IPv6 multicast
+    "127.0.0.0/8",    // IPv4 loopback
+    "169.254.0.0/16", // IPv4 link-local
+    "224.0.0.0/4",    // IPv4 multicast
+    "240.0.0.0/4",    // IPv4 reserved
+    "::1/128",        // IPv6 loopback
+    "fe80::/10",      // IPv6 link-local
+    "ff00::/8",       // IPv6 multicast
 ];
 
 /// Default hostnames that are always denied.
 const DEFAULT_DENIED_HOSTNAMES: &[&str] = &[
     "localhost",
-    "metadata.google.internal",        // GCP metadata
-    "169.254.169.254",                 // AWS/Azure metadata (also caught by CIDR deny)
+    "metadata.google.internal", // GCP metadata
+    "169.254.169.254",          // AWS/Azure metadata (also caught by CIDR deny)
 ];
 
 /// Scope configuration controlling what the scanner is allowed to target.
@@ -153,8 +153,8 @@ impl ScopeValidator {
 
         // URL: extract hostname and check
         if target.starts_with("http://") || target.starts_with("https://") {
-            let host = extract_url_host(target)
-                .ok_or_else(|| ScopeError::InvalidTarget(target.into()))?;
+            let host =
+                extract_url_host(target).ok_or_else(|| ScopeError::InvalidTarget(target.into()))?;
             return self.check_hostname_or_ip(&host);
         }
 
@@ -372,11 +372,7 @@ fn extract_url_host(url: &str) -> Option<String> {
         .strip_prefix("https://")
         .or_else(|| url.strip_prefix("http://"))?;
     // Take everything before the first '/' or ':'
-    let host = without_scheme
-        .split('/')
-        .next()?
-        .split(':')
-        .next()?;
+    let host = without_scheme.split('/').next()?.split(':').next()?;
     if host.is_empty() {
         None
     } else {
@@ -645,9 +641,9 @@ mod tests {
         let v = default_validator();
         let targets = vec![
             "10.0.0.1".into(),
-            "127.0.0.1".into(),       // denied
+            "127.0.0.1".into(), // denied
             "192.168.1.1".into(),
-            "localhost".into(),        // denied
+            "localhost".into(), // denied
         ];
 
         let (allowed, rejected) = v.filter_targets(&targets);
@@ -731,9 +727,7 @@ mod tests {
         assert!(
             format!("{}", ScopeError::DeniedHostname("localhost".into())).contains("deny list")
         );
-        assert!(
-            format!("{}", ScopeError::NotInAllowedCidrs("8.8.8.8".into())).contains("allowed")
-        );
+        assert!(format!("{}", ScopeError::NotInAllowedCidrs("8.8.8.8".into())).contains("allowed"));
         assert!(format!(
             "{}",
             ScopeError::TargetLimitExceeded {
@@ -742,9 +736,7 @@ mod tests {
             }
         )
         .contains("100"));
-        assert!(
-            format!("{}", ScopeError::InvalidTarget("bad".into())).contains("Invalid")
-        );
+        assert!(format!("{}", ScopeError::InvalidTarget("bad".into())).contains("Invalid"));
     }
 
     // ── ip_in_cidr unit tests ─────────────────────────────────────

@@ -125,15 +125,6 @@ jobs:
             done < <(find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.sbom.spdx.json" \))
           fi
 
-      - name: Sign release assets with keyless Sigstore (fallback)
-        if: ${{ secrets.COSIGN_PRIVATE_KEY == '' }}
-        env:
-          COSIGN_EXPERIMENTAL: "true"
-        run: |
-          while IFS= read -r file; do
-            cosign sign-blob --yes --output-signature "$file.sig" "$file"
-          done < <(find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.sbom.spdx.json" \))
-
       - name: Create release provenance attestation
         uses: actions/attest-build-provenance@v1
         with:
