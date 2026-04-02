@@ -8,14 +8,21 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - ".github/workflows/ci.yml"
+      - "cloudflare/**"
   push:
     branches: [main]
     paths:
       - "engine/**"
+      - ".github/workflows/ci.yml"
+      - "cloudflare/**"
 
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-D warnings"
+
+permissions:
+  contents: read
+  security-events: write
 
 jobs:
   fmt:
@@ -134,3 +141,34 @@ jobs:
           fi
 
           echo "No secrets detected."
+
+  sast:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Semgrep SAST
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/default
+
+  iac-scan:
+    name: IaC and workflow scanning (Trivy misconfig)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy config scan (fail on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: config
+          hide-progress: true
+          format: sarif
+          output: trivy-config.sarif
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+      - name: Upload Trivy config SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-config.sarif
