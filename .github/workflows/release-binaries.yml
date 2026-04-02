@@ -107,15 +107,23 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@v3.7.0
 
-      - name: Sign release assets with cosign key pair
-        if: ${{ secrets.COSIGN_PRIVATE_KEY != '' }}
+      - name: Sign release assets (key-based if configured, otherwise keyless)
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+          COSIGN_EXPERIMENTAL: "true"
         run: |
-          while IFS= read -r file; do
-            cosign sign-blob --yes --key env://COSIGN_PRIVATE_KEY --output-signature "$file.sig" "$file"
-          done < <(find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.sbom.spdx.json" \))
+          if [ -n "${COSIGN_PRIVATE_KEY:-}" ]; then
+            echo "Using key-based cosign signing for release assets."
+            while IFS= read -r file; do
+              cosign sign-blob --yes --key env://COSIGN_PRIVATE_KEY --output-signature "$file.sig" "$file"
+            done < <(find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.sbom.spdx.json" \))
+          else
+            echo "COSIGN_PRIVATE_KEY not configured; using keyless Sigstore signing."
+            while IFS= read -r file; do
+              cosign sign-blob --yes --output-signature "$file.sig" "$file"
+            done < <(find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.sbom.spdx.json" \))
+          fi
 
       - name: Create release provenance attestation
         uses: actions/attest-build-provenance@v1
