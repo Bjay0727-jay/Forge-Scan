@@ -81,6 +81,14 @@ impl Config {
                 self.scanner.max_concurrent_scans = n;
             }
         }
+        if let Ok(val) = std::env::var("FORGESCAN_SCANNER_KILL_SWITCH") {
+            self.scanner.kill_switch = val == "true" || val == "1";
+        }
+        if let Ok(val) = std::env::var("FORGESCAN_MAX_TARGETS_PER_TASK") {
+            if let Ok(n) = val.parse() {
+                self.scanner.max_targets_per_task = n;
+            }
+        }
 
         // Agent settings
         if let Ok(val) = std::env::var("FORGESCAN_AGENT_ID") {
@@ -191,6 +199,22 @@ pub struct ScannerConfig {
     /// Enabled check categories
     #[serde(default)]
     pub enabled_categories: Vec<String>,
+
+    /// Emergency stop for all scanner task execution
+    #[serde(default)]
+    pub kill_switch: bool,
+
+    /// Optional allow-list CIDRs for IP targets (empty = allow all)
+    #[serde(default)]
+    pub allowed_cidrs: Vec<String>,
+
+    /// Explicit deny-list for targets (exact host/IP/CIDR match)
+    #[serde(default)]
+    pub denied_targets: Vec<String>,
+
+    /// Hard upper bound on number of targets accepted per task
+    #[serde(default = "default_max_targets_per_task")]
+    pub max_targets_per_task: u32,
 }
 
 fn default_max_scans() -> u32 {
@@ -205,6 +229,10 @@ fn default_scan_timeout() -> u32 {
     3600
 }
 
+fn default_max_targets_per_task() -> u32 {
+    256
+}
+
 impl Default for ScannerConfig {
     fn default() -> Self {
         Self {
@@ -214,6 +242,10 @@ impl Default for ScannerConfig {
             default_timeout_seconds: 3600,
             checks_dir: Some(String::from("/etc/forgescan/checks")),
             enabled_categories: vec![],
+            kill_switch: false,
+            allowed_cidrs: vec![],
+            denied_targets: vec![],
+            max_targets_per_task: default_max_targets_per_task(),
         }
     }
 }
@@ -547,16 +579,22 @@ mod tests {
         );
         std::env::set_var("FORGESCAN_LOG_LEVEL", "trace");
         std::env::set_var("FORGESCAN_MAX_CONCURRENT_SCANS", "42");
+        std::env::set_var("FORGESCAN_SCANNER_KILL_SWITCH", "1");
+        std::env::set_var("FORGESCAN_MAX_TARGETS_PER_TASK", "20");
 
         let config = config.merge_env();
 
         assert_eq!(config.platform.endpoint, "https://env.example.com:9999");
         assert_eq!(config.logging.level, "trace");
         assert_eq!(config.scanner.max_concurrent_scans, 42);
+        assert!(config.scanner.kill_switch);
+        assert_eq!(config.scanner.max_targets_per_task, 20);
 
         std::env::remove_var("FORGESCAN_PLATFORM_ENDPOINT");
         std::env::remove_var("FORGESCAN_LOG_LEVEL");
         std::env::remove_var("FORGESCAN_MAX_CONCURRENT_SCANS");
+        std::env::remove_var("FORGESCAN_SCANNER_KILL_SWITCH");
+        std::env::remove_var("FORGESCAN_MAX_TARGETS_PER_TASK");
     }
 
     #[test]
@@ -576,6 +614,10 @@ mod tests {
         assert_eq!(sc.max_concurrent_targets, 100);
         assert_eq!(sc.default_timeout_seconds, 3600);
         assert!(sc.checks_dir.is_some());
+        assert!(!sc.kill_switch);
+        assert!(sc.allowed_cidrs.is_empty());
+        assert!(sc.denied_targets.is_empty());
+        assert_eq!(sc.max_targets_per_task, 256);
     }
 
     #[test]
@@ -706,6 +748,10 @@ mod tests {
             default_timeout_seconds = 1800
             checks_dir = "/opt/checks"
             enabled_categories = ["network", "web"]
+            kill_switch = false
+            allowed_cidrs = ["10.0.0.0/24", "192.168.1.0/24"]
+            denied_targets = ["10.0.0.10", "192.168.1.8/32"]
+            max_targets_per_task = 120
 
             [agent]
             agent_id = "ag-1"
@@ -756,6 +802,10 @@ mod tests {
         assert_eq!(config.scanner.default_timeout_seconds, 1800);
         assert_eq!(config.scanner.checks_dir, Some(String::from("/opt/checks")));
         assert_eq!(config.scanner.enabled_categories, vec!["network", "web"]);
+        assert!(!config.scanner.kill_switch);
+        assert_eq!(config.scanner.allowed_cidrs.len(), 2);
+        assert_eq!(config.scanner.denied_targets.len(), 2);
+        assert_eq!(config.scanner.max_targets_per_task, 120);
 
         assert_eq!(config.agent.agent_id, Some(String::from("ag-1")));
         assert_eq!(config.agent.heartbeat_interval_seconds, 120);

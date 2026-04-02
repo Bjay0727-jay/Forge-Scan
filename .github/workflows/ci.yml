@@ -142,7 +142,7 @@ jobs:
           echo "No secrets detected."
 
   sast:
-    name: SAST (Semgrep advisory)
+    name: SAST (Semgrep)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -151,8 +151,8 @@ jobs:
           python-version: '3.x'
       - name: Install Semgrep
         run: pip install --disable-pip-version-check semgrep==1.76.0
-      - name: Run Semgrep SAST (advisory)
-        run: semgrep scan --config p/default --sarif --output semgrep.sarif .
+      - name: Run Semgrep SAST (fail on ERROR severity findings)
+        run: semgrep scan --config p/default --severity ERROR --error --sarif --output semgrep.sarif .
       - name: Upload Semgrep SARIF
         uses: github/codeql-action/upload-sarif@v3
         if: always()

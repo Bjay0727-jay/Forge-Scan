@@ -27,6 +27,8 @@ spec:
       securityContext:
         runAsUser: 0  # Required for raw socket access
         fsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: scanner
           image: ghcr.io/forge-cyber/forgescan-scanner:latest
@@ -62,6 +64,7 @@ spec:
               memory: 2Gi
           # NET_ADMIN capability required for SYN scanning and raw sockets
           securityContext:
+            allowPrivilegeEscalation: false
             capabilities:
               add:
                 - NET_ADMIN
@@ -103,6 +106,8 @@ spec:
           operator: "Equal"
           value: "true"
           effect: "NoSchedule"
+      nodeSelector:
+        forgescan/scanner-node: "true"
 ---
 apiVersion: apps/v1
 kind: Deployment

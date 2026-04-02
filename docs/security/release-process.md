@@ -5,14 +5,17 @@ This repository's release pipeline now includes baseline supply-chain controls f
 ## What CI/CD now does
 
 - **Rust binary SBOMs:** `release-binaries.yml` generates SPDX JSON SBOMs per target binary and publishes them as release assets.
-- **Container SBOM + provenance:** `build-docker.yml` enables BuildKit SBOM and provenance generation (`sbom: true`, `provenance: mode=max`).
+- **Repository + container SBOMs:** CI generates a repository-level SPDX SBOM and `build-docker.yml` generates/publishes an SPDX SBOM for the pushed scanner image digest.
+- **Container SBOM + provenance:** `build-docker.yml` also enables BuildKit provenance generation (`provenance: mode=max`).
 - **Container signing (keyless):** Docker images are signed via Sigstore keyless signing (`cosign sign`) using GitHub OIDC identity.
-- **Release artifact signing (key-based scaffold):** If `COSIGN_PRIVATE_KEY` is configured, release archives/SBOMs are signed with `cosign sign-blob` and uploaded as `.sig` files.
+- **Release artifact signing:** Release archives/SBOMs are signed via cosign:
+  - key-based (`COSIGN_PRIVATE_KEY`) when available, or
+  - keyless OIDC fallback when no key secret is configured.
 - **Provenance attestations:**
   - Container image provenance is pushed to the registry via `actions/attest-build-provenance`.
   - Release asset provenance is generated for archives, SBOMs, and checksums.
 - **Security scanning:**
-  - SAST via Semgrep in CI (SARIF advisory reporting).
+  - SAST via Semgrep in CI (fails on `ERROR` severity findings, uploads SARIF).
   - IaC/workflow misconfiguration scanning via Trivy config mode (HIGH/CRITICAL fail gate).
   - Container vulnerability scanning via Trivy image mode (HIGH/CRITICAL fail gate).
 
@@ -34,7 +37,7 @@ Set these repository secrets to enable signed binary release assets:
 - `COSIGN_PRIVATE_KEY` — Cosign private key in PEM format.
 - `COSIGN_PASSWORD` — Password for the Cosign private key (if encrypted).
 
-If these are not configured, binary archives are still released, but `.sig` files are not generated.
+If these are not configured, binary archives are still released and keyless OIDC signatures are generated instead.
 
 ## Additional CI controls
 
