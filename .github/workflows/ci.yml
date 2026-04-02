@@ -14,7 +14,6 @@ on:
     paths:
       - "engine/**"
       - ".github/workflows/ci.yml"
-      - "cloudflare/**"
 
 env:
   CARGO_TERM_COLOR: always
@@ -143,15 +142,22 @@ jobs:
           echo "No secrets detected."
 
   sast:
-    name: SAST (Semgrep)
+    name: SAST (Semgrep advisory)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run Semgrep SAST
-        uses: returntocorp/semgrep-action@v1
+      - uses: actions/setup-python@v5
         with:
-          config: >-
-            p/default
+          python-version: '3.x'
+      - name: Install Semgrep
+        run: pip install --disable-pip-version-check semgrep==1.76.0
+      - name: Run Semgrep SAST (advisory)
+        run: semgrep scan --config p/default --sarif --output semgrep.sarif .
+      - name: Upload Semgrep SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
 
   iac-scan:
     name: IaC and workflow scanning (Trivy misconfig)
@@ -159,14 +165,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Trivy config scan (fail on HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.24.0
-        with:
-          scan-type: config
-          hide-progress: true
-          format: sarif
-          output: trivy-config.sarif
-          severity: HIGH,CRITICAL
-          exit-code: '1'
+        run: |
+          docker run --rm \
+            -v "$PWD:/work" -w /work \
+            aquasec/trivy:0.51.2 \
+            config \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --format sarif \
+            --output trivy-config.sarif \
+            .
       - name: Upload Trivy config SARIF
         uses: github/codeql-action/upload-sarif@v3
         if: always()

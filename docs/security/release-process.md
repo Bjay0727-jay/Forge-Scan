@@ -12,9 +12,9 @@ This repository's release pipeline now includes baseline supply-chain controls f
   - Container image provenance is pushed to the registry via `actions/attest-build-provenance`.
   - Release asset provenance is generated for archives, SBOMs, and checksums.
 - **Security scanning:**
-  - SAST via Semgrep in CI.
-  - IaC/workflow misconfiguration scanning via Trivy config mode.
-  - Container vulnerability scanning via Trivy image mode.
+  - SAST via Semgrep in CI (SARIF advisory reporting).
+  - IaC/workflow misconfiguration scanning via Trivy config mode (HIGH/CRITICAL fail gate).
+  - Container vulnerability scanning via Trivy image mode (HIGH/CRITICAL fail gate).
 
 ## Required repository configuration and secrets
 

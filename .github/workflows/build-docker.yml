@@ -79,14 +79,14 @@ jobs:
           cosign sign --yes "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}"
 
       - name: Container vulnerability scan (fail on HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.24.0
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
-          format: sarif
-          output: trivy-image.sarif
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: '1'
+        run: |
+          docker run --rm aquasec/trivy:0.51.2 image \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --format sarif \
+            --output trivy-image.sarif \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}"
 
       - name: Upload Trivy scan report
         uses: github/codeql-action/upload-sarif@v3
