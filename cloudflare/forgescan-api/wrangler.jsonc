@@ -113,34 +113,6 @@
           "id": "e8e1da19230448f0a5bb32245ac799db"
         }
       ]
-    },
-    "staging": {
-      "name": "forgescan-api-staging",
-      "vars": {
-        "ENVIRONMENT": "staging",
-        "API_VERSION": "v1",
-        "CORS_ORIGIN": "https://staging.forgescan.forgecyberdefense.com"
-      },
-      // Operators: replace these IDs with staging-specific resources.
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_name": "forgescan-db",
-          "database_id": "33c4ed36-32ac-4fff-b363-982a777108eb"
-        }
-      ],
-      "r2_buckets": [
-        {
-          "binding": "STORAGE",
-          "bucket_name": "forgescan-storage"
-        }
-      ],
-      "kv_namespaces": [
-        {
-          "binding": "CACHE",
-          "id": "e8e1da19230448f0a5bb32245ac799db"
-        }
-      ]
     }
   }
 }
