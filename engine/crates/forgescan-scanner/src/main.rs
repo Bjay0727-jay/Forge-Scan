@@ -16,6 +16,7 @@ use clap::Parser;
 use tokio::sync::Semaphore;
 use tracing::{debug, error, info, warn};
 
+use forgescan_common::ScopeValidator;
 use forgescan_hipaa::{HipaaMapper, HipaaReportGenerator};
 use forgescan_network::capture::{build_host_filter, CaptureConfig, CaptureSession, CaptureStats};
 use forgescan_network::discovery::{self, HostDiscovery};
@@ -166,8 +167,16 @@ async fn main() -> Result<()> {
         .or_else(|| config.scanner.scanner_id.clone())
         .unwrap_or_default();
 
+    // Build scope validator for target guardrails
+    let scope = ScopeValidator::new(&config.scope);
+    if scope.is_emergency_disabled() {
+        error!("Scanner emergency disable is active — refusing to start. \
+                Unset FORGESCAN_EMERGENCY_DISABLE or set scope.emergency_disable = false to resume.");
+        anyhow::bail!("Emergency disable active");
+    }
+
     if args.one_shot {
-        run_one_shot_scan(&args, &api_base_url).await
+        run_one_shot_scan(&args, &api_base_url, &config.scope).await
     } else {
         run_daemon_mode(&config, &api_base_url, &api_key, &scanner_id, &args).await
     }
@@ -320,11 +329,12 @@ async fn run_daemon_mode(
                         let api_base = api_base_url.to_string();
                         let key = api_key.to_string();
                         let sid = scanner_id.to_string();
+                        let scope_config = config.scope.clone();
 
                         tokio::spawn(async move {
                             let _permit = permit; // held until task completes
                             if let Err(e) = execute_task_wrapper(
-                                &api_base, &key, &sid, &task_id, &task_type, task.task_payload,
+                                &api_base, &key, &sid, &task_id, &task_type, task.task_payload, &scope_config,
                             )
                             .await
                             {
@@ -368,6 +378,7 @@ async fn execute_task_wrapper(
     task_id: &str,
     task_type: &str,
     payload: Option<serde_json::Value>,
+    scope_config: &forgescan_common::ScopeConfig,
 ) -> Result<()> {
     let rest_config = RestClientConfig {
         api_base_url: api_base_url.to_string(),
@@ -383,8 +394,8 @@ async fn execute_task_wrapper(
         .await
         .map_err(|e| anyhow::anyhow!("Failed to mark task as started: {}", e))?;
 
-    // Execute the scan
-    let result = execute_task(task_type, payload).await;
+    // Execute the scan with scope validation
+    let result = execute_task(task_type, payload, scope_config).await;
 
     match result {
         Ok(results_payload) => {
@@ -407,8 +418,32 @@ async fn execute_task_wrapper(
 async fn execute_task(
     task_type: &str,
     payload: Option<serde_json::Value>,
+    scope_config: &forgescan_common::ScopeConfig,
 ) -> Result<TaskResultsPayload> {
-    let targets = extract_targets(&payload)?;
+    let raw_targets = extract_targets(&payload)?;
+
+    // Apply scope guardrails: filter targets through allowed/denied lists
+    let scope = ScopeValidator::new(scope_config);
+    if scope.is_emergency_disabled() {
+        anyhow::bail!("Scanner emergency disable is active — task rejected");
+    }
+    let (targets, rejected) = scope.filter_targets(&raw_targets);
+    for r in &rejected {
+        warn!("Target rejected by scope policy: {} — {}", r.target, r.reason);
+    }
+    if targets.is_empty() {
+        anyhow::bail!(
+            "All {} target(s) were rejected by scope policy",
+            raw_targets.len()
+        );
+    }
+    if !rejected.is_empty() {
+        info!(
+            "Scope filter: {} of {} targets allowed",
+            targets.len(),
+            raw_targets.len()
+        );
+    }
 
     match task_type {
         "network" | "network_scan" => execute_network_scan(&targets, &payload).await,
@@ -999,7 +1034,7 @@ fn stats_to_payload(stats: &CaptureStats) -> CaptureStatsPayload {
 
 // ── One-Shot Mode ───────────────────────────────────────────────────────────
 
-async fn run_one_shot_scan(args: &Args, _api_base_url: &str) -> Result<()> {
+async fn run_one_shot_scan(args: &Args, _api_base_url: &str, scope_config: &forgescan_common::ScopeConfig) -> Result<()> {
     let target = args
         .target
         .as_deref()
@@ -1016,7 +1051,7 @@ async fn run_one_shot_scan(args: &Args, _api_base_url: &str) -> Result<()> {
     let targets = vec![target.to_string()];
     let payload = Some(serde_json::json!({ "targets": targets }));
 
-    let result = execute_task(&args.scan_type, payload).await?;
+    let result = execute_task(&args.scan_type, payload, scope_config).await?;
 
     let scan_elapsed = scan_start.elapsed();
 

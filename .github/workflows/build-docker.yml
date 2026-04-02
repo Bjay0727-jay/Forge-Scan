@@ -1,4 +1,4 @@
-name: Build & Push Docker Image
+name: Build & Push Docker Images
 
 on:
   push:
@@ -11,7 +11,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: bjay0727-jay/forgescan-scanner
+  SCANNER_IMAGE_NAME: bjay0727-jay/forgescan-scanner
+  AGENT_IMAGE_NAME: bjay0727-jay/forgescan-agent
 
 permissions:
   contents: read
@@ -21,8 +22,8 @@ permissions:
   attestations: write
 
 jobs:
-  build:
-    name: Build Multi-Arch Image
+  build-scanner:
+    name: Build Scanner Image
     runs-on: ubuntu-latest
     outputs:
       digest: ${{ steps.build.outputs.digest }}
@@ -46,7 +47,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.SCANNER_IMAGE_NAME }}
           tags: |
             type=ref,event=branch
             type=sha,prefix=sha-,format=short
@@ -76,33 +77,125 @@ jobs:
         env:
           COSIGN_EXPERIMENTAL: "true"
         run: |
-          cosign sign --yes "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}"
+          cosign sign --yes "${{ env.REGISTRY }}/${{ env.SCANNER_IMAGE_NAME }}@${{ steps.build.outputs.digest }}"
 
       - name: Container vulnerability scan (fail on HIGH/CRITICAL)
         run: |
-          docker run --rm aquasec/trivy:0.51.2 image \
+          docker run --rm \
+            -v "${{ github.workspace }}:/work" \
+            aquasec/trivy:0.51.2 image \
             --severity HIGH,CRITICAL \
             --ignore-unfixed \
             --exit-code 1 \
             --format sarif \
-            --output trivy-image.sarif \
-            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}"
+            --output /work/trivy-scanner.sarif \
+            "${{ env.REGISTRY }}/${{ env.SCANNER_IMAGE_NAME }}@${{ steps.build.outputs.digest }}"
 
       - name: Upload Trivy scan report
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: trivy-image.sarif
+          sarif_file: trivy-scanner.sarif
+          category: scanner-image
 
-  attest:
-    name: Attest container image provenance
-    needs: build
+  build-agent:
+    name: Build Agent Image
     runs-on: ubuntu-latest
-    if: needs.build.outputs.digest != ''
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU (for ARM64 cross-build)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.AGENT_IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=sha-,format=short
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: engine
+          file: engine/Dockerfile.agent
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          sbom: true
+          provenance: mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.7.0
+
+      - name: Sign image digest (keyless Sigstore)
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: |
+          cosign sign --yes "${{ env.REGISTRY }}/${{ env.AGENT_IMAGE_NAME }}@${{ steps.build.outputs.digest }}"
+
+      - name: Container vulnerability scan (fail on HIGH/CRITICAL)
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/work" \
+            aquasec/trivy:0.51.2 image \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --format sarif \
+            --output /work/trivy-agent.sarif \
+            "${{ env.REGISTRY }}/${{ env.AGENT_IMAGE_NAME }}@${{ steps.build.outputs.digest }}"
+
+      - name: Upload Trivy scan report
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-agent.sarif
+          category: agent-image
+
+  attest-scanner:
+    name: Attest scanner image provenance
+    needs: build-scanner
+    runs-on: ubuntu-latest
+    if: needs.build-scanner.outputs.digest != ''
     steps:
       - name: Generate provenance attestation
         uses: actions/attest-build-provenance@v1
         with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          subject-digest: ${{ needs.build.outputs.digest }}
+          subject-name: ${{ env.REGISTRY }}/${{ env.SCANNER_IMAGE_NAME }}
+          subject-digest: ${{ needs.build-scanner.outputs.digest }}
+          push-to-registry: true
+
+  attest-agent:
+    name: Attest agent image provenance
+    needs: build-agent
+    runs-on: ubuntu-latest
+    if: needs.build-agent.outputs.digest != ''
+    steps:
+      - name: Generate provenance attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.AGENT_IMAGE_NAME }}
+          subject-digest: ${{ needs.build-agent.outputs.digest }}
           push-to-registry: true

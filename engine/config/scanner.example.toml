@@ -50,6 +50,32 @@ data_dir = "/var/lib/forgescan"
 log_dir = "/var/log/forgescan"
 
 # ============================================================================
+# Scope Guardrails
+# ============================================================================
+# Controls what the scanner is allowed to target. Denied CIDRs and hostnames
+# are ALWAYS enforced (appended to built-in deny list). Allowed CIDRs, if
+# non-empty, restrict scanning to only those ranges.
+
+[scope]
+# Positive allowlist: if set, only targets in these CIDRs can be scanned.
+# Empty list (default) means all targets are allowed (subject to denied list).
+# allowed_cidrs = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+
+# Additional denied CIDRs (appended to built-in deny list which includes
+# 127.0.0.0/8, 169.254.0.0/16, 224.0.0.0/4, 240.0.0.0/4, ::1/128, fe80::/10, ff00::/8)
+# denied_cidrs = ["10.0.0.1/32"]
+
+# Denied hostnames (appended to built-in: localhost, metadata.google.internal)
+# denied_hostnames = ["internal-admin.example.com"]
+
+# Emergency kill switch — set to true to block ALL scanning immediately.
+# Can also be activated via FORGESCAN_EMERGENCY_DISABLE=true env var.
+emergency_disable = false
+
+# Maximum targets per scan task (hard limit)
+max_targets_per_scan = 10000
+
+# ============================================================================
 # Scan Targets
 # ============================================================================
 

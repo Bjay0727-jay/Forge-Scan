@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "forgescan-api",
+  "name": "forgescan-api-dev",
   "main": "dist/worker.js",
   "compatibility_date": "2024-01-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -11,6 +11,8 @@
   },
 
   // D1 Database binding
+  // Note: database_id is a Cloudflare resource identifier, not a secret.
+  // Each environment should use its own D1 database in production.
   "d1_databases": [
     {
       "binding": "DB",
@@ -28,6 +30,7 @@
   ],
 
   // KV Cache binding
+  // Note: KV namespace id is a Cloudflare resource identifier, not a secret.
   "kv_namespaces": [
     {
       "binding": "CACHE",
@@ -35,17 +38,24 @@
     }
   ],
 
-  // Environment variables
+  // Top-level vars are defaults for local development (`wrangler dev`).
+  // Production and staging values are in their respective env blocks below.
+  // Secrets (JWT_SECRET, NVD_API_KEY, etc.) must be set via `wrangler secret put`.
   "vars": {
-    "ENVIRONMENT": "production",
+    "ENVIRONMENT": "development",
     "API_VERSION": "v1",
-    "CORS_ORIGIN": "https://app.forgescan.forgecyberdefense.com,https://forgescan-dashboard.pages.dev"
+    "CORS_ORIGIN": "http://localhost:3000,http://localhost:5173"
   },
 
-  // Named environments
+  // Named environments — deploy with `wrangler deploy --env <name>`
   "env": {
     "production": {
       "name": "forgescan-api",
+      "vars": {
+        "ENVIRONMENT": "production",
+        "API_VERSION": "v1",
+        "CORS_ORIGIN": "https://app.forgescan.forgecyberdefense.com,https://forgescan-dashboard.pages.dev"
+      },
       "routes": [
         {
           "pattern": "api.forgescan.forgecyberdefense.com/*",
@@ -53,12 +63,12 @@
         }
       ]
     },
-    "dev": {
-      "name": "forgescan-api-dev",
+    "staging": {
+      "name": "forgescan-api-staging",
       "vars": {
-        "ENVIRONMENT": "development",
+        "ENVIRONMENT": "staging",
         "API_VERSION": "v1",
-        "CORS_ORIGIN": "http://localhost:3000,http://localhost:5173"
+        "CORS_ORIGIN": "https://staging.forgescan.forgecyberdefense.com"
       }
     }
   }
