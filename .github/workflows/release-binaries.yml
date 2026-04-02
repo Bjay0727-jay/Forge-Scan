@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   build:
@@ -18,12 +20,15 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             archive: tar.gz
             name: forgescan-scanner-linux-amd64
+            binary: forgescan-scanner
           - target: aarch64-unknown-linux-gnu
             archive: tar.gz
             name: forgescan-scanner-linux-arm64
+            binary: forgescan-scanner
           - target: x86_64-pc-windows-gnu
             archive: zip
             name: forgescan-scanner-windows-amd64
+            binary: forgescan-scanner.exe
 
     steps:
       - uses: actions/checkout@v4
@@ -47,11 +52,19 @@ jobs:
         working-directory: engine
         run: cross build --release --target ${{ matrix.target }} --bin forgescan-scanner
 
+      - name: Generate binary SBOM (SPDX JSON)
+        uses: anchore/sbom-action@v0
+        with:
+          path: engine/target/${{ matrix.target }}/release/${{ matrix.binary }}
+          format: spdx-json
+          output-file: ${{ matrix.name }}.sbom.spdx.json
+
       - name: Package (tar.gz)
         if: matrix.archive == 'tar.gz'
         run: |
           mkdir -p staging
           cp engine/target/${{ matrix.target }}/release/forgescan-scanner staging/
+          cp ${{ matrix.name }}.sbom.spdx.json staging/
           cp engine/checks/*.yaml staging/ 2>/dev/null || true
           cp LICENSE staging/ 2>/dev/null || true
           cd staging && tar czf ../${{ matrix.name }}.tar.gz .
@@ -61,6 +74,7 @@ jobs:
         run: |
           mkdir -p staging
           cp engine/target/${{ matrix.target }}/release/forgescan-scanner.exe staging/
+          cp ${{ matrix.name }}.sbom.spdx.json staging/
           cp engine/checks/*.yaml staging/ 2>/dev/null || true
           cp LICENSE staging/ 2>/dev/null || true
           cd staging && zip -r ../${{ matrix.name }}.zip .
@@ -69,7 +83,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
-          path: ${{ matrix.name }}.${{ matrix.archive }}
+          path: |
+            ${{ matrix.name }}.${{ matrix.archive }}
+            ${{ matrix.name }}.sbom.spdx.json
 
   release:
     name: Create GitHub Release
@@ -86,7 +102,29 @@ jobs:
       - name: Generate checksums
         run: |
           cd artifacts
-          find . -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec sha256sum {} \; > ../SHA256SUMS.txt
+          find . -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.sbom.spdx.json" \) -exec sha256sum {} \; > ../SHA256SUMS.txt
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.7.0
+
+      - name: Sign release assets with cosign key pair
+        if: ${{ secrets.COSIGN_PRIVATE_KEY != '' }}
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          while IFS= read -r file; do
+            cosign sign-blob --yes --key env://COSIGN_PRIVATE_KEY --output-signature "$file.sig" "$file"
+          done < <(find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.sbom.spdx.json" \))
+
+      - name: Create release provenance attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: |
+            artifacts/**/*.tar.gz
+            artifacts/**/*.zip
+            artifacts/**/*.sbom.spdx.json
+            SHA256SUMS.txt
 
       - name: Create release
         uses: softprops/action-gh-release@v2
@@ -96,6 +134,8 @@ jobs:
           files: |
             artifacts/**/*.tar.gz
             artifacts/**/*.zip
+            artifacts/**/*.sbom.spdx.json
+            artifacts/**/*.sig
             SHA256SUMS.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
