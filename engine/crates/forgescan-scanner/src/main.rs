@@ -432,7 +432,10 @@ async fn execute_task(
     }
     let (targets, rejected) = scope.filter_targets(&raw_targets);
     for r in &rejected {
-        warn!("Target rejected by scope policy: {} — {}", r.target, r.reason);
+        warn!(
+            "Target rejected by scope policy: {} — {}",
+            r.target, r.reason
+        );
     }
     if targets.is_empty() {
         anyhow::bail!(
@@ -1147,7 +1150,11 @@ fn stats_to_payload(stats: &CaptureStats) -> CaptureStatsPayload {
 
 // ── One-Shot Mode ───────────────────────────────────────────────────────────
 
-async fn run_one_shot_scan(args: &Args, _api_base_url: &str, scope_config: &forgescan_common::ScopeConfig) -> Result<()> {
+async fn run_one_shot_scan(
+    args: &Args,
+    _api_base_url: &str,
+    scope_config: &forgescan_common::ScopeConfig,
+) -> Result<()> {
     let target = args
         .target
         .as_deref()

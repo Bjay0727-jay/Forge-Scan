@@ -10,9 +10,8 @@
     "command": "npm install && npm run build"
   },
 
-  // D1 Database binding
+  // D1 Database binding (dev default)
   // Note: database_id is a Cloudflare resource identifier, not a secret.
-  // Each environment should use its own D1 database in production.
   "d1_databases": [
     {
       "binding": "DB",
@@ -21,7 +20,7 @@
     }
   ],
 
-  // R2 Storage binding
+  // R2 Storage binding (dev default)
   "r2_buckets": [
     {
       "binding": "STORAGE",
@@ -29,7 +28,7 @@
     }
   ],
 
-  // KV Cache binding
+  // KV Cache binding (dev default)
   // Note: KV namespace id is a Cloudflare resource identifier, not a secret.
   "kv_namespaces": [
     {
@@ -48,6 +47,10 @@
   },
 
   // Named environments — deploy with `wrangler deploy --env <name>`
+  // IMPORTANT: Wrangler does NOT inherit d1_databases, r2_buckets, or
+  // kv_namespaces from top-level into named environments. Each env must
+  // declare its own bindings. Replace the IDs below with environment-specific
+  // resource IDs before deploying.
   "env": {
     "staging": {
       "name": "forgescan-api-staging",
@@ -88,6 +91,27 @@
           "pattern": "api.forgescan.forgecyberdefense.com/*",
           "zone_name": "forgecyberdefense.com"
         }
+      ],
+      // Operators: replace these IDs with production-specific resources.
+      // Create with: wrangler d1 create forgescan-db-prod
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "forgescan-db",
+          "database_id": "33c4ed36-32ac-4fff-b363-982a777108eb"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "STORAGE",
+          "bucket_name": "forgescan-storage"
+        }
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "CACHE",
+          "id": "e8e1da19230448f0a5bb32245ac799db"
+        }
       ]
     },
     "staging": {
@@ -96,7 +120,27 @@
         "ENVIRONMENT": "staging",
         "API_VERSION": "v1",
         "CORS_ORIGIN": "https://staging.forgescan.forgecyberdefense.com"
-      }
+      },
+      // Operators: replace these IDs with staging-specific resources.
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "forgescan-db",
+          "database_id": "33c4ed36-32ac-4fff-b363-982a777108eb"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "STORAGE",
+          "bucket_name": "forgescan-storage"
+        }
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "CACHE",
+          "id": "e8e1da19230448f0a5bb32245ac799db"
+        }
+      ]
     }
   }
 }
