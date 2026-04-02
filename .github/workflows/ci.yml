@@ -142,7 +142,7 @@ jobs:
           echo "No secrets detected."
 
   sast:
-    name: SAST (Semgrep advisory)
+    name: SAST (Semgrep)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -151,13 +151,30 @@ jobs:
           python-version: '3.x'
       - name: Install Semgrep
         run: pip install --disable-pip-version-check semgrep==1.76.0
-      - name: Run Semgrep SAST (advisory)
-        run: semgrep scan --config p/default --sarif --output semgrep.sarif .
+      - name: Run Semgrep SAST (fail on ERROR severity findings)
+        run: semgrep scan --config p/default --severity ERROR --error --sarif --output semgrep.sarif .
       - name: Upload Semgrep SARIF
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: semgrep.sarif
+
+  sbom:
+    name: Generate SBOM (source snapshot)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate repository SBOM (SPDX JSON)
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: sbom-repo.spdx.json
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-repo
+          path: sbom-repo.spdx.json
 
   iac-scan:
     name: IaC and workflow scanning (Trivy misconfig)

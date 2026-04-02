@@ -36,6 +36,18 @@ max_concurrent_scans = 5
 # Maximum concurrent targets per scan
 max_concurrent_targets = 100
 
+# Emergency stop switch (set true to disable all task execution)
+kill_switch = false
+
+# Restrict scanner targets to these CIDRs (empty = no CIDR allow-list)
+allowed_cidrs = []
+
+# Explicit deny-list for targets (host/IP/CIDR)
+denied_targets = []
+
+# Hard cap on number of targets accepted from a task payload
+max_targets_per_task = 256
+
 # Default scan timeout in seconds (1 hour)
 default_timeout_seconds = 3600
 
