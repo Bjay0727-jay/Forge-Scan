@@ -43,7 +43,7 @@
   "vars": {
     "ENVIRONMENT": "development",
     "API_VERSION": "v1",
-    "CORS_ORIGIN": "http://localhost:3000,http://localhost:5173"
+    "CORS_ORIGIN": "https://app.forgescan.forgecyberdefense.com,https://forgescan-dashboard.pages.dev,http://localhost:3000,http://localhost:5173"
   },
 
   // Named environments — deploy with `wrangler deploy --env <name>`
