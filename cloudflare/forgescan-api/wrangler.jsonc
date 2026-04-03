@@ -81,17 +81,12 @@
     },
     "production": {
       "name": "forgescan-api",
+      "workers_dev": true,
       "vars": {
         "ENVIRONMENT": "production",
         "API_VERSION": "v1",
         "CORS_ORIGIN": "https://app.forgescan.forgecyberdefense.com,https://forgescan-dashboard.pages.dev"
       },
-      "routes": [
-        {
-          "pattern": "api.forgescan.forgecyberdefense.com/*",
-          "zone_name": "forgecyberdefense.com"
-        }
-      ],
       // Operators: replace these IDs with production-specific resources.
       // Create with: wrangler d1 create forgescan-db-prod
       "d1_databases": [
