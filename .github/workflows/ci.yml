@@ -182,7 +182,7 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           manifest-path: engine/Cargo.toml
-          arguments: --config engine/deny.toml
+          command-arguments: --config engine/deny.toml
 
   iac-scan:
     name: IaC and workflow scanning (Trivy misconfig)
