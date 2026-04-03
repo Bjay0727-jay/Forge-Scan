@@ -16,7 +16,8 @@ targets = [
 ignore = ["RUSTSEC-2026-0049"]
 
 [licenses]
-unlicensed = "deny"
+# In cargo-deny v2, only `allow`, `exceptions`, and `clarify` are supported.
+# Any license not in `allow` is denied automatically.
 allow = [
     "MIT",
     "Apache-2.0",
@@ -32,14 +33,6 @@ allow = [
     "0BSD",
     "MPL-2.0",
 ]
-deny = [
-    "GPL-2.0",
-    "GPL-3.0",
-    "AGPL-3.0-only",
-    "AGPL-3.0-or-later",
-    "SSPL-1.0",
-]
-confidence-threshold = 0.8
 
 # ring uses a non-standard license file; clarify for cargo-deny
 [[licenses.clarify]]
