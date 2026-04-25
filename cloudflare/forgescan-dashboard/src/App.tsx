@@ -25,12 +25,15 @@ import { CodeScan } from '@/pages/CodeScan';
 import { Playbooks } from '@/pages/Playbooks';
 import { ThreatIntel } from '@/pages/ThreatIntel';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { DesignSystem } from '@/pages/DesignSystem';
+import { ToastProvider } from '@/components/ui/toast';
 
 function App() {
   return (
     <ErrorBoundary>
     <BrowserRouter>
       <AuthProvider>
+        <ToastProvider>
         <Routes>
           {/* Public route */}
           <Route path="/login" element={<Login />} />
@@ -70,6 +73,7 @@ function App() {
             <Route path="codescan" element={<CodeScan />} />
             <Route path="playbooks" element={<Playbooks />} />
             <Route path="threat-intel" element={<ThreatIntel />} />
+            <Route path="design-system" element={<DesignSystem />} />
             <Route path="settings" element={<Settings />} />
             <Route
               path="admin/mssp"
@@ -97,6 +101,7 @@ function App() {
             />
           </Route>
         </Routes>
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
     </ErrorBoundary>

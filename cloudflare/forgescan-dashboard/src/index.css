@@ -1,4 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+/* ============================================================
+   Forge Cyber Defense — Design Tokens
+   Source of truth: forge-cyber-defense-design-system/colors_and_type.css
+   Mounted before Tailwind layers so utilities can reference these vars.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,46 +12,147 @@
 
 @layer base {
   :root {
-    /* Global base font-size — shrinks all rem-based sizing proportionally */
+    /* Global base font-size — every rem compounds against 14px. */
     font-size: 14px;
 
-    /* Forge Cyber Defense - Dark Theme (default)
-       Navy backgrounds lightened for readability, white text, Teal accents */
+    /* ===== BRAND COLORS ===================================== */
+
+    /* Navy — primary brand / backgrounds. */
+    --forge-navy-50:  #e6edf5;
+    --forge-navy-100: #c0d0e3;
+    --forge-navy-200: #96b0ce;
+    --forge-navy-300: #6b8fb9;
+    --forge-navy-400: #4b77a9;
+    --forge-navy-500: #2b5f9a;
+    --forge-navy-600: #1a3a5c;
+    --forge-navy-700: #0F2A4A;
+    --forge-navy-800: #091e36;
+    --forge-navy-900: #060f1a;
+
+    /* Teal — accent / CTA. Use sparingly. */
+    --forge-teal-400: #14b8a6;
+    --forge-teal-500: #0D9488;
+    --forge-teal-600: #0f766e;
+    --forge-teal-700: #0d6560;
+
+    /* Severity — contractual, never substitute. */
+    --forge-sev-critical: #dc2626;
+    --forge-sev-high:     #ea580c;
+    --forge-sev-medium:   #ca8a04;
+    --forge-sev-low:      #16a34a;
+    --forge-sev-info:     #2563eb;
+
+    /* Risk grade — Executive Scorecard only. */
+    --forge-grade-a: #22c55e;
+    --forge-grade-b: #3b82f6;
+    --forge-grade-c: #eab308;
+    --forge-grade-d: #f97316;
+    --forge-grade-f: #ef4444;
+
+    /* ===== SURFACE TOKENS (dark canonical) ================== */
     --background: 213 45% 14%;
     --foreground: 210 40% 96%;
-    --card: 213 45% 18%;
+    --card:       213 45% 18%;
     --card-foreground: 210 40% 96%;
-    --popover: 213 45% 17%;
+    --popover:    213 45% 17%;
     --popover-foreground: 210 40% 96%;
-    --primary: 174 84% 36%;
+    --primary:    174 84% 36%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 213 35% 22%;
+    --secondary:  213 35% 22%;
     --secondary-foreground: 210 40% 92%;
-    --muted: 213 35% 20%;
+    --muted:      213 35% 20%;
     --muted-foreground: 213 18% 65%;
-    --accent: 213 35% 24%;
+    --accent:     213 35% 24%;
     --accent-foreground: 174 60% 55%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 213 28% 26%;
-    --input: 213 30% 26%;
-    --ring: 174 84% 36%;
-    --radius: 0.5rem;
+    --border:     213 28% 26%;
+    --input:      213 30% 26%;
+    --ring:       174 84% 36%;
+    --radius:     0.5rem;
 
-    /* Semantic text colors — use instead of hardcoded hex */
-    --forge-text-primary: #e2e8f0;
-    --forge-text-secondary: #94a3b8;
-    --forge-text-muted: #64748b;
-    --forge-text-accent: #14b8a6;
-    --forge-sidebar-bg: #0b1929;
-    --forge-sidebar-text: #6b8fb9;
+    /* Semantic aliases used directly in product chrome. */
+    --forge-sidebar-bg:         #0b1929;
+    --forge-sidebar-text:       #6b8fb9;
     --forge-sidebar-text-muted: #4b77a9;
-    --forge-card-bg: rgba(255,255,255,0.03);
-    --forge-card-border: rgba(75,119,169,0.15);
+    --forge-card-bg:            rgba(255,255,255,0.03);
+    --forge-card-border:        rgba(75,119,169,0.15);
+    --forge-text-primary:       #e2e8f0;
+    --forge-text-secondary:     #94a3b8;
+    --forge-text-muted:         #64748b;
+    --forge-text-accent:        #14b8a6;
 
-    font-family: 'Inter', system-ui, sans-serif;
+    /* ===== TYPOGRAPHY ====================================== */
+    --forge-base-font-size: 14px;
+
+    --forge-font-heading: 'Sora', 'Inter', system-ui, sans-serif;
+    --forge-font-body:    'Inter', system-ui, sans-serif;
+    --forge-font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+    --forge-text-xs:   0.75rem;
+    --forge-text-sm:   0.8125rem;
+    --forge-text-base: 0.875rem;
+    --forge-text-md:   1rem;
+    --forge-text-lg:   1.125rem;
+    --forge-text-xl:   1.5rem;
+    --forge-text-2xl:  2rem;
+    --forge-text-3xl:  2.75rem;
+    --forge-text-hero: 4rem;
+
+    --forge-weight-regular:  400;
+    --forge-weight-medium:   500;
+    --forge-weight-semibold: 600;
+    --forge-weight-bold:     700;
+
+    --forge-tracking-eyebrow: 0.35em;
+    --forge-tracking-kicker:  0.18em;
+
+    /* ===== RADIUS & SHADOW ================================= */
+    --forge-radius-sm:   0.25rem;
+    --forge-radius-md:   0.375rem;
+    --forge-radius-lg:   0.5rem;
+    --forge-radius-pill: 9999px;
+
+    --forge-shadow-card: 0 1px 2px 0 rgba(0,0,0,0.25);
+    --forge-shadow-pop:  0 10px 30px -10px rgba(0,0,0,0.5);
+    --forge-shadow-glow: 0 0 20px rgba(13,148,136,0.15);
+    --forge-shadow-ring: 0 0 0 1px hsl(174 84% 32% / 0.1);
+
+    /* ===== SPACING SCALE (4px grid) ======================== */
+    --forge-space-1:  0.25rem;
+    --forge-space-2:  0.5rem;
+    --forge-space-3:  0.75rem;
+    --forge-space-4:  1rem;
+    --forge-space-5:  1.25rem;
+    --forge-space-6:  1.5rem;
+    --forge-space-8:  2rem;
+    --forge-space-10: 2.5rem;
+    --forge-space-12: 3rem;
+    --forge-space-16: 4rem;
+
+    /* ===== MOTION ========================================== */
+    --forge-ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+    --forge-ease-inout:  cubic-bezier(0.65, 0, 0.35, 1);
+    --forge-ease-in:     cubic-bezier(0.7, 0, 0.84, 0);
+    --forge-ease-linear: linear;
+    --forge-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --forge-ease-alert:  cubic-bezier(0.4, 0, 0.2, 1);
+
+    --forge-dur-instant: 80ms;
+    --forge-dur-fast:    120ms;
+    --forge-dur-base:    200ms;
+    --forge-dur-slow:    360ms;
+    --forge-dur-pulse:   1400ms;
+    --forge-dur-flash:   600ms;
+
+    --forge-trans-color: color var(--forge-dur-fast) var(--forge-ease-out),
+                         background-color var(--forge-dur-fast) var(--forge-ease-out),
+                         border-color var(--forge-dur-fast) var(--forge-ease-out);
+    --forge-trans-transform: transform var(--forge-dur-base) var(--forge-ease-out);
+    --forge-trans-all: all var(--forge-dur-base) var(--forge-ease-out);
+
+    font-family: var(--forge-font-body);
   }
-
 }
 
 @layer base {
@@ -54,50 +161,161 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--forge-font-body);
+    font-weight: var(--forge-weight-regular);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Sora', 'Inter', system-ui, sans-serif;
+    font-family: var(--forge-font-heading);
+    font-weight: var(--forge-weight-semibold);
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  code, pre, kbd, samp {
+    font-family: var(--forge-font-mono);
   }
 }
 
-/* Custom scrollbar - Navy themed */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* ============================================================
+   MOTION KEYFRAMES — system-owned, reusable
+   ============================================================ */
+
+@keyframes forge-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.06); }
 }
 
-::-webkit-scrollbar-track {
-  background: hsl(213 45% 14%);
-  border-radius: 4px;
+@keyframes forge-flash-critical {
+  0%   { background-color: rgba(220, 38, 38, 0.0); }
+  20%  { background-color: rgba(220, 38, 38, 0.25); }
+  100% { background-color: rgba(220, 38, 38, 0.0); }
 }
 
-::-webkit-scrollbar-thumb {
-  background: hsl(213 28% 30%);
-  border-radius: 4px;
+@keyframes forge-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(174 84% 32% / 0.5);
+@keyframes forge-toast-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
 }
+
+@keyframes forge-drawer-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes forge-modal-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+@keyframes forge-scan-beam {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Custom scrollbar — navy themed */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: hsl(213 45% 14%); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: hsl(213 28% 30%); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(174 84% 32% / 0.5); }
 
 /* Recharts customization */
-.recharts-cartesian-axis-tick-value {
-  fill: hsl(var(--muted-foreground));
+.recharts-cartesian-axis-tick-value { fill: hsl(var(--muted-foreground)); }
+.recharts-legend-item-text { color: hsl(var(--foreground)) !important; }
+
+/* ============================================================
+   UTILITY CLASSES — lean, on-brand
+   ============================================================ */
+
+/* Eyebrow — the "FORGESCAN" ALL-CAPS micro label */
+.forge-eyebrow {
+  font-family: var(--forge-font-heading);
+  font-size: 0.6875rem;
+  font-weight: var(--forge-weight-semibold);
+  letter-spacing: var(--forge-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--forge-teal-400);
 }
 
-.recharts-legend-item-text {
-  color: hsl(var(--foreground)) !important;
+.forge-kicker {
+  font-family: var(--forge-font-heading);
+  font-size: 0.75rem;
+  font-weight: var(--forge-weight-semibold);
+  letter-spacing: var(--forge-tracking-kicker);
+  text-transform: uppercase;
+  color: var(--forge-teal-400);
 }
 
-/* Forge brand utilities */
-.forge-glow:hover {
-  box-shadow: 0 0 20px rgba(13, 148, 136, 0.15);
+.forge-mono {
+  font-family: var(--forge-font-mono);
 }
 
 .forge-card-hover {
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color var(--forge-dur-base) var(--forge-ease-out),
+              box-shadow var(--forge-dur-base) var(--forge-ease-out);
 }
 .forge-card-hover:hover {
   border-color: hsl(174 84% 32% / 0.3);
-  box-shadow: 0 0 0 1px hsl(174 84% 32% / 0.1);
+  box-shadow: var(--forge-shadow-ring);
+}
+
+.forge-glow:hover {
+  box-shadow: var(--forge-shadow-glow);
+}
+
+.forge-pulse-dot {
+  animation: forge-pulse var(--forge-dur-pulse) var(--forge-ease-inout) infinite;
+}
+
+.forge-flash-critical {
+  animation: forge-flash-critical var(--forge-dur-flash) var(--forge-ease-alert) 1;
+}
+
+.forge-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(213 35% 22%) 0%,
+    hsl(213 35% 28%) 50%,
+    hsl(213 35% 22%) 100%
+  );
+  background-size: 200% 100%;
+  animation: forge-shimmer 1.6s linear infinite;
+}
+
+/* Severity helpers — text + badge backgrounds keyed to tokens */
+.forge-sev-critical { color: var(--forge-sev-critical); }
+.forge-sev-high     { color: var(--forge-sev-high); }
+.forge-sev-medium   { color: var(--forge-sev-medium); }
+.forge-sev-low      { color: var(--forge-sev-low); }
+.forge-sev-info     { color: var(--forge-sev-info); }
+
+.forge-sev-bg-critical { background-color: rgba(220, 38, 38, 0.15); border-color: rgba(220, 38, 38, 0.30); color: #fca5a5; }
+.forge-sev-bg-high     { background-color: rgba(234, 88, 12, 0.15); border-color: rgba(234, 88, 12, 0.30); color: #fdba74; }
+.forge-sev-bg-medium   { background-color: rgba(202,138,  4, 0.15); border-color: rgba(202,138,  4, 0.30); color: #fde047; }
+.forge-sev-bg-low      { background-color: rgba( 22,163, 74, 0.15); border-color: rgba( 22,163, 74, 0.30); color: #86efac; }
+.forge-sev-bg-info     { background-color: rgba( 37, 99,235, 0.15); border-color: rgba( 37, 99,235, 0.30); color: #93c5fd; }
+
+/* Stat-card icon chip — 32px rounded square, teal wash, used on dashboards */
+.forge-stat-chip {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  background: rgba(13, 148, 136, 0.10);
+  color: var(--forge-teal-400);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }

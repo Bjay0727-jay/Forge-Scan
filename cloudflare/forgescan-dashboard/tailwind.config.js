@@ -48,7 +48,7 @@ export default {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
-        // Forge Cyber Defense Brand Colors
+        // ===== Forge Cyber Defense Brand =====
         navy: {
           50: '#e6edf5',
           100: '#c0d0e3',
@@ -74,15 +74,59 @@ export default {
           low: '#16a34a',
           info: '#2563eb',
         },
+        // Risk-grade — Executive Scorecard glyph only
+        grade: {
+          a: '#22c55e',
+          b: '#3b82f6',
+          c: '#eab308',
+          d: '#f97316',
+          f: '#ef4444',
+        },
       },
       fontFamily: {
         heading: ['Sora', 'Inter', 'system-ui', 'sans-serif'],
         body: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'ui-monospace', 'SF Mono', 'Menlo', 'monospace'],
+      },
+      fontSize: {
+        // Forge type scale — compounds against 14px html base
+        'forge-xs':   ['0.75rem',   { lineHeight: '1.4' }],
+        'forge-sm':   ['0.8125rem', { lineHeight: '1.45' }],
+        'forge-base': ['0.875rem',  { lineHeight: '1.5' }],
+        'forge-md':   ['1rem',      { lineHeight: '1.5' }],
+        'forge-lg':   ['1.125rem',  { lineHeight: '1.45' }],
+        'forge-xl':   ['1.5rem',    { lineHeight: '1.25' }],
+        'forge-2xl':  ['2rem',      { lineHeight: '1.2' }],
+        'forge-3xl':  ['2.75rem',   { lineHeight: '1.1' }],
+        'forge-hero': ['4rem',      { lineHeight: '1.05' }],
+      },
+      letterSpacing: {
+        eyebrow: '0.35em',
+        kicker:  '0.18em',
       },
       borderRadius: {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
+      },
+      boxShadow: {
+        'forge-card': '0 1px 2px 0 rgba(0,0,0,0.25)',
+        'forge-pop':  '0 10px 30px -10px rgba(0,0,0,0.5)',
+        'forge-glow': '0 0 20px rgba(13,148,136,0.15)',
+        'forge-ring': '0 0 0 1px hsl(174 84% 32% / 0.1)',
+      },
+      transitionTimingFunction: {
+        'forge-out':    'cubic-bezier(0.16, 1, 0.3, 1)',
+        'forge-inout':  'cubic-bezier(0.65, 0, 0.35, 1)',
+        'forge-in':     'cubic-bezier(0.7, 0, 0.84, 0)',
+        'forge-spring': 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+        'forge-alert':  'cubic-bezier(0.4, 0, 0.2, 1)',
+      },
+      transitionDuration: {
+        'forge-instant': '80ms',
+        'forge-fast':    '120ms',
+        'forge-base':    '200ms',
+        'forge-slow':    '360ms',
       },
       keyframes: {
         'accordion-down': {
@@ -93,10 +137,46 @@ export default {
           from: { height: 'var(--radix-accordion-content-height)' },
           to: { height: 0 },
         },
+        'forge-pulse': {
+          '0%, 100%': { opacity: '0.55', transform: 'scale(1)' },
+          '50%':      { opacity: '1',    transform: 'scale(1.06)' },
+        },
+        'forge-flash-critical': {
+          '0%':   { backgroundColor: 'rgba(220, 38, 38, 0)' },
+          '20%':  { backgroundColor: 'rgba(220, 38, 38, 0.25)' },
+          '100%': { backgroundColor: 'rgba(220, 38, 38, 0)' },
+        },
+        'forge-shimmer': {
+          '0%':   { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
+        },
+        'forge-toast-in': {
+          from: { opacity: '0', transform: 'translateY(12px) scale(0.96)' },
+          to:   { opacity: '1', transform: 'translateY(0) scale(1)' },
+        },
+        'forge-drawer-in': {
+          from: { transform: 'translateX(100%)' },
+          to:   { transform: 'translateX(0)' },
+        },
+        'forge-modal-in': {
+          from: { opacity: '0', transform: 'translateY(8px) scale(0.98)' },
+          to:   { opacity: '1', transform: 'translateY(0) scale(1)' },
+        },
+        'forge-scan-beam': {
+          '0%':   { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(100%)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
-        'accordion-up': 'accordion-up 0.2s ease-out',
+        'accordion-up':   'accordion-up 0.2s ease-out',
+        'forge-pulse':    'forge-pulse 1400ms cubic-bezier(0.65, 0, 0.35, 1) infinite',
+        'forge-flash':    'forge-flash-critical 600ms cubic-bezier(0.4, 0, 0.2, 1) 1',
+        'forge-shimmer':  'forge-shimmer 1.6s linear infinite',
+        'forge-toast-in': 'forge-toast-in 200ms cubic-bezier(0.16, 1, 0.3, 1)',
+        'forge-drawer-in':'forge-drawer-in 360ms cubic-bezier(0.16, 1, 0.3, 1)',
+        'forge-modal-in': 'forge-modal-in 200ms cubic-bezier(0.16, 1, 0.3, 1)',
+        'forge-scan-beam':'forge-scan-beam 1.8s linear infinite',
       },
     },
   },

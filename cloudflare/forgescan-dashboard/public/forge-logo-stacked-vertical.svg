@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 550" width="400" height="550">
+  <defs>
+    <linearGradient id="tealGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3ac5c9"></stop>
+      <stop offset="100%" style="stop-color:#1a7a7a"></stop>
+    </linearGradient>
+    <linearGradient id="darkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#243b5c"></stop>
+      <stop offset="100%" style="stop-color:#152238"></stop>
+    </linearGradient>
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e0e8f0"></stop>
+      <stop offset="30%" style="stop-color:#8899aa"></stop>
+      <stop offset="50%" style="stop-color:#c0ccd8"></stop>
+      <stop offset="70%" style="stop-color:#8899aa"></stop>
+      <stop offset="100%" style="stop-color:#e0e8f0"></stop>
+    </linearGradient>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff"></stop>
+      <stop offset="100%" style="stop-color:#b0c0d0"></stop>
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.3"></feDropShadow>
+    </filter>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="1.5" result="coloredBlur"></feGaussianBlur>
+      <feMerge><feMergeNode in="coloredBlur"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge>
+    </filter>
+  </defs>
+
+  
+
+  
+  <g transform="translate(105, 10) scale(0.8)">
+    <path d="M120,30 L220,60 L220,175 C220,230 180,265 120,290 C60,265 20,230 20,175 L20,60 Z" fill="url(#borderGrad)" filter="url(#shadow)"></path>
+    <path d="M120,40 L212,67 L212,173 C212,223 175,257 120,280 L120,40Z" fill="url(#tealGrad)"></path>
+    <path d="M120,40 L28,67 L28,173 C28,223 65,257 120,280 L120,40Z" fill="url(#darkGrad)"></path>
+    <line x1="120" y1="42" x2="120" y2="278" stroke="#4a6a8a" stroke-width="0.8" opacity="0.5"></line>
+    <g transform="translate(108, 62) scale(0.45)">
+      <path d="M15,5 L28,10 L28,22 C28,30 22,35 15,38 C8,35 2,30 2,22 L2,10 Z" fill="none" stroke="#c0d0e0" stroke-width="2.5"></path>
+      <path d="M10,20 L14,24 L22,14" fill="none" stroke="#3ac5c9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
+    </g>
+    <g transform="translate(104, 210) scale(0.9)">
+      <rect x="5" y="16" width="24" height="20" rx="3" fill="#c0d0e0" opacity="0.9"></rect>
+      <path d="M10,16 L10,10 C10,4 14,0 17,0 C20,0 24,4 24,10 L24,16" fill="none" stroke="#c0d0e0" stroke-width="2.5" opacity="0.9"></path>
+      <circle cx="17" cy="25" r="3" fill="#1a2d4a"></circle>
+      <rect x="15.5" y="25" width="3" height="5" fill="#1a2d4a"></rect>
+    </g>
+  </g>
+
+  
+  <g opacity="0.4">
+    <line x1="80" y1="290" x2="320" y2="290" stroke="#3a9a9a" stroke-width="0.5"></line>
+  </g>
+
+  
+  <text x="200" y="350" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="68" fill="url(#textGrad)" letter-spacing="10" filter="url(#glow)">FORGE</text>
+
+  
+  <text x="200" y="390" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="400" font-size="24" fill="#8899aa" letter-spacing="8">CYBER DEFENSE</text>
+
+  
+  <line x1="120" y1="410" x2="280" y2="410" stroke="#3a9a9a" stroke-width="0.5" opacity="0.4"></line>
+
+  
+  <text x="200" y="435" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="300" font-size="9" fill="#4a6a8a" letter-spacing="4">SERVICE-DISABLED VETERAN-OWNED SMALL BUSINESS</text>
+</svg>
