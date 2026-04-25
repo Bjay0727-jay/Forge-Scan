@@ -30,6 +30,8 @@ export const StatCard = React.forwardRef<HTMLDivElement, StatCardProps>(
   ({ label, value, helper, icon: Icon, trend, live, className, ...props }, ref) => (
     <Card
       ref={ref}
+      role="group"
+      aria-label={label}
       className={cn('forge-card-hover', className)}
       {...props}
     >
