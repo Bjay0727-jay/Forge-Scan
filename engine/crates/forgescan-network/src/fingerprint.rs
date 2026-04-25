@@ -460,11 +460,10 @@ impl HostFingerprint {
             count += 1;
         }
 
-        self.confidence = if count > 0 {
-            (total_confidence / count) as u8
-        } else {
-            0
-        };
+        self.confidence = total_confidence
+            .checked_div(count)
+            .map(|avg| avg as u8)
+            .unwrap_or(0);
     }
 
     /// Get a summary of detected services

@@ -527,7 +527,7 @@ impl CaptureSession {
 
         // Build top talkers (sorted by byte count, top 10)
         let mut top_talkers: Vec<(String, u64)> = host_bytes.into_iter().collect();
-        top_talkers.sort_by(|a, b| b.1.cmp(&a.1));
+        top_talkers.sort_by_key(|t| std::cmp::Reverse(t.1));
         top_talkers.truncate(10);
 
         let stats = CaptureStats {
