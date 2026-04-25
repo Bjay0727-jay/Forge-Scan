@@ -10,46 +10,27 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  // Pre-bundle the recharts tree as ESM. react-smooth ships CommonJS that
-  // does `require('react')` inside Animate.js — without this Vite can split
-  // react-smooth into a chunk where the React import resolves to `undefined`
-  // at runtime, producing
-  //   "Cannot read properties of undefined (reading 'PureComponent')".
-  optimizeDeps: {
-    include: ['recharts', 'react-smooth', 'react-is', 'prop-types'],
-  },
   build: {
     outDir: 'dist',
     sourcemap: true,
     chunkSizeWarningLimit: 600,
-    // Transform mixed-ESM CommonJS modules so react-smooth's `require('react')`
-    // resolves through the same interop wrapper as our ESM imports.
-    commonjsOptions: {
-      transformMixedEsModules: true,
-    },
     rollupOptions: {
       output: {
+        // Conservative manualChunks. We DELIBERATELY do not split the
+        // recharts tree (recharts + react-smooth + d3-* + victory-vendor)
+        // — fragmenting that graph triggers TDZ errors at runtime
+        // ("Cannot access 'P' before initialization" inside Layer.js)
+        // because react-smooth's CommonJS modules contain circular imports
+        // that Rollup can only resolve safely when they live in a single
+        // automatically-derived chunk. Rollup will still hoist recharts
+        // into a shared chunk since multiple pages import it.
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
 
-          // Charts: keep recharts + ALL of its transitive React consumers
-          // (react-smooth, victory-vendor, d3-*, decimal.js-light, etc.)
-          // in one chunk so the CJS-to-ESM interop is consistent.
-          if (
-            id.includes('/recharts/') ||
-            id.includes('/react-smooth/') ||
-            id.includes('/victory-vendor/') ||
-            id.includes('/d3-') ||
-            id.includes('/decimal.js-light/') ||
-            id.includes('/internmap/')
-          ) {
-            return 'charts';
-          }
-
-          // Radix primitives bundle on their own — used by the UI kit.
+          // Radix primitives — leaf libs, safe to split.
           if (id.includes('/@radix-ui/')) return 'radix';
 
-          // Icon set ships hundreds of icons; keep separate.
+          // Lucide icons — leaf lib, safe to split.
           if (id.includes('/lucide-react/')) return 'icons';
 
           // React + router get the conventional vendor chunk.
@@ -62,7 +43,10 @@ export default defineConfig({
             return 'vendor';
           }
 
-          return 'libs';
+          // Everything else (recharts tree, date-fns, etc.) — let Rollup
+          // decide. It will create shared chunks for modules imported by
+          // multiple pages and inline single-page deps where appropriate.
+          return undefined;
         },
       },
     },
