@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { StatCard } from '@/components/ui/stat-card';
 import {
   Table,
   TableBody,
@@ -631,60 +632,28 @@ export function Vulnerabilities() {
         </Button>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards — design-system StatCard */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="forge-card-hover">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="rounded-xl p-3" style={{ background: 'rgba(13,148,136,0.1)' }}>
-                <Database className="h-6 w-6" style={{ color: '#14b8a6' }} />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{(stats?.total || 0).toLocaleString()}</p>
-                <p className="text-sm text-muted-foreground mt-0.5">Total CVEs</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="forge-card-hover">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="rounded-xl p-3 bg-red-500/10">
-                <AlertTriangle className="h-6 w-6 text-red-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{stats?.critical || 0}</p>
-                <p className="text-sm text-muted-foreground mt-0.5">Critical</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="forge-card-hover">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="rounded-xl p-3 bg-orange-500/10">
-                <Shield className="h-6 w-6 text-orange-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{syncState?.kev_total || 0}</p>
-                <p className="text-sm text-muted-foreground mt-0.5">CISA KEV</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="forge-card-hover">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="rounded-xl p-3 bg-blue-500/10">
-                <Activity className="h-6 w-6 text-blue-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{syncState?.epss_total || 0}</p>
-                <p className="text-sm text-muted-foreground mt-0.5">EPSS Scored</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard
+          label="Total CVEs"
+          value={(stats?.total || 0).toLocaleString()}
+          icon={Database}
+        />
+        <StatCard
+          label="Critical"
+          value={(stats?.critical || 0).toLocaleString()}
+          icon={AlertTriangle}
+        />
+        <StatCard
+          label="CISA KEV"
+          value={(syncState?.kev_total || 0).toLocaleString()}
+          icon={Shield}
+        />
+        <StatCard
+          label="EPSS Scored"
+          value={(syncState?.epss_total || 0).toLocaleString()}
+          icon={Activity}
+        />
       </div>
 
       {/* Sync Controls (Admin only) */}

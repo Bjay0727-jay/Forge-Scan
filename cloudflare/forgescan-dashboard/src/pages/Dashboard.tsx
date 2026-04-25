@@ -35,6 +35,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { StatCard } from '@/components/ui/stat-card';
+import { SeverityBadge, SEVERITY_ORDER } from '@/components/ui/severity-badge';
+import { LivePulse } from '@/components/ui/live-pulse';
+import { RiskGrade, type RiskGrade as RiskGradeType } from '@/components/ui/risk-grade';
 import { SeverityPieChart } from '@/components/charts/SeverityPieChart';
 import { RiskTrendChart } from '@/components/charts/RiskTrendChart';
 import { StateBarChart } from '@/components/charts/StateBarChart';
@@ -65,30 +69,32 @@ const GRADE_CONFIG: Record<string, { color: string; bg: string; border: string; 
   F: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.3)', label: 'Critical' },
 };
 
-function StatCard({
+/**
+ * Dashboard metric tile — wraps the design-system StatCard in a Link.
+ * Use the StatCard primitive directly when no navigation target is needed.
+ */
+function LinkStat({
   title,
   value,
-  icon: Icon,
+  icon,
   href,
+  helper,
 }: {
   title: string;
   value: number;
   icon: React.ElementType;
   href: string;
+  helper?: React.ReactNode;
 }) {
+  const Icon = icon as Parameters<typeof StatCard>[0]['icon'];
   return (
-    <Link to={href}>
-      <Card className="forge-card-hover transition-all hover:bg-accent/50">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-          <div className="rounded-lg p-2" style={{ background: 'rgba(13,148,136,0.1)' }}>
-            <Icon className="h-4 w-4" style={{ color: '#0D9488' }} />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{value.toLocaleString()}</div>
-        </CardContent>
-      </Card>
+    <Link to={href} aria-label={`${title}: ${value.toLocaleString()}`}>
+      <StatCard
+        label={title}
+        value={value.toLocaleString()}
+        icon={Icon}
+        helper={helper}
+      />
     </Link>
   );
 }
@@ -121,41 +127,36 @@ function ExecutiveScorecard({ metrics }: { metrics: ExecutiveMetrics }) {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4">
-              <div
-                className="flex h-20 w-20 items-center justify-center rounded-2xl text-5xl font-black"
-                style={{ background: gradeInfo.bg, color: gradeInfo.color, border: `2px solid ${gradeInfo.border}` }}
-              >
-                {metrics.risk_grade.grade}
-              </div>
+              <RiskGrade
+                grade={metrics.risk_grade.grade as RiskGradeType}
+                score={metrics.risk_grade.score}
+                size={84}
+              />
               <div className="flex-1">
-                <div className="text-lg font-semibold" style={{ color: gradeInfo.color }}>
+                <div
+                  className="font-heading text-lg font-semibold"
+                  style={{ color: gradeInfo.color }}
+                >
                   {gradeInfo.label}
                 </div>
-                <div className="text-xs text-muted-foreground mt-1">
+                <div className="mt-1 text-xs text-muted-foreground">
                   Risk Score: {metrics.risk_grade.score}/100
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {metrics.risk_grade.open_findings} open findings
+                  {metrics.risk_grade.open_findings.toLocaleString()} open findings
                 </div>
               </div>
             </div>
-            {/* Mini severity breakdown */}
-            <div className="mt-3 flex gap-2">
-              {sc.critical > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-md bg-red-500/10 px-2 py-0.5 text-[11px] font-medium text-red-400 border border-red-500/20">
-                  {sc.critical} Critical
-                </span>
-              )}
-              {sc.high > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-md bg-orange-500/10 px-2 py-0.5 text-[11px] font-medium text-orange-400 border border-orange-500/20">
-                  {sc.high} High
-                </span>
-              )}
-              {sc.medium > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-md bg-yellow-500/10 px-2 py-0.5 text-[11px] font-medium text-yellow-400 border border-yellow-500/20">
-                  {sc.medium} Med
-                </span>
-              )}
+            {/* Mini severity breakdown — uses contractual order + tokens */}
+            <div className="mt-3 flex flex-wrap gap-2">
+              {SEVERITY_ORDER.filter((sev) => (sc[sev] ?? 0) > 0).map((sev) => (
+                <SeverityBadge
+                  key={sev}
+                  severity={sev}
+                  withDot={false}
+                  label={`${sc[sev]} ${sev === 'medium' ? 'Med' : sev[0].toUpperCase() + sev.slice(1)}`}
+                />
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -698,10 +699,7 @@ export function Dashboard() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2 text-base">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500" />
-                </span>
+                <LivePulse tone="info" size={10} label="Scans in progress" />
                 {activeScansData.items.length} Active Scan{activeScansData.items.length !== 1 ? 's' : ''}
               </CardTitle>
               <Link to="/scans?status=running">
@@ -778,25 +776,25 @@ export function Dashboard() {
 
       {/* Operational Stats Cards */}
       <div className="mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard
+        <LinkStat
           title="Total Assets"
           value={dashboardData.total_assets}
           icon={Server}
           href="/assets"
         />
-        <StatCard
+        <LinkStat
           title="Total Findings"
           value={dashboardData.total_findings}
           icon={AlertTriangle}
           href="/findings"
         />
-        <StatCard
+        <LinkStat
           title="Total Scans"
           value={dashboardData.total_scans}
           icon={Scan}
           href="/scans"
         />
-        <StatCard
+        <LinkStat
           title="Resolved"
           value={dashboardData.findings_by_state.resolved || 0}
           icon={CheckCircle2}

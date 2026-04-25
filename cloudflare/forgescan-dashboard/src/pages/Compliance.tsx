@@ -10,11 +10,16 @@ import {
   MinusCircle,
   ExternalLink,
   HelpCircle,
+  Layers,
+  FileCheck,
+  AlertTriangle,
+  TrendingUp,
 } from 'lucide-react';
 import { useAuth, hasRole } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { StatCard } from '@/components/ui/stat-card';
 import {
   Table,
   TableBody,
@@ -231,34 +236,34 @@ export function Compliance() {
         </div>
       </div>
 
-      {/* Stats Summary */}
+      {/* Stats Summary — design-system StatCard */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-2xl font-bold">{frameworks.length}</p>
-            <p className="text-sm text-muted-foreground">Frameworks</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-2xl font-bold">{totalControls}</p>
-            <p className="text-sm text-muted-foreground">Total Controls</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className={`text-2xl font-bold ${complianceColor(avgCompliance)}`}>{avgCompliance}%</p>
-            <p className="text-sm text-muted-foreground">Avg Compliance</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-2xl font-bold text-red-400">
-              {frameworks.filter(f => (f.compliance_percentage || 0) < 50).length}
-            </p>
-            <p className="text-sm text-muted-foreground">At Risk</p>
-          </CardContent>
-        </Card>
+        <StatCard
+          label="Frameworks"
+          value={frameworks.length.toLocaleString()}
+          icon={Layers}
+        />
+        <StatCard
+          label="Total Controls"
+          value={totalControls.toLocaleString()}
+          icon={FileCheck}
+        />
+        <StatCard
+          label="Avg Compliance"
+          value={
+            <span className={complianceColor(avgCompliance)}>{avgCompliance}%</span>
+          }
+          icon={TrendingUp}
+        />
+        <StatCard
+          label="At Risk"
+          value={
+            <span className="text-severity-critical">
+              {frameworks.filter((f) => (f.compliance_percentage || 0) < 50).length}
+            </span>
+          }
+          icon={AlertTriangle}
+        />
       </div>
 
       {/* Framework Cards */}
