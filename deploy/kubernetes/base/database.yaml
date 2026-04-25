@@ -21,13 +21,28 @@ spec:
         app.kubernetes.io/name: postgres
         app.kubernetes.io/component: database
     spec:
+      automountServiceAccountToken: false
       securityContext:
-        fsGroup: 999
+        runAsNonRoot: true
         runAsUser: 999
         runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: postgres
           image: postgres:16-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+                - SETGID
+                - SETUID
+                - FOWNER
+                - DAC_OVERRIDE
           ports:
             - name: postgres
               containerPort: 5432
@@ -313,14 +328,23 @@ spec:
         app.kubernetes.io/name: redis
         app.kubernetes.io/component: cache
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 999
         runAsGroup: 999
         fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: redis
           image: redis:7-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           args:
             - redis-server
             - --appendonly
