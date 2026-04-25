@@ -294,7 +294,7 @@ impl PdfReportRenderer {
             })
             .collect();
 
-        all_findings.sort_by(|a, b| b.0.as_number().cmp(&a.0.as_number()));
+        all_findings.sort_by_key(|f| std::cmp::Reverse(f.0.as_number()));
         all_findings.truncate(10);
 
         if all_findings.is_empty() {
