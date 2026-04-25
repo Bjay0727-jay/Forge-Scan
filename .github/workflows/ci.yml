@@ -91,7 +91,16 @@ jobs:
         run: cargo install cargo-audit
 
       - name: Run cargo-audit (ignores documented in engine/audit.toml)
-        run: cargo audit
+        # Ignores are also passed as flags so the job is robust against
+        # cargo-audit version changes that don't auto-load audit.toml.
+        # Rationale + re-evaluation dates live in engine/audit.toml.
+        run: |
+          cargo audit \
+            --ignore RUSTSEC-2026-0049 \
+            --ignore RUSTSEC-2026-0098 \
+            --ignore RUSTSEC-2026-0099 \
+            --ignore RUSTSEC-2026-0104 \
+            --ignore RUSTSEC-2026-0097
         working-directory: engine
 
   secret-scan:
