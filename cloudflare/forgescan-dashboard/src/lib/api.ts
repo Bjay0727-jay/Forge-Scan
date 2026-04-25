@@ -59,6 +59,37 @@ class ApiError extends Error {
   }
 }
 
+/**
+ * Resolve the API error envelope to a human-readable string.
+ * The worker returns `{ error: { code, message, details? } }` (preferred);
+ * legacy endpoints may return `{ error: "..." }` or `{ message: "..." }`.
+ * Without this helper passing the object straight to `new ApiError(...)`
+ * stringifies to "[object Object]".
+ */
+function resolveErrorMessage(payload: unknown, status: number): string {
+  if (typeof payload !== 'object' || payload === null) {
+    return `HTTP error ${status}`;
+  }
+  const obj = payload as Record<string, unknown>;
+  // { error: "string" } — legacy
+  if (typeof obj.error === 'string') {
+    return obj.error;
+  }
+  // { error: { message: "string" } } — current envelope
+  if (
+    typeof obj.error === 'object' &&
+    obj.error !== null &&
+    typeof (obj.error as Record<string, unknown>).message === 'string'
+  ) {
+    return (obj.error as { message: string }).message;
+  }
+  // { message: "string" } — bare envelope
+  if (typeof obj.message === 'string') {
+    return obj.message;
+  }
+  return `HTTP error ${status}`;
+}
+
 async function request<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -95,10 +126,10 @@ async function request<T>(
     }
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData: unknown = await response.json().catch(() => ({}));
       throw new ApiError(
-        errorData.error || `HTTP error ${response.status}`,
-        response.status
+        resolveErrorMessage(errorData, response.status),
+        response.status,
       );
     }
 
@@ -329,10 +360,10 @@ export const importApi = {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData: unknown = await response.json().catch(() => ({}));
       throw new ApiError(
-        errorData.error || `HTTP error ${response.status}`,
-        response.status
+        resolveErrorMessage(errorData, response.status),
+        response.status,
       );
     }
 
@@ -366,10 +397,10 @@ export const importApi = {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData: unknown = await response.json().catch(() => ({}));
       throw new ApiError(
-        errorData.error || `HTTP error ${response.status}`,
-        response.status
+        resolveErrorMessage(errorData, response.status),
+        response.status,
       );
     }
 
@@ -396,10 +427,10 @@ export const ingestApi = {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData: unknown = await response.json().catch(() => ({}));
       throw new ApiError(
-        errorData.error?.message || errorData.error || `HTTP error ${response.status}`,
-        response.status
+        resolveErrorMessage(errorData, response.status),
+        response.status,
       );
     }
 

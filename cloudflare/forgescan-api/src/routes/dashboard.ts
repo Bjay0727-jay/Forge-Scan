@@ -6,7 +6,46 @@ import { orgWhereClause, getOrgFilter } from '../middleware/org-scope';
 
 export const dashboard = new Hono<{ Bindings: Env }>();
 
+/**
+ * Run a query that returns a single row, falling back to a default value
+ * (and logging the cause) if D1 errors out — typically a missing column
+ * after schema drift. Lets the dashboard render with partial data instead
+ * of 500ing the entire response.
+ */
+async function safeFirst<T>(
+  label: string,
+  exec: () => Promise<T | null | undefined>,
+  fallback: T,
+): Promise<T> {
+  try {
+    const row = await exec();
+    return (row ?? fallback) as T;
+  } catch (err) {
+    console.error(`[dashboard.safeFirst] ${label} failed:`, err);
+    return fallback;
+  }
+}
+
+async function safeAll<T>(
+  label: string,
+  exec: () => Promise<{ results?: T[] } | null | undefined>,
+): Promise<T[]> {
+  try {
+    const out = await exec();
+    return (out?.results ?? []) as T[];
+  } catch (err) {
+    console.error(`[dashboard.safeAll] ${label} failed:`, err);
+    return [];
+  }
+}
+
 // Get dashboard overview
+//
+// Each independent sub-query runs through `safeFirst` / `safeAll` so a single
+// schema-drift error (e.g. a missing org_id column on a table that wasn't
+// migrated) does not 500 the whole dashboard. Partial data is preferable to
+// no dashboard. The full SQL error is logged to the worker console for
+// triage without leaking it to the client.
 dashboard.get('/overview', async (c) => {
   try {
     const { orgId } = getOrgFilter(c);
@@ -22,35 +61,73 @@ dashboard.get('/overview', async (c) => {
       return c.json(JSON.parse(cached));
     }
 
-    // Get total counts
-    const totals = await c.env.DB.prepare(`
+    type Totals = {
+      total_assets: number;
+      open_findings: number;
+      fixed_findings: number;
+      completed_scans: number;
+    };
+    const ZERO_TOTALS: Totals = {
+      total_assets: 0,
+      open_findings: 0,
+      fixed_findings: 0,
+      completed_scans: 0,
+    };
+
+    const totals = await safeFirst<Totals>(
+      'totals',
+      () =>
+        c.env.DB.prepare(
+          `
       SELECT
         (SELECT COUNT(*) FROM assets WHERE 1=1 ${orgFilter}) as total_assets,
         (SELECT COUNT(*) FROM findings WHERE state = 'open' ${orgFilter}) as open_findings,
         (SELECT COUNT(*) FROM findings WHERE state = 'fixed' ${orgFilter}) as fixed_findings,
         (SELECT COUNT(*) FROM scans WHERE status = 'completed' ${orgFilter}) as completed_scans
-    `).bind(...orgParams, ...orgParams, ...orgParams, ...orgParams).first();
+    `,
+        )
+          .bind(...orgParams, ...orgParams, ...orgParams, ...orgParams)
+          .first<Totals>(),
+      ZERO_TOTALS,
+    );
 
-    // Get severity breakdown
-    const severityCounts = await c.env.DB.prepare(`
+    const severityResults = await safeAll<{ severity: string; count: number }>(
+      'severity_breakdown',
+      () =>
+        c.env.DB.prepare(
+          `
       SELECT severity, COUNT(*) as count
       FROM findings
       WHERE state = 'open' ${orgFilter}
       GROUP BY severity
-    `).bind(...orgParams).all();
+    `,
+        )
+          .bind(...orgParams)
+          .all(),
+    );
 
-    // Get recent findings
-    const recentFindings = await c.env.DB.prepare(`
+    const recentFindings = await safeAll(
+      'recent_findings',
+      () =>
+        c.env.DB.prepare(
+          `
       SELECT f.id, f.title, f.severity, f.vendor, f.created_at, a.hostname
       FROM findings f
       LEFT JOIN assets a ON f.asset_id = a.id
       WHERE f.state = 'open' ${orgFilterF}
       ORDER BY f.created_at DESC
       LIMIT 10
-    `).bind(...orgParams).all();
+    `,
+        )
+          .bind(...orgParams)
+          .all(),
+    );
 
-    // Get top vulnerable assets
-    const topAssets = await c.env.DB.prepare(`
+    const topAssets = await safeAll(
+      'top_vulnerable_assets',
+      () =>
+        c.env.DB.prepare(
+          `
       SELECT
         a.id,
         a.hostname,
@@ -65,13 +142,17 @@ dashboard.get('/overview', async (c) => {
       HAVING finding_count > 0
       ORDER BY critical_count DESC, high_count DESC, finding_count DESC
       LIMIT 10
-    `).bind(...orgParams).all();
+    `,
+        )
+          .bind(...orgParams)
+          .all(),
+    );
 
     const result = {
       totals,
-      severity_breakdown: severityCounts.results,
-      recent_findings: recentFindings.results,
-      top_vulnerable_assets: topAssets.results,
+      severity_breakdown: severityResults,
+      recent_findings: recentFindings,
+      top_vulnerable_assets: topAssets,
       generated_at: new Date().toISOString(),
     };
 
@@ -80,6 +161,8 @@ dashboard.get('/overview', async (c) => {
 
     return c.json(result);
   } catch (err) {
+    // Anything that escaped the safe-* helpers (cache layer, etc.) lands here.
+    console.error('[dashboard./overview] unexpected:', err);
     throw databaseError(err);
   }
 });
@@ -365,7 +448,27 @@ dashboard.get('/executive', async (c) => {
     }
 
     // -- Risk Grade ------------------------------------------------
-    const counts = await c.env.DB.prepare(`
+    type SeverityCounts = {
+      critical: number;
+      high: number;
+      medium: number;
+      low: number;
+      info: number;
+      total: number;
+    };
+    const ZERO_COUNTS: SeverityCounts = {
+      critical: 0,
+      high: 0,
+      medium: 0,
+      low: 0,
+      info: 0,
+      total: 0,
+    };
+    const c_ = await safeFirst<SeverityCounts>(
+      'severity_counts',
+      () =>
+        c.env.DB.prepare(
+          `
       SELECT
         SUM(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END) as critical,
         SUM(CASE WHEN severity = 'high' THEN 1 ELSE 0 END) as high,
@@ -375,9 +478,12 @@ dashboard.get('/executive', async (c) => {
         COUNT(*) as total
       FROM findings
       WHERE state = 'open' ${orgFilter}
-    `).bind(...orgParams).first<{ critical: number; high: number; medium: number; low: number; info: number; total: number }>();
-
-    const c_ = counts || { critical: 0, high: 0, medium: 0, low: 0, info: 0, total: 0 };
+    `,
+        )
+          .bind(...orgParams)
+          .first<SeverityCounts>(),
+      ZERO_COUNTS,
+    );
     const rawScore = c_.critical * 10 + c_.high * 5 + c_.medium * 2 + c_.low * 1;
     const riskScore = Math.min(100, Math.round((rawScore / 1000) * 100));
 
@@ -388,7 +494,15 @@ dashboard.get('/executive', async (c) => {
     else if (riskScore >= 20) grade = 'B';
 
     // -- MTTR by severity ------------------------------------------
-    const mttrResults = await c.env.DB.prepare(`
+    const mttrResults = await safeAll<{
+      severity: string;
+      avg_days: number;
+      min_days: number;
+      max_days: number;
+      sample_size: number;
+    }>('mttr_by_severity', () =>
+      c.env.DB.prepare(
+        `
       SELECT
         severity,
         ROUND(AVG(julianday(fixed_at) - julianday(first_seen)), 1) as avg_days,
@@ -400,15 +514,31 @@ dashboard.get('/executive', async (c) => {
         AND first_seen IS NOT NULL
         AND fixed_at >= date('now', '-' || ? || ' days') ${orgFilter}
       GROUP BY severity
-    `).bind(daysNum, ...orgParams).all();
+    `,
+      )
+        .bind(daysNum, ...orgParams)
+        .all(),
+    );
 
-    const mttr: Record<string, { avg_days: number; min_days: number; max_days: number; sample_size: number }> = {};
-    (mttrResults.results as { severity: string; avg_days: number; min_days: number; max_days: number; sample_size: number }[])?.forEach((r) => {
-      mttr[r.severity] = { avg_days: r.avg_days || 0, min_days: r.min_days || 0, max_days: r.max_days || 0, sample_size: r.sample_size };
+    const mttr: Record<
+      string,
+      { avg_days: number; min_days: number; max_days: number; sample_size: number }
+    > = {};
+    mttrResults.forEach((r) => {
+      mttr[r.severity] = {
+        avg_days: r.avg_days || 0,
+        min_days: r.min_days || 0,
+        max_days: r.max_days || 0,
+        sample_size: r.sample_size,
+      };
     });
 
     // Overall MTTR across all severities
-    const overallMttr = await c.env.DB.prepare(`
+    const overallMttr = await safeFirst<{ avg_days: number; sample_size: number }>(
+      'overall_mttr',
+      () =>
+        c.env.DB.prepare(
+          `
       SELECT
         ROUND(AVG(julianday(fixed_at) - julianday(first_seen)), 1) as avg_days,
         COUNT(*) as sample_size
@@ -416,13 +546,24 @@ dashboard.get('/executive', async (c) => {
       WHERE fixed_at IS NOT NULL
         AND first_seen IS NOT NULL
         AND fixed_at >= date('now', '-' || ? || ' days') ${orgFilter}
-    `).bind(daysNum, ...orgParams).first<{ avg_days: number; sample_size: number }>();
+    `,
+        )
+          .bind(daysNum, ...orgParams)
+          .first<{ avg_days: number; sample_size: number }>(),
+      { avg_days: 0, sample_size: 0 },
+    );
 
     // -- SLA Compliance --------------------------------------------
     // Standard SLA targets: Critical 7d, High 30d, Medium 90d, Low 180d
     const slaTargets = { critical: 7, high: 30, medium: 90, low: 180 };
 
-    const slaResults = await c.env.DB.prepare(`
+    const slaResults = await safeAll<{
+      severity: string;
+      total_fixed: number;
+      within_sla: number;
+    }>('sla_by_severity', () =>
+      c.env.DB.prepare(
+        `
       SELECT
         severity,
         COUNT(*) as total_fixed,
@@ -438,12 +579,16 @@ dashboard.get('/executive', async (c) => {
         AND first_seen IS NOT NULL
         AND severity IN ('critical', 'high', 'medium', 'low') ${orgFilter}
       GROUP BY severity
-    `).bind(...orgParams).all();
+    `,
+      )
+        .bind(...orgParams)
+        .all(),
+    );
 
     let totalFixed = 0;
     let totalWithinSla = 0;
     const slaBySeverity: Record<string, { total: number; within_sla: number; compliance_pct: number; target_days: number }> = {};
-    (slaResults.results as { severity: string; total_fixed: number; within_sla: number }[])?.forEach((r) => {
+    slaResults.forEach((r) => {
       const pct = r.total_fixed > 0 ? Math.round((r.within_sla / r.total_fixed) * 100) : 100;
       slaBySeverity[r.severity] = {
         total: r.total_fixed,
@@ -458,7 +603,15 @@ dashboard.get('/executive', async (c) => {
     const overallSlaCompliance = totalFixed > 0 ? Math.round((totalWithinSla / totalFixed) * 100) : 100;
 
     // -- Overdue findings (past SLA) -------------------------------
-    const overdueResult = await c.env.DB.prepare(`
+    const overdueResult = await safeFirst<{
+      overdue_count: number;
+      overdue_critical: number;
+      overdue_high: number;
+    }>(
+      'overdue',
+      () =>
+        c.env.DB.prepare(
+          `
       SELECT
         COUNT(*) as overdue_count,
         SUM(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END) as overdue_critical,
@@ -472,10 +625,25 @@ dashboard.get('/executive', async (c) => {
           OR (severity = 'medium' AND julianday('now') - julianday(first_seen) > 90)
           OR (severity = 'low' AND julianday('now') - julianday(first_seen) > 180)
         ) ${orgFilter}
-    `).bind(...orgParams).first<{ overdue_count: number; overdue_critical: number; overdue_high: number }>();
+    `,
+        )
+          .bind(...orgParams)
+          .first<{ overdue_count: number; overdue_critical: number; overdue_high: number }>(),
+      { overdue_count: 0, overdue_critical: 0, overdue_high: 0 },
+    );
 
     // -- Risk Posture Trend (weekly buckets) -----------------------
-    const trendResults = await c.env.DB.prepare(`
+    const trendResults = await safeAll<{
+      week_start: string;
+      risk_score: number;
+      new_findings: number;
+      critical: number;
+      high: number;
+      medium: number;
+      low: number;
+    }>('posture_trend', () =>
+      c.env.DB.prepare(
+        `
       SELECT
         date(created_at, 'weekday 0', '-6 days') as week_start,
         SUM(CASE WHEN severity = 'critical' THEN 10
@@ -492,10 +660,18 @@ dashboard.get('/executive', async (c) => {
       WHERE created_at >= date('now', '-' || ? || ' days') ${orgFilter}
       GROUP BY week_start
       ORDER BY week_start ASC
-    `).bind(daysNum, ...orgParams).all();
+    `,
+      )
+        .bind(daysNum, ...orgParams)
+        .all(),
+    );
 
     // Remediation trend (weekly)
-    const remediationTrend = await c.env.DB.prepare(`
+    const remediationTrend = await safeAll<{ week_start: string; fixed_count: number }>(
+      'remediation_trend',
+      () =>
+        c.env.DB.prepare(
+          `
       SELECT
         date(fixed_at, 'weekday 0', '-6 days') as week_start,
         COUNT(*) as fixed_count
@@ -504,11 +680,15 @@ dashboard.get('/executive', async (c) => {
         AND fixed_at >= date('now', '-' || ? || ' days') ${orgFilter}
       GROUP BY week_start
       ORDER BY week_start ASC
-    `).bind(daysNum, ...orgParams).all();
+    `,
+        )
+          .bind(daysNum, ...orgParams)
+          .all(),
+    );
 
     // Merge new findings and remediation into a single trend
     const trendMap = new Map<string, { week: string; new_findings: number; fixed: number; risk_score: number; critical: number; high: number; medium: number; low: number }>();
-    (trendResults.results as { week_start: string; risk_score: number; new_findings: number; critical: number; high: number; medium: number; low: number }[])?.forEach((r) => {
+    trendResults.forEach((r) => {
       trendMap.set(r.week_start, {
         week: r.week_start,
         new_findings: r.new_findings,
@@ -520,7 +700,7 @@ dashboard.get('/executive', async (c) => {
         low: r.low,
       });
     });
-    (remediationTrend.results as { week_start: string; fixed_count: number }[])?.forEach((r) => {
+    remediationTrend.forEach((r) => {
       const existing = trendMap.get(r.week_start);
       if (existing) {
         existing.fixed = r.fixed_count;
@@ -588,6 +768,7 @@ dashboard.get('/executive', async (c) => {
 
     return c.json(result);
   } catch (err) {
+    console.error('[dashboard./executive] unexpected:', err);
     throw databaseError(err);
   }
 });
