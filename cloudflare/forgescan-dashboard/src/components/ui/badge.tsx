@@ -3,7 +3,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+  'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
   {
     variants: {
       variant: {
@@ -14,11 +14,13 @@ const badgeVariants = cva(
         destructive:
           'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80',
         outline: 'text-foreground',
-        critical: 'border-red-500/30 bg-red-500/15 text-red-400',
-        high: 'border-orange-500/30 bg-orange-500/15 text-orange-400',
-        medium: 'border-yellow-500/30 bg-yellow-500/15 text-yellow-400',
-        low: 'border-green-500/30 bg-green-500/15 text-green-400',
-        info: 'border-blue-500/30 bg-blue-500/15 text-blue-400',
+        // Severity variants — keyed to design-system tokens (forge-sev-*).
+        // Order is contractual: Critical → High → Medium → Low → Info.
+        critical: 'forge-sev-bg-critical',
+        high:     'forge-sev-bg-high',
+        medium:   'forge-sev-bg-medium',
+        low:      'forge-sev-bg-low',
+        info:     'forge-sev-bg-info',
       },
     },
     defaultVariants: {
