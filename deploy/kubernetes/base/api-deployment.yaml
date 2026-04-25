@@ -29,11 +29,14 @@ spec:
         prometheus.io/path: "/metrics"
     spec:
       serviceAccountName: forgescan-api
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: api
           image: ghcr.io/forge-cyber/forgescan-api:latest

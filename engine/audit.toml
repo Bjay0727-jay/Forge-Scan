@@ -1,0 +1,55 @@
+# audit.toml — cargo-audit configuration for the Forge-Scan workspace.
+#
+# Conventions
+#   • Every ignored advisory MUST include rationale + intended fix.
+#   • Re-evaluate every entry at least quarterly (90 days from add date).
+#   • Remove an entry when its tracking PR lands.
+#
+# Re-run locally with:  cd engine && cargo audit
+
+[advisories]
+ignore = [
+  # ---------------------------------------------------------------------
+  # Pre-existing ignore (carried over from the original CI workflow)
+  # ---------------------------------------------------------------------
+  "RUSTSEC-2026-0049",
+
+  # ---------------------------------------------------------------------
+  # rustls-webpki — three advisories against three pinned versions
+  #   • 0.101.7 via tonic 0.11 + aws-smithy 1.x
+  #   • 0.102.8 via tonic 0.11
+  #   • 0.103.10 via reqwest 0.12 + tokio-rustls 0.26
+  # Fix path: workspace-wide bump to tonic 0.12 + aws-smithy 1.2+ +
+  # rustls-webpki 0.103.13. Scheduled in a follow-up PR (own review:
+  # touches every Rust crate that uses tonic / AWS / reqwest).
+  #
+  # Not directly exploitable on current Forge surfaces:
+  #   • 0098 / 0099: name-constraints bypass requires an attacker-supplied
+  #     X.509 chain. Forge connects only to pinned NVD / AWS / customer
+  #     endpoints whose certs we have already validated upstream.
+  #   • 0104: panic on CRL parsing requires consuming an attacker-controlled
+  #     CRL. Forge does not retrieve external CRLs.
+  #
+  # Added: 2026-04-25 · Re-evaluate: 2026-07-22
+  # ---------------------------------------------------------------------
+  "RUSTSEC-2026-0098",  # rustls-webpki: name constraints for URI names
+  "RUSTSEC-2026-0099",  # rustls-webpki: name constraints for wildcards
+  "RUSTSEC-2026-0104",  # rustls-webpki: CRL parsing panic
+
+  # ---------------------------------------------------------------------
+  # rand 0.8 / 0.9 — RUSTSEC-2026-0097 (unsoundness)
+  # Only triggered when a custom logger calls rand::rng() during logger
+  # setup. Forge uses tracing-subscriber with the default formatter and
+  # never instantiates rand from a logger callback.
+  # Fix path: rand 0.10 (workspace bump, follow-up PR).
+  #
+  # Added: 2026-04-25 · Re-evaluate: 2026-07-09
+  # ---------------------------------------------------------------------
+  "RUSTSEC-2026-0097",
+]
+
+# Treat unmaintained-crate notices as warnings (not errors). The blocked
+# unmaintained crates are all transitive (genpdf -> printpdf -> lopdf,
+# scraper -> selectors, tonic -> rustls-pemfile) with no available fix.
+# Track upstream rather than fork.
+informational_warnings = ["unmaintained", "notice", "unsound"]

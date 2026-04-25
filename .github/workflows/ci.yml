@@ -90,8 +90,8 @@ jobs:
       - name: Install cargo-audit
         run: cargo install cargo-audit
 
-      - name: Run cargo-audit (ignore pre-existing tonic/rustls advisory)
-        run: cargo audit --ignore RUSTSEC-2026-0049
+      - name: Run cargo-audit (ignores documented in engine/audit.toml)
+        run: cargo audit
         working-directory: engine
 
   secret-scan:
@@ -177,21 +177,22 @@ jobs:
   iac-scan:
     name: IaC and workflow scanning (Trivy misconfig)
     runs-on: ubuntu-latest
-    # Advisory: pre-existing K8s manifest findings may cause failures.
-    # Findings are uploaded to GitHub Security tab for triage.
-    continue-on-error: true
+    # Documented exceptions live in .trivyignore at the repo root.
+    # All other HIGH/CRITICAL misconfigurations should fail the job.
     steps:
       - uses: actions/checkout@v4
       - name: Trivy config scan (fail on HIGH/CRITICAL)
         run: |
           docker run --rm \
             -v "$PWD:/work" -w /work \
+            -e TRIVY_IGNOREFILE=/work/.trivyignore \
             aquasec/trivy:0.51.2 \
             config \
             --severity HIGH,CRITICAL \
             --exit-code 1 \
             --format sarif \
             --output trivy-config.sarif \
+            --ignorefile /work/.trivyignore \
             .
       - name: Upload Trivy config SARIF
         uses: github/codeql-action/upload-sarif@v3

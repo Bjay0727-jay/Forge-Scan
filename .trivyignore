@@ -1,0 +1,41 @@
+# .trivyignore — Forge-Scan documented exceptions for Trivy IaC scanning.
+#
+# Each entry MUST include rationale + intended fix or explicit "permanent".
+# Re-evaluate quarterly. Remove an entry when its tracking PR lands.
+#
+# Format: <ID>     # <rationale>
+# Re-run locally with:
+#   docker run --rm -v "$PWD:/work" -w /work aquasec/trivy:0.51.2 \
+#       config --severity HIGH,CRITICAL .
+
+# ---------------------------------------------------------------------------
+# Network scanner — runAsUser:0 + NET_RAW + NET_ADMIN are operationally
+# required for raw-socket SYN scanning. See deploy/kubernetes/base/scanner-
+# deployment.yaml > forgescan-network-scanner. The scanner is otherwise
+# locked down (drop ALL caps, allowPrivilegeEscalation:false, readOnlyRoot,
+# seccompProfile RuntimeDefault) and runs in its own namespace with strict
+# NetworkPolicies. Permanent — until a userspace packet capture replaces raw
+# sockets.
+# ---------------------------------------------------------------------------
+AVD-KSV-0011   # CPU not limited (network scanner — capped by node sizing)
+AVD-KSV-0012   # Runs as root user (raw-socket requirement)
+AVD-KSV-0020   # Runs with low UID (raw-socket requirement)
+AVD-KSV-0022   # Capabilities NET_RAW / NET_ADMIN added (raw-socket requirement)
+
+# ---------------------------------------------------------------------------
+# Hetzner / external scanner Docker Compose — uses host networking + raw
+# socket caps for the same reason as the network scanner above. Compose is
+# only used for single-tenant external deployments behind STLink.
+# See deploy/hetzner/docker-compose.yml.
+# Permanent.
+# ---------------------------------------------------------------------------
+AVD-DS-0014    # Use of host networking (compose requirement)
+
+# ---------------------------------------------------------------------------
+# Plaintext placeholder secret in deploy/kubernetes/base/database.yaml.
+# Operators replace this at deploy time via SealedSecrets / external-secrets;
+# the literal "CHANGE_ME_USE_STRONG_PASSWORD" exists only to fail loudly
+# when forgotten. Tracking: doc/customer-onboarding-checklist.md step 4.
+# Permanent.
+# ---------------------------------------------------------------------------
+AVD-KSV-0151   # Plain-text Secret literal (placeholder by design)

@@ -130,10 +130,13 @@ spec:
         app.kubernetes.io/component: scanner
     spec:
       serviceAccountName: forgescan-scanner
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: scanner
           image: ghcr.io/forge-cyber/forgescan-scanner:latest
@@ -197,10 +200,13 @@ spec:
         app.kubernetes.io/component: scanner
     spec:
       serviceAccountName: forgescan-cloud-scanner
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: scanner
           image: ghcr.io/forge-cyber/forgescan-scanner:latest

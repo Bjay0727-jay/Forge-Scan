@@ -45,6 +45,11 @@ USER nonroot:nonroot
 ENTRYPOINT ["/usr/local/bin/forgescan-agent"]
 CMD ["--help"]
 
+# Health check — agent binary responds to --version (distroless has no shell,
+# so we exec the binary directly).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD ["/usr/local/bin/forgescan-agent", "--version"]
+
 # Labels
 LABEL org.opencontainers.image.title="ForgeScan Agent"
 LABEL org.opencontainers.image.description="Lightweight endpoint security agent for configuration auditing"
