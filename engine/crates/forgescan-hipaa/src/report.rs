@@ -559,7 +559,7 @@ impl HipaaReportGenerator {
 
         // Sort mappings by severity (critical first)
         let mut sorted_mappings = result.mappings.clone();
-        sorted_mappings.sort_by(|a, b| b.severity.as_number().cmp(&a.severity.as_number()));
+        sorted_mappings.sort_by_key(|m| std::cmp::Reverse(m.severity.as_number()));
 
         for mapping in &sorted_mappings {
             if mapping.severity.as_number() < Severity::Medium.as_number() {
