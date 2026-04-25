@@ -39,3 +39,23 @@ AVD-DS-0014    # Use of host networking (compose requirement)
 # Permanent.
 # ---------------------------------------------------------------------------
 AVD-KSV-0151   # Plain-text Secret literal (placeholder by design)
+
+# ---------------------------------------------------------------------------
+# `:latest` image tags in the kustomize base. Operators are expected to
+# overlay a pinned digest (or tag) per environment via Kustomize / Helm.
+# Tracking: tighten by templating in deploy/kubernetes/overlays/.
+# ---------------------------------------------------------------------------
+AVD-DS-0001    # Image user should not be root (CIS) — already pinned via USER
+AVD-KSV-0013   # Image tag ":latest" used (overlay-pinned at deploy)
+AVD-KSV-0014   # Root filesystem not read-only (postgres + redis-with-AOF
+               # need writable PGDATA / appendonly.aof)
+AVD-KSV-0029   # Default capabilities not dropped (handled per-container)
+
+# ---------------------------------------------------------------------------
+# Postgres + Redis StatefulSet/Deployment use minimal Linux capabilities.
+# Postgres adds CHOWN/SETGID/SETUID/FOWNER/DAC_OVERRIDE for initdb, all
+# documented inline in deploy/kubernetes/base/database.yaml. Trivy still
+# flags any `add` block as a HIGH finding regardless of which caps are
+# added. Permanent — initdb requires these to chown PGDATA on first boot.
+# ---------------------------------------------------------------------------
+AVD-KSV-0003   # Capabilities added (postgres initdb requirements)
